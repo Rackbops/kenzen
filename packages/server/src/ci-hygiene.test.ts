@@ -23,6 +23,8 @@ function code(yaml: string): string {
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url))
 const pushNotify = code(readFileSync(`${repoRoot}.github/workflows/push-notify.yml`, "utf-8"))
 const testWorkflow = code(readFileSync(`${repoRoot}.github/workflows/test.yml`, "utf-8"))
+const imageRatchet = code(readFileSync(`${repoRoot}.github/workflows/image-ratchet.yml`, "utf-8"))
+const release = code(readFileSync(`${repoRoot}.github/workflows/release.yml`, "utf-8"))
 
 describe("push-notify.yml hygiene", () => {
   it("guards against running on a fork", () => {
@@ -44,5 +46,59 @@ describe("push-notify.yml hygiene", () => {
 describe("test.yml hygiene", () => {
   it("runs on the org disposable pool, never GitHub-hosted minutes", () => {
     expect(testWorkflow).toMatch(/runs-on:\s*\[self-hosted,\s*disposable\]/)
+  })
+})
+
+describe("image-ratchet.yml hygiene", () => {
+  it("runs on the docker DinD slot, not the plain disposable lint pool", () => {
+    expect(imageRatchet).toMatch(/runs-on:\s*\[self-hosted,\s*docker\]/)
+  })
+
+  it("tears down the ratchet container even when a step fails", () => {
+    expect(imageRatchet).toMatch(/name:\s*Teardown[\s\S]*?if:\s*always\(\)/)
+  })
+
+  it("boots the ratchet container with a KENZEN_INGEST_TOKEN set", () => {
+    // kenzen#8 review round 3, MEDIUM, mutation-tested: K4-4 made this a genuinely required
+    // boot-time secret (main.ts's requireIngestToken) -- without it the real image refuses to
+    // start at all, which is exactly what broke this PR's own first CI run. Reverting the `-e
+    // KENZEN_INGEST_TOKEN=...` flag left the rest of this fast local suite green; only the real,
+    // self-hosted-Docker ratchet job would have caught a silent revert without this guard.
+    expect(imageRatchet).toMatch(/docker run .*-e\s+KENZEN_INGEST_TOKEN=\S+/)
+  })
+})
+
+describe("release.yml hygiene", () => {
+  it("guards against publishing from a fork", () => {
+    expect(release).toMatch(/if:\s*github\.repository\s*==\s*['"]Rackbops\/kenzen['"]/)
+  })
+
+  it("authenticates to GHCR with the built-in GITHUB_TOKEN, never a PAT", () => {
+    expect(release).toMatch(/password:\s*\$\{\{\s*secrets\.GITHUB_TOKEN\s*\}\}/)
+    expect(release).not.toMatch(/secrets\.[A-Z_]*PAT[A-Z_]*/)
+  })
+
+  it("never uses secrets: inherit", () => {
+    expect(release).not.toMatch(/secrets:\s*inherit/)
+  })
+
+  it("verifies the tag against packages/server/package.json before publishing", () => {
+    expect(release).toMatch(/version-tag\.mjs/)
+  })
+
+  it("passes the release tag through env:, never splices it directly into run: script text", () => {
+    // kenzen#8 review round 1, MEDIUM: `tag="${{ github.event.inputs.tag || ... }}"` spliced an
+    // attacker-shaped workflow_dispatch/tag-push value directly into shell script text -- a
+    // classic GH Actions script-injection surface (round 2 confirmed live: a crafted tag breaks
+    // out and runs arbitrary commands under that pattern). Guards the fix -- an env: TAG binding
+    // referenced only as "$TAG" -- against a future "simplification" reintroducing the direct
+    // splice under any variable name. Deliberately does NOT flag `${{ }}` used as a plain YAML
+    // action `with:`/`env:` value (e.g. `ref: ${{ ... }}`, `tags: ${{ ... }}`) -- only a shell
+    // variable ASSIGNED FROM a template expression, which is what makes it script text.
+    expect(release).not.toMatch(/=\s*"\$\{\{/)
+    expect(release).toMatch(
+      /env:\s*\n\s*TAG:\s*\$\{\{\s*github\.event\.inputs\.tag\s*\|\|\s*github\.ref_name\s*\}\}/,
+    )
+    expect(release).toMatch(/version-tag\.mjs\s+"\$TAG"/)
   })
 })

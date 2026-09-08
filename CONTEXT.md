@@ -30,10 +30,13 @@ matters.
 - **Each package** carries `package.json` (`private`, `type: module`, scripts), a
   `tsconfig.json` that `extends ../../tsconfig.base.json` (adding `rootDir: src` /
   `outDir: dist` and `include: ["src"]`), and `src/`.
-- **Per-package scripts:** `typecheck` = `tsc --noEmit`; `test` = `vitest run`. **Root
-  scripts** delegate: `typecheck`/`test` run `pnpm -r ...`; `lint`/`format` run Biome;
-  `check` = `biome check .` + `-r typecheck` + `-r test`. No `build`/`-r build` step yet --
-  none of the three packages import another one until K4-2 onward.
+- **Per-package scripts:** `typecheck` = `tsc --noEmit`; `test` = `vitest run`; `build` = `tsc`
+  (K4-4 onward -- see below). **Root scripts** delegate: `typecheck`/`test` run `pnpm -r ...`;
+  `lint`/`format` run Biome; `check` = `pnpm -r build` + `biome check .` + `-r typecheck` +
+  `-r test`. The `-r build` step was added by K4-4 (kenzen#8 review round 3, MEDIUM, inherited
+  stale doc): `@kenzen/server` now imports `@kenzen/contract` (its first cross-package import),
+  so `packages/contract` must build to `dist/` before `packages/server`'s own build/typecheck
+  can resolve it.
 - **`tsconfig.base.json`** -- strict, `nodenext` module/resolution, ES2023, plus
   `noUncheckedIndexedAccess`, `noImplicitOverride`, `verbatimModuleSyntax`, `isolatedModules`,
   `resolveJsonModule`. Copied verbatim from `Rackbops/artifact-console` (design.md section 3).
@@ -48,8 +51,28 @@ permitted since this repo is private (Tooling#437's rule; a public repo must nev
 self-hosted runner). `push-notify.yml` delegates to `roshne/addon-ci`, carries an explicit
 fork guard, and passes `DISCORD_PUSH_WEBHOOK` explicitly rather than via `secrets: inherit`.
 Both properties -- plus the disposable-pool runner input -- are guarded by
-`packages/server/src/ci-hygiene.test.ts`, which reads the two workflow files as text rather
-than taking on a YAML-parser dependency for a handful of regex checks.
+`packages/server/src/ci-hygiene.test.ts`, which reads the workflow files as text rather than
+taking on a YAML-parser dependency for a handful of regex checks.
 
-No `build`/`release`/`image-ratchet` lane yet -- those land with K4-6 (design.md section 3,
-mirroring `Rackbops/artifact-console`'s `release.yml`/`image-ratchet.yml`).
+**`image-ratchet.yml`** (K4-6, Tooling#478) builds the real image on the **`docker`** DinD slot
+(a pull-request check, blocks merge), boots it with no volumes or config.toml (a throwaway
+`KENZEN_INGEST_TOKEN` is the one env var it does set -- K4-4 made that a required boot-time
+secret with no config.toml fallback, so "empty config" no longer means literally zero env vars),
+and asserts `/healthz` (`{ok, version, apiVersion:1}`) and the SPA (`scripts/assert-image.mjs`,
+simplified from
+`Rackbops/artifact-console`'s own copy -- no import-map/plugin ABI to pin here yet). The
+assertion logic is separately unit-tested against fixture servers in
+`packages/server/src/image-assert.test.ts`, so it also runs on the plain test lane with no
+Docker. **`release.yml`** publishes multi-arch (amd64/arm64) to `ghcr.io/rackbops/kenzen` on a
+`v*` tag, on `ubuntu-latest` (not the disposable pool -- buildx/QEMU needs GitHub-hosted
+Docker), version-pinned to `packages/server/package.json` by `scripts/version-tag.mjs`
+(`packages/server/src/version-tag.test.ts` unit-tests the pin). `ci-hygiene.test.ts` guards
+each workflow's own applicable properties, not a uniform set across all four: `image-ratchet.yml`
+has no secrets and no fork-guard to check (self-hosted with no fork-guard is this repo's existing
+`test.yml` convention already), so only its DinD runner label is asserted; `release.yml` runs on
+`ubuntu-latest`, not the DinD label, so only its fork-guard, GITHUB_TOKEN-not-a-PAT,
+no-`secrets: inherit`, and (kenzen#8 review round 2) that its release-tag value flows through an
+`env:` binding rather than being spliced directly into `run:` script text -- a script-injection
+surface found and fixed in round 1, verified live, and separately guarded here against
+regressing under a future edit -- are asserted, alongside confirming `version-tag.mjs` is
+actually invoked before publishing.

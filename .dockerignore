@@ -1,0 +1,14 @@
+# Keep the build context small and clean — the build stage reinstalls and rebuilds from source.
+# Adapted from Rackbops/artifact-console's own .dockerignore (design.md section 3/8); trimmed the
+# two AC-specific lines (its own generated public/ dir, which Kenzen's K4-2 placeholder still
+# needs in-context, and its deploy/answers.env* -- Kenzen has no answers-file render step yet).
+**/node_modules
+.git
+.github
+docs
+**/dist
+**/*.tsbuildinfo
+**/*.log
+.claude
+# Operator secrets never enter the image context.
+deploy/.env*
