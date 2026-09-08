@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
-import { applyTheme, BUNDLED_THEMES, DEFAULT_THEME, resolveTheme } from "./theme.js"
+import { AVAILABLE_THEMES, applyTheme, DEFAULT_THEME, loadTheme, resolveTheme } from "./theme.js"
 
 // K4-7 acceptance: "the theme swap via config proven with ... a class-name assertion."
-// See theme.ts's own module docstring (K4-7 review round 1, HIGH) for why only
-// DEFAULT_THEME is actually bundled today, and why an unbundled configured value falls
-// back rather than silently rendering unstyled.
+// K4-7 round 2: every real @rackbops/styles theme is now genuinely loadable, lazily -- see
+// theme.ts's own module docstring for why (bundle-size measurements, the lookup-table
+// design, and why import.meta.glob doesn't apply to this package's export shape).
 
 let warnSpy: ReturnType<typeof vi.spyOn>
 beforeEach(() => {
@@ -25,31 +25,52 @@ test("resolveTheme falls back on a blank value, matching config.ts's own convent
   expect(warnSpy).not.toHaveBeenCalled()
 })
 
-test("resolveTheme honors a configured theme that IS bundled", () => {
+test("resolveTheme honors any real theme name, not just the default", () => {
   expect(resolveTheme({ VITE_KENZEN_THEME: DEFAULT_THEME })).toBe(DEFAULT_THEME)
+  expect(resolveTheme({ VITE_KENZEN_THEME: "rackbops-studio" })).toBe("rackbops-studio")
+  expect(resolveTheme({ VITE_KENZEN_THEME: "mono-field" })).toBe("mono-field")
   expect(warnSpy).not.toHaveBeenCalled()
 })
 
-test("resolveTheme falls back (with a warning) for a theme name with no matching CSS bundled", () => {
-  // The round-1 bug's real failure mode: a configured-but-unbundled theme used to be applied
-  // to the DOM attribute anyway, silently rendering unstyled. Now it fails safe instead.
-  expect(resolveTheme({ VITE_KENZEN_THEME: "rackbops-studio" })).toBe(DEFAULT_THEME)
-  expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("rackbops-studio"))
+test("resolveTheme falls back (with a warning) for a name that isn't a real theme", () => {
+  expect(resolveTheme({ VITE_KENZEN_THEME: "not-a-real-theme" })).toBe(DEFAULT_THEME)
+  expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("not-a-real-theme"))
   expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(DEFAULT_THEME))
 })
 
-test("BUNDLED_THEMES lists exactly the theme this module actually imports CSS for", () => {
-  expect(BUNDLED_THEMES).toEqual([DEFAULT_THEME])
+test("AVAILABLE_THEMES lists every theme @rackbops/styles ships", () => {
+  expect(AVAILABLE_THEMES).toEqual([
+    "arcane-obsidian",
+    "arcane-parchment",
+    "rackbops-studio",
+    "rackbops-noir",
+    "luminous-precision",
+    "neon-butterfly",
+    "summer-cloud",
+    "concrete-signal",
+    "concrete-signal-light",
+    "amber-hearth",
+    "amber-ember",
+    "mono-field",
+  ])
 })
 
-test("applyTheme sets data-rb-style on the given root to the resolved theme", () => {
+test("loadTheme resolves for every available theme", async () => {
+  for (const theme of AVAILABLE_THEMES) {
+    await expect(loadTheme(theme)).resolves.toBeUndefined()
+  }
+})
+
+test("loadTheme rejects a name that isn't a real theme", async () => {
+  await expect(loadTheme("not-a-real-theme")).rejects.toThrow(/not-a-real-theme/)
+})
+
+test("applyTheme sets data-rb-style on the given root to the resolved theme, and a different config swaps it", () => {
   const root = document.createElement("html")
   applyTheme(resolveTheme({}), root)
   expect(root.dataset.rbStyle).toBe("arcane-obsidian")
-  expect(root.getAttribute("data-rb-style")).toBe("arcane-obsidian")
 
-  // An unbundled config value resolves to the (still real, still applied) default -- the
-  // attribute always reflects a theme whose CSS is genuinely present.
-  applyTheme(resolveTheme({ VITE_KENZEN_THEME: "some-future-theme" }), root)
-  expect(root.dataset.rbStyle).toBe("arcane-obsidian")
+  applyTheme(resolveTheme({ VITE_KENZEN_THEME: "rackbops-studio" }), root)
+  expect(root.dataset.rbStyle).toBe("rackbops-studio")
+  expect(root.getAttribute("data-rb-style")).toBe("rackbops-studio")
 })
