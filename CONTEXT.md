@@ -30,10 +30,13 @@ matters.
 - **Each package** carries `package.json` (`private`, `type: module`, scripts), a
   `tsconfig.json` that `extends ../../tsconfig.base.json` (adding `rootDir: src` /
   `outDir: dist` and `include: ["src"]`), and `src/`.
-- **Per-package scripts:** `typecheck` = `tsc --noEmit`; `test` = `vitest run`. **Root
-  scripts** delegate: `typecheck`/`test` run `pnpm -r ...`; `lint`/`format` run Biome;
-  `check` = `biome check .` + `-r typecheck` + `-r test`. No `build`/`-r build` step yet --
-  none of the three packages import another one until K4-2 onward.
+- **Per-package scripts:** `typecheck` = `tsc --noEmit`; `test` = `vitest run`; `build` = `tsc`
+  (K4-4 onward -- see below). **Root scripts** delegate: `typecheck`/`test` run `pnpm -r ...`;
+  `lint`/`format` run Biome; `check` = `pnpm -r build` + `biome check .` + `-r typecheck` +
+  `-r test`. The `-r build` step was added by K4-4 (kenzen#8 review round 3, MEDIUM, inherited
+  stale doc): `@kenzen/server` now imports `@kenzen/contract` (its first cross-package import),
+  so `packages/contract` must build to `dist/` before `packages/server`'s own build/typecheck
+  can resolve it.
 - **`tsconfig.base.json`** -- strict, `nodenext` module/resolution, ES2023, plus
   `noUncheckedIndexedAccess`, `noImplicitOverride`, `verbatimModuleSyntax`, `isolatedModules`,
   `resolveJsonModule`. Copied verbatim from `Rackbops/artifact-console` (design.md section 3).
@@ -52,8 +55,11 @@ Both properties -- plus the disposable-pool runner input -- are guarded by
 taking on a YAML-parser dependency for a handful of regex checks.
 
 **`image-ratchet.yml`** (K4-6, Tooling#478) builds the real image on the **`docker`** DinD slot
-(a pull-request check, blocks merge), boots it with an empty config, and asserts `/healthz`
-(`{ok, version, apiVersion:1}`) and the SPA (`scripts/assert-image.mjs`, simplified from
+(a pull-request check, blocks merge), boots it with no volumes or config.toml (a throwaway
+`KENZEN_INGEST_TOKEN` is the one env var it does set -- K4-4 made that a required boot-time
+secret with no config.toml fallback, so "empty config" no longer means literally zero env vars),
+and asserts `/healthz` (`{ok, version, apiVersion:1}`) and the SPA (`scripts/assert-image.mjs`,
+simplified from
 `Rackbops/artifact-console`'s own copy -- no import-map/plugin ABI to pin here yet). The
 assertion logic is separately unit-tested against fixture servers in
 `packages/server/src/image-assert.test.ts`, so it also runs on the plain test lane with no

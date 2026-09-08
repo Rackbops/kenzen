@@ -57,6 +57,15 @@ describe("image-ratchet.yml hygiene", () => {
   it("tears down the ratchet container even when a step fails", () => {
     expect(imageRatchet).toMatch(/name:\s*Teardown[\s\S]*?if:\s*always\(\)/)
   })
+
+  it("boots the ratchet container with a KENZEN_INGEST_TOKEN set", () => {
+    // kenzen#8 review round 3, MEDIUM, mutation-tested: K4-4 made this a genuinely required
+    // boot-time secret (main.ts's requireIngestToken) -- without it the real image refuses to
+    // start at all, which is exactly what broke this PR's own first CI run. Reverting the `-e
+    // KENZEN_INGEST_TOKEN=...` flag left the rest of this fast local suite green; only the real,
+    // self-hosted-Docker ratchet job would have caught a silent revert without this guard.
+    expect(imageRatchet).toMatch(/docker run .*-e\s+KENZEN_INGEST_TOKEN=\S+/)
+  })
 })
 
 describe("release.yml hygiene", () => {
