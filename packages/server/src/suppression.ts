@@ -28,6 +28,10 @@ export interface Decision {
   skippedVersion?: string | null
   remindAt?: string | null
   approvedVersion?: string | null
+  /** The item's `pinned` string at the moment `approvedVersion` was set -- internal bookkeeping,
+   * not part of the public decision shape (see `suppressionState`'s approvedVersion branch for
+   * why this exists). */
+  approvedFromPinned?: string | null
   acknowledgedAdvisories?: string[] | null
 }
 
@@ -115,13 +119,19 @@ export function suppressionState(
 
   if (decision.approvedVersion != null) {
     // design.md section 5: "suppressed until `pinned` moves (the PR merged) or `latest`
-    // passes the approved version." There is no stored baseline of what `pinned` was AT
-    // approval time (the decisions table has no snapshot reference), so "pinned moves" is
-    // read as "pinned now equals what was approved" -- the expected shape of a merged PR --
-    // rather than "differs from some remembered prior value".
-    const prLanded = item.pinned === decision.approvedVersion
+    // passes the approved version." A first version of this compared `item.pinned ===
+    // decision.approvedVersion` directly -- correct for an exact-style pin (whose `pinned`
+    // becomes a bare version equal to what was approved once the PR merges), but a
+    // major/floating pin's `pinned` is stored verbatim (`"^14.27.0"` -> `"^14.28.0"`,
+    // software_inventory.py) and so never becomes bare-equal to `approvedVersion` even after
+    // merging -- the check could never fire, leaving the item suppressed forever (Tooling#478
+    // K4-5 review round 1, HIGH). Comparing against `approvedFromPinned` -- the raw `pinned`
+    // string captured at the moment of approval -- detects "pinned changed at all" with a
+    // plain string comparison, independent of pinStyle.
+    const pinnedMoved =
+      decision.approvedFromPinned != null && item.pinned !== decision.approvedFromPinned
     const supersededByNewer = isNewer(item.latest, decision.approvedVersion)
-    return prLanded || supersededByNewer ? "active" : "suppressed"
+    return pinnedMoved || supersededByNewer ? "active" : "suppressed"
   }
 
   return "active"

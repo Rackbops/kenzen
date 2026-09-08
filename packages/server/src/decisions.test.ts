@@ -18,7 +18,11 @@ function freshDb(): DatabaseSync {
   return openState({ dbFile: ":memory:", migrationsDir, log: silent }).db
 }
 
-function seedItem(db: DatabaseSync, overrides: Record<string, unknown> = {}): void {
+function seedItem(
+  db: DatabaseSync,
+  overrides: Record<string, unknown> = {},
+  invOverrides: Record<string, unknown> = {},
+): void {
   const inv: InventoryDoc = {
     repos: ["o/r"],
     readOnly: [],
@@ -32,6 +36,7 @@ function seedItem(db: DatabaseSync, overrides: Record<string, unknown> = {}): vo
         role: "runtime",
         source: "package.json:1",
         resolver: "npm",
+        ...invOverrides,
       },
     ],
   }
@@ -95,6 +100,7 @@ describe("putDecision: identity and round-trip", () => {
       skippedVersion: "2.0.0",
       remindAt: null,
       approvedVersion: null,
+      approvedFromPinned: null,
       acknowledgedAdvisories: null,
       updatedAt: NOW,
       updatedBy: "alice",
@@ -354,6 +360,105 @@ describe("putDecision: trio exclusivity vs. the independent acknowledgedAdvisori
     if (!result.ok) throw new Error("expected ok")
     expect(result.decision?.acknowledgedAdvisories).toEqual(["GHSA-aaaa"])
     expect(result.decision?.skippedVersion).toBe("2.0.0")
+  })
+})
+
+describe("putDecision: approvedFromPinned (Tooling#478 K4-5 review round 1, HIGH)", () => {
+  it("captures the item's current pinned string on an approvedVersion write", () => {
+    const db = freshDb()
+    seedItem(db, { pinned: "^14.27.0" }, { pinned: "^14.27.0", pinStyle: "major" })
+    const result = putDecision(
+      db,
+      KEY,
+      { field: "approvedVersion", value: "14.28.0" },
+      "alice",
+      NOW,
+    )
+    if (!result.ok) throw new Error("expected ok")
+    expect(result.decision?.approvedFromPinned).toBe("^14.27.0")
+  })
+
+  it("is null when no item exists yet to capture a pinned value from", () => {
+    const db = freshDb()
+    const result = putDecision(
+      db,
+      KEY,
+      { field: "approvedVersion", value: "14.28.0" },
+      "alice",
+      NOW,
+    )
+    if (!result.ok) throw new Error("expected ok")
+    expect(result.decision?.approvedFromPinned).toBeNull()
+  })
+
+  it("is reset to null when a different trio field is later set", () => {
+    const db = freshDb()
+    seedItem(db, { pinned: "^14.27.0" })
+    putDecision(db, KEY, { field: "approvedVersion", value: "14.28.0" }, "alice", NOW)
+    const result = putDecision(db, KEY, { field: "skippedVersion", value: "15.0.0" }, "alice", NOW)
+    if (!result.ok) throw new Error("expected ok")
+    expect(result.decision?.approvedFromPinned).toBeNull()
+  })
+
+  it("re-captures fresh on a second approvedVersion write, not carried over from the first", () => {
+    const db = freshDb()
+    seedItem(db, { pinned: "^14.27.0" })
+    putDecision(db, KEY, { field: "approvedVersion", value: "14.28.0" }, "alice", NOW)
+    // The PR for the first approval merged; a later ingest (a distinct generatedAt, so it's a
+    // real new snapshot, not idempotently collapsed onto the first) reflects the new pin.
+    ingest(
+      db,
+      {
+        repos: ["o/r"],
+        readOnly: [],
+        items: [
+          {
+            repo: "o/r",
+            kind: "npm-dep",
+            name: "foo",
+            pinned: "^14.28.0",
+            pinStyle: "major",
+            role: "runtime",
+            source: "package.json:1",
+            resolver: "npm",
+          },
+        ],
+      },
+      {
+        generatedAt: "2026-03-01T00:00:00Z",
+        inventoryItems: 1,
+        items: [
+          {
+            key: KEY,
+            repo: "o/r",
+            kind: "npm-dep",
+            name: "foo",
+            pinned: "^14.28.0",
+            pinStyle: "major",
+            role: "runtime",
+            source: "package.json:1",
+            latest: "14.28.0",
+            latestInMajor: "14.28.0",
+            gap: "none",
+            advisoryStatus: "none",
+            advisories: [],
+            assumed: null,
+            note: "",
+          },
+        ],
+        repos: {},
+        summary: {},
+      },
+    )
+    const result = putDecision(
+      db,
+      KEY,
+      { field: "approvedVersion", value: "14.29.0" },
+      "alice",
+      NOW,
+    )
+    if (!result.ok) throw new Error("expected ok")
+    expect(result.decision?.approvedFromPinned).toBe("^14.28.0")
   })
 })
 

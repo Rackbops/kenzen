@@ -17,6 +17,9 @@ export interface DecisionRow {
   skippedVersion: string | null
   remindAt: string | null
   approvedVersion: string | null
+  /** Internal bookkeeping for `suppressionState` -- not part of the public `GET /api/decisions`
+   * shape (see `decisionJson` in decisions-route.ts, and suppression.ts's own docstring). */
+  approvedFromPinned: string | null
   acknowledgedAdvisories: string[] | null
   updatedAt: string
   updatedBy: string | null
@@ -52,6 +55,7 @@ interface RawDecisionRow {
   skippedVersion: string | null
   remindAt: string | null
   approvedVersion: string | null
+  approved_from_pinned: string | null
   acknowledged_json: string | null
   updatedAt: string
   updatedBy: string | null
@@ -67,6 +71,7 @@ function rowToDecision(row: RawDecisionRow): DecisionRow {
     skippedVersion: row.skippedVersion,
     remindAt: row.remindAt,
     approvedVersion: row.approvedVersion,
+    approvedFromPinned: row.approved_from_pinned,
     acknowledgedAdvisories: row.acknowledged_json
       ? (JSON.parse(row.acknowledged_json) as string[])
       : null,
@@ -224,11 +229,16 @@ export function putDecision(
         skippedVersion: patch.field === "skippedVersion" ? patch.value : null,
         remindAt: patch.field === "remindAt" ? patch.value : null,
         approvedVersion: patch.field === "approvedVersion" ? patch.value : null,
+        // Captured fresh on every approvedVersion write (never carried over from a prior
+        // approval) -- null when no item exists yet, the degraded case suppressionState's
+        // approvedVersion branch already tolerates.
+        approvedFromPinned: patch.field === "approvedVersion" ? (item?.pinned ?? null) : null,
       }
     : {
         skippedVersion: existing?.skippedVersion ?? null,
         remindAt: existing?.remindAt ?? null,
         approvedVersion: existing?.approvedVersion ?? null,
+        approvedFromPinned: existing?.approvedFromPinned ?? null,
       }
   const acknowledgedAdvisories =
     patch.field === "acknowledgedAdvisories"
@@ -251,12 +261,14 @@ export function putDecision(
   try {
     db.prepare(
       `INSERT INTO decisions
-        (key, repo, kind, name, source, skippedVersion, remindAt, approvedVersion, acknowledged_json, updatedAt, updatedBy)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (key, repo, kind, name, source, skippedVersion, remindAt, approvedVersion,
+         approved_from_pinned, acknowledged_json, updatedAt, updatedBy)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(key) DO UPDATE SET
          repo = excluded.repo, kind = excluded.kind, name = excluded.name, source = excluded.source,
          skippedVersion = excluded.skippedVersion, remindAt = excluded.remindAt,
-         approvedVersion = excluded.approvedVersion, acknowledged_json = excluded.acknowledged_json,
+         approvedVersion = excluded.approvedVersion, approved_from_pinned = excluded.approved_from_pinned,
+         acknowledged_json = excluded.acknowledged_json,
          updatedAt = excluded.updatedAt, updatedBy = excluded.updatedBy`,
     ).run(
       next.key,
@@ -267,6 +279,7 @@ export function putDecision(
       next.skippedVersion,
       next.remindAt,
       next.approvedVersion,
+      next.approvedFromPinned,
       next.acknowledgedAdvisories ? JSON.stringify(next.acknowledgedAdvisories) : null,
       next.updatedAt,
       next.updatedBy,

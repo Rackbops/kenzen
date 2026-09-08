@@ -171,6 +171,27 @@ describe("PUT /api/decisions/:key -- identity resolution", () => {
     const body = (await res.json()) as { decision: { updatedBy: string } }
     expect(body.decision.updatedBy).toBe("service-token-abc")
   })
+
+  it("falls back to sub when the verified identity has a literal empty-string email, not just an absent one (Tooling#478 K4-5 review round 1, LOW)", async () => {
+    const verifyAccessJwt = vi.fn(
+      async (): Promise<AccessIdentity | null> => ({
+        sub: "service-token-abc",
+        email: "",
+        claims: {},
+      }),
+    )
+    const { app, db } = testApp({ verifyAccessJwt })
+    seedItem(db)
+    const res = await app.request(putUrl(KEY), {
+      method: "PUT",
+      headers: { "Cf-Access-Jwt-Assertion": "a.b.c" },
+      body: JSON.stringify({ skippedVersion: "5.0.0" }),
+    })
+    const body = (await res.json()) as { decision: { updatedBy: string } }
+    // `??` would have recorded "" here since it only falls back on null/undefined -- `||`
+    // (the actual fix) treats an empty string the same as an absent claim.
+    expect(body.decision.updatedBy).toBe("service-token-abc")
+  })
 })
 
 describe("PUT /api/decisions/:key -- round trip and key encoding", () => {

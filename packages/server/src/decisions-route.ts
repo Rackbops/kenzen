@@ -61,7 +61,11 @@ async function resolveUpdatedBy(
       return null
     }
     const identity = await options.verifyAccessJwt(jwt)
-    return identity ? (identity.email ?? identity.sub) : null
+    // `||`, not `??`: a token carrying a literal empty-string email claim (not expected from
+    // real Cloudflare Access, but not ruled out by the type) must fall back to sub the same
+    // way an absent claim does, rather than recording updatedBy as "" (Tooling#478 K4-5
+    // review round 1, LOW).
+    return identity ? identity.email || identity.sub : null
   }
   return options.devIdentity ?? null
 }

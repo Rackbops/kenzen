@@ -58,12 +58,13 @@ describe("suppressionState: no decision", () => {
 
 /**
  * skippedVersion: design.md section 5 / plan.md K4-5 "the table test enumerates newer/equal/
- * older targets". Reference semantics:
- *  - rackbops-discord-bot `decidePluginUpdates` (updates.ts:105): `else if (to === p.skippedVersion)
+ * older targets". Reference semantics (line numbers verified against the real source, not
+ * recalled -- Tooling#478 K4-5 review round 1 found three of these citations wrong):
+ *  - rackbops-discord-bot `decidePluginUpdates` (updates.ts:109): `else if (to === p.skippedVersion)
  *    action = "none"` -- exact equality, because the bot's own `to` is always gated to already
  *    be the single newest version in its index (`compareSemver(entry.version, from) <= 0) continue`
- *    just above it), so "equal to skipped" and "not yet strictly newer than skipped" coincide in
- *    every case the bot's architecture can reach.
+ *    at updates.ts:105, just above it), so "equal to skipped" and "not yet strictly newer than
+ *    skipped" coincide in every case the bot's architecture can reach.
  *  - Tooling `software_digest.py` `suppression_state` (lines 249-254): `if not _is_newer(item.get
  *    ("latest"), skipped): return "suppressed"` -- the general "not yet strictly newer" form.
  * Kenzen follows Tooling's general form (see suppression.ts's own docstring for the one
@@ -92,8 +93,8 @@ describe("suppressionState: skippedVersion (newer / equal / older)", () => {
 })
 
 /**
- * remindAt: bot (updates.ts:107) `else if (p.remindAt !== undefined && now.getTime() >=
- * Date.parse(p.remindAt)) action = "remind"`; Tooling (software_digest.py:255-259) `if str
+ * remindAt: bot (updates.ts:111) `else if (p.remindAt !== undefined && now.getTime() >=
+ * Date.parse(p.remindAt)) action = "remind"`; Tooling (software_digest.py:262-263) `if str
  * (remind_at) <= now: return "remind"` else `"suppressed"`. "newer/equal/older" reads here as
  * "now relative to remindAt": before / exactly at / after the instant.
  */
@@ -125,27 +126,57 @@ describe("suppressionState: remindAt (before / at / after the instant)", () => {
 /**
  * approvedVersion: Kenzen-specific (design.md section 5 table), no bot/Tooling reference --
  * "suppressed until `pinned` moves (the PR merged) or `latest` passes the approved version."
+ * "newer/equal/older" here reads as `latest` against `approvedVersion`, crossed with whether
+ * `pinned` has moved from `approvedFromPinned` (the value captured at approval time).
  */
 describe("suppressionState: approvedVersion (newer / equal / older, against the approved target)", () => {
-  it("latest still at or below the approved target and pinned unchanged -> suppressed (PR pending)", () => {
-    const decision: Decision = { approvedVersion: "2.0.0" }
+  it("latest below the approved target and pinned unchanged -> suppressed (PR pending)", () => {
+    const decision: Decision = { approvedVersion: "2.0.0", approvedFromPinned: "1.0.0" }
+    expect(suppressionState(item({ pinned: "1.0.0", latest: "1.5.0" }), decision, NOW)).toBe(
+      "suppressed",
+    )
+  })
+
+  it("latest equal to the approved target and pinned unchanged -> suppressed (PR pending)", () => {
+    const decision: Decision = { approvedVersion: "2.0.0", approvedFromPinned: "1.0.0" }
     expect(suppressionState(item({ pinned: "1.0.0", latest: "2.0.0" }), decision, NOW)).toBe(
       "suppressed",
     )
   })
 
-  it("pinned now equals the approved version -> active (the PR landed)", () => {
-    const decision: Decision = { approvedVersion: "2.0.0" }
+  it("pinned changed from what it was at approval time -> active (the PR landed)", () => {
+    const decision: Decision = { approvedVersion: "2.0.0", approvedFromPinned: "1.0.0" }
     expect(suppressionState(item({ pinned: "2.0.0", latest: "2.0.0" }), decision, NOW)).toBe(
       "active",
     )
   })
 
   it("latest newer than the approved version -> active (superseded before the PR landed)", () => {
-    const decision: Decision = { approvedVersion: "2.0.0" }
+    const decision: Decision = { approvedVersion: "2.0.0", approvedFromPinned: "1.0.0" }
     expect(suppressionState(item({ pinned: "1.0.0", latest: "3.0.0" }), decision, NOW)).toBe(
       "active",
     )
+  })
+
+  it("no approvedFromPinned on record -> pinned-moved can never fire, falls back to latest alone", () => {
+    // Decided before an item ever existed for this key (design.md section 4.2 allows this),
+    // so there was nothing to capture a baseline `pinned` from.
+    const decision: Decision = { approvedVersion: "2.0.0", approvedFromPinned: null }
+    expect(suppressionState(item({ pinned: "2.0.0", latest: "2.0.0" }), decision, NOW)).toBe(
+      "suppressed",
+    )
+  })
+
+  it("REGRESSION (Tooling#478 K4-5 review round 1, HIGH): a major/floating pinStyle's merged PR is detected", () => {
+    // `pinned` is stored verbatim for a non-exact pinStyle (software_inventory.py) -- it goes
+    // from "^14.27.0" to "^14.28.0", never to a bare "14.28.0" equal to `approvedVersion`. A
+    // first version of this code compared `item.pinned === decision.approvedVersion` directly,
+    // which can NEVER be true here -- the item would stay suppressed forever even after the PR
+    // merged. Comparing against the captured `approvedFromPinned` baseline instead correctly
+    // detects the change regardless of pinStyle.
+    const decision: Decision = { approvedVersion: "14.28.0", approvedFromPinned: "^14.27.0" }
+    const merged = item({ pinned: "^14.28.0", latest: "14.28.0" })
+    expect(suppressionState(merged, decision, NOW)).toBe("active")
   })
 })
 

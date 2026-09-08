@@ -240,6 +240,48 @@ describe("GET /api/repos", () => {
     )
   })
 
+  it("K4-5 REGRESSION (Tooling#478 review round 2, LOW-MEDIUM): a due remindAt ('remind' verdict) still counts as behind, never as decided", async () => {
+    const { app, db } = testApp()
+    ingest(
+      db,
+      { repos: ["o/r"], readOnly: [], items: [invItem({ name: "a", source: "f:1" })] },
+      {
+        generatedAt: "2026-01-01T00:00:00Z",
+        inventoryItems: 1,
+        items: [
+          repItem({
+            key: "o/r|npm-dep|a|f:1",
+            name: "a",
+            source: "f:1",
+            gap: "minor",
+            advisoryStatus: "none",
+          }),
+        ],
+        repos: {},
+        summary: {},
+      },
+    )
+    // remindAt already in the past relative to `now` below -- a due reminder, verdict "remind".
+    putDecision(
+      db,
+      "o/r|npm-dep|a|f:1",
+      { field: "remindAt", value: "2026-01-02T00:00:00.000Z" },
+      "alice",
+      "2025-01-01T00:00:00.000Z",
+    )
+
+    const res = await app.request("/api/repos")
+    const body = (await res.json()) as {
+      repos: { gap: Record<string, number>; decided: number }[]
+    }
+    // A "remind" verdict surfaces the item again (design.md section 5) -- it must still show
+    // as behind, and must NOT be counted as decided. A future refactor loosening
+    // suppressionState's consumer check from `=== "suppressed"` to `!== "active"` would
+    // silently invert this and this test would catch it.
+    expect(body.repos[0]?.gap.minor).toBe(1)
+    expect(body.repos[0]?.decided).toBe(0)
+  })
+
   it("includes a repo with Dependabot data but zero tracked items", async () => {
     const { app, db } = testApp()
     ingest(
