@@ -1,0 +1,35 @@
+name: push-notify
+
+# Post one Discord notification per push to main (as Github-Repo-Updates), via the
+# shared reusable workflow in roshne/addon-ci. Copied from Rackbops/rackbops's minimal
+# caller (Rackbops/Tooling docs/non-addon-repo-scaffold.md section 1) -- this repo has
+# no doc set elaborate enough yet to need per-file path exceptions beyond CLAUDE.md.
+#
+# DISCORD_PUSH_WEBHOOK is passed EXPLICITLY, never via `secrets: inherit`. This is
+# load-bearing: Rackbops is a FREE org, so a PRIVATE repo cannot access org-level
+# secrets -- but `inherit` still resolves the name to that inaccessible ORG secret and
+# passes an empty string, SHADOWING the repo-level secret that would have worked. The
+# reusable workflow then skips GREEN, so nothing fails and no notification is sent.
+# Explicit passing evaluates in this repo's own context, which resolves repo-level
+# first and falls back to org-level -- correct for private and public repos alike.
+# Diagnosed 2026-09-02 on Rackbops/the-keeper#5; see Rackbops/Tooling#310. The reusable
+# workflow skips green when the secret is genuinely unset, so this file is harmless
+# until DISCORD_PUSH_WEBHOOK is actually set on this repo (Rackbops/Tooling#475).
+on:
+  push:
+    branches: [main]
+    # Pushes that are *only* docs don't earn a Discord post, except CLAUDE.md (it
+    # steers Claude, so it's behaviour, not prose). A push mixing an excluded path with
+    # real code still notifies -- only muted if EVERY changed path is excluded.
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '**/CLAUDE.md'
+
+jobs:
+  notify:
+    uses: roshne/addon-ci/.github/workflows/push-notify.yml@main
+    with:
+      runner: '["self-hosted","disposable"]'
+    secrets:
+      DISCORD_PUSH_WEBHOOK: ${{ secrets.DISCORD_PUSH_WEBHOOK }}
