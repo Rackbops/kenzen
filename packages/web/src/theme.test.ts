@@ -169,6 +169,31 @@ test("bootTheme resolves, loads, then applies -- in that order -- and returns th
   expect(root.dataset.rbStyle).toBe(DEFAULT_THEME)
 })
 
+test("bootTheme still resolves and applies the theme when loadTheme rejects", async () => {
+  // Real HIGH, live-reproduced against a real build: main.tsx top-level-awaits bootTheme
+  // before mounting React, so an unhandled rejection here (a real network/chunk-load
+  // failure fetching the theme's CSS) left the page permanently blank -- no React tree
+  // ever mounted, no way to recover short of a manual reload.
+  const root = document.createElement("html")
+
+  await withLoaderSpies(async (spies) => {
+    const defaultSpy = spies.get(DEFAULT_THEME)
+    expect(defaultSpy).toBeDefined()
+    defaultSpy?.mockRejectedValueOnce(new Error("network blip fetching theme CSS"))
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+
+    const resolved = await bootTheme({}, root)
+
+    expect(resolved).toBe(DEFAULT_THEME)
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining(DEFAULT_THEME), expect.any(Error))
+    errorSpy.mockRestore()
+  })
+
+  // The DOM still reflects the intended theme even though its CSS didn't load this time --
+  // a later successful fetch (retry, revalidation) needs no extra wiring to take effect.
+  expect(root.dataset.rbStyle).toBe(DEFAULT_THEME)
+})
+
 test("bootTheme applies a configured non-default theme, not the default", async () => {
   const nonDefault = BUNDLED_THEMES.find((name) => name !== DEFAULT_THEME)
   expect(nonDefault).toBeDefined()
