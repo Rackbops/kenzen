@@ -68,6 +68,16 @@ test("the estate line sums the per-repo counts the server computed", () => {
   expect(line).toBe("5 items · 1 affected · 2 behind (1/0/1) · 2 decided · 1 unknown")
 })
 
+test("the estate line sums every gap bucket, minor included", () => {
+  // Review round 1: every other fixture here leaves `minor` at 0, so deleting the minor term
+  // from estateSoundness left all of them green -- the middle number of "(major/minor/patch)"
+  // and its contribution to "behind" were both unguarded.
+  const line = estateSoundness([
+    repoSummary({ role: { runtime: 6 }, gap: { major: 1, minor: 2, patch: 3 } }),
+  ])
+  expect(line).toBe("6 items · 0 affected · 6 behind (1/2/3) · 0 decided · 0 unknown")
+})
+
 test("the estate line counts items across every role, not just runtime", () => {
   // A role-blind sum would report 1 here and silently under-count every repo with ci/build/test
   // items -- the estate total has to match what the per-repo lines add up to.

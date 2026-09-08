@@ -24,14 +24,52 @@ test("a decision carrying several fields appears under every state it holds", ()
   expect(decisionStates(d)).toEqual(["skipped", "acknowledged"])
 })
 
-test("an empty acknowledgedAdvisories array is not an acknowledgement", () => {
-  expect(decisionStates(decision({ acknowledgedAdvisories: [] }))).toEqual([])
+test("a present-but-empty acknowledgedAdvisories still counts as a state", () => {
+  // Review round 1, LOW: the server accepts PUT {"acknowledgedAdvisories": []} and stores a
+  // real row. Treating that as "no state" put it in no bucket at all -- invisible in every
+  // tab and in every badge, while still counting toward `decisions.length` so the "no
+  // decisions" copy did not show either. The row existed with no way to clear it from the UI.
+  expect(decisionStates(decision({ acknowledgedAdvisories: [] }))).toEqual(["acknowledged"])
+})
+
+test("an empty acknowledgement list renders explicitly, not as a blank cell", () => {
+  expect(decisionDetail(decision({ acknowledgedAdvisories: [] }), "acknowledged")).toBe(
+    "(none listed)",
+  )
+})
+
+test("a decision that would otherwise be stranded is clearable", async () => {
+  vi.spyOn(api, "fetchDecisions").mockResolvedValue([
+    decision({ key: "stranded", acknowledgedAdvisories: [] }),
+  ])
+  render(<Decided />)
+  fireEvent.click(await screen.findByRole("tab", { name: /Advisories acknowledged/ }))
+  expect(screen.getByRole("button", { name: "Clear" })).toBeInTheDocument()
 })
 
 test("each state's detail cell describes that state, not another", () => {
   const d = decision({ skippedVersion: "2.32.0", remindAt: "2026-10-01T00:00:00Z" })
   expect(decisionDetail(d, "skipped")).toBe("until newer than 2.32.0")
   expect(decisionDetail(d, "snoozed")).toBe("until 2026-10-01T00:00:00Z")
+})
+
+test("the approved state is detected and described", () => {
+  // Review round 1: no test set approvedVersion at all, so dropping it from decisionStates or
+  // returning the wrong field from decisionDetail left the whole suite green -- one of the four
+  // states was effectively unimplemented as far as the tests were concerned.
+  const d = decision({ approvedVersion: "3.0.0" })
+  expect(decisionStates(d)).toEqual(["approved"])
+  expect(decisionDetail(d, "approved")).toBe("approved 3.0.0")
+})
+
+test("an approved decision renders under its own tab", async () => {
+  vi.spyOn(api, "fetchDecisions").mockResolvedValue([
+    decision({ key: "ap", name: "hono", approvedVersion: "3.0.0" }),
+  ])
+  render(<Decided />)
+  fireEvent.click(await screen.findByRole("tab", { name: /Approved/ }))
+  expect(screen.getByText("hono (pip-dep)")).toBeInTheDocument()
+  expect(screen.getByText("approved 3.0.0")).toBeInTheDocument()
 })
 
 // --- rendering ----------------------------------------------------------------------------
@@ -94,6 +132,34 @@ test("clear calls the API with the decision's key and refetches", async () => {
   expect(clearDecision).toHaveBeenCalledWith("the-key")
   // Refetched rather than mutating a local copy: the table must reflect the server.
   expect(fetchDecisions).toHaveBeenCalledTimes(2)
+})
+
+test("a second clear does not re-enable the first row's button while it is still in flight", async () => {
+  // Review round 1, MEDIUM: `clearing` was a single key, so starting a second clear overwrote
+  // the first's marker -- row A re-enabled itself mid-request (inviting a duplicate call) and
+  // whichever request settled first cleared the other's pending state.
+  vi.spyOn(api, "fetchDecisions").mockResolvedValue([
+    decision({ key: "a", name: "alpha", skippedVersion: "1.0.0" }),
+    decision({ key: "b", name: "beta", skippedVersion: "2.0.0" }),
+  ])
+  // Never resolves: both clears stay in flight for the duration of the test.
+  vi.spyOn(api, "clearDecision").mockImplementation(() => new Promise<void>(() => {}))
+
+  render(<Decided />)
+  await waitFor(() => expect(screen.getAllByRole("button", { name: "Clear" })).toHaveLength(2))
+  const [first, second] = screen.getAllByRole("button", { name: "Clear" })
+  fireEvent.click(first as HTMLElement)
+  fireEvent.click(second as HTMLElement)
+
+  // Both rows must still read as in-flight; neither may have been re-enabled by the other.
+  await waitFor(() => expect(screen.getAllByRole("button", { name: "Clearing…" })).toHaveLength(2))
+  expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument()
+  // Asserted separately from the label: the two are driven by the same state but by different
+  // expressions, so a label-only check leaves the actual click-guard unguarded -- a mutation
+  // dropping `disabled` survived until this line existed.
+  for (const button of screen.getAllByRole("button", { name: "Clearing…" })) {
+    expect(button).toBeDisabled()
+  }
 })
 
 test("a failed clear is surfaced and the row is left in place", async () => {

@@ -65,19 +65,26 @@ export function Tabstrip({ tabs, selected, onSelect, label }: TabstripProps) {
     }
   }
 
+  // When `selected` matches no tab (a caller mid-reload passing a stale id), every tab would
+  // otherwise get tabIndex=-1 and the whole strip would drop out of the tab order entirely --
+  // a keyboard trap strictly worse than the inert arrow keys above. Fall back to making the
+  // first tab the strip's single tab stop, so it stays reachable. Review round 1, MEDIUM.
+  const hasSelected = tabs.some((t) => t.id === selected)
+
   return (
     <div role="tablist" aria-label={label} className="rb-tabstrip" onKeyDown={onKeyDown}>
-      {tabs.map((tab) => {
+      {tabs.map((tab, index) => {
         const isSelected = tab.id === selected
+        const isTabStop = hasSelected ? isSelected : index === 0
         return (
           <button
             key={tab.id}
             type="button"
             role="tab"
             aria-selected={isSelected}
-            // Roving tabIndex: only the selected tab is reachable by Tab, so the whole strip
-            // is one stop and the arrow keys above do the moving within it.
-            tabIndex={isSelected ? 0 : -1}
+            // Roving tabIndex: exactly one tab is reachable by Tab, so the whole strip is one
+            // stop and the arrow keys above do the moving within it.
+            tabIndex={isTabStop ? 0 : -1}
             className={cx("rb-tabstrip__tab", isSelected && "rb-tabstrip__tab--selected")}
             onClick={() => onSelect(tab.id)}
           >

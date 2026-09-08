@@ -39,9 +39,13 @@ export function decisionStates(d: DecisionRecord): DecisionState[] {
   if (d.skippedVersion !== undefined) states.push("skipped")
   if (d.remindAt !== undefined) states.push("snoozed")
   if (d.approvedVersion !== undefined) states.push("approved")
-  if (d.acknowledgedAdvisories !== undefined && d.acknowledgedAdvisories.length > 0) {
-    states.push("acknowledged")
-  }
+  // Presence of the field, not a non-empty list. `PUT {"acknowledgedAdvisories": []}` is
+  // accepted by the server (decisions-route.ts validates "array of strings", which [] satisfies)
+  // and stores a real row. Requiring a non-empty list left such a row in NO bucket: invisible in
+  // every tab, counted in no badge, yet still non-empty in `decisions`, so the page showed
+  // neither it nor the "no decisions" copy -- a row on the server with no way to clear it from
+  // the UI. Review round 1, LOW. It renders with an explicit "(none listed)" detail.
+  if (d.acknowledgedAdvisories !== undefined) states.push("acknowledged")
   return states
 }
 
@@ -55,7 +59,9 @@ export function decisionDetail(d: DecisionRecord, state: DecisionState): string 
     case "approved":
       return `approved ${d.approvedVersion}`
     case "acknowledged":
-      return (d.acknowledgedAdvisories ?? []).join(", ")
+      return d.acknowledgedAdvisories?.length
+        ? d.acknowledgedAdvisories.join(", ")
+        : "(none listed)"
   }
 }
 
@@ -84,7 +90,11 @@ function DecidedTables({
   onCleared: () => void
 }) {
   const [selected, setSelected] = useState<DecisionState>("skipped")
-  const [clearing, setClearing] = useState<string | null>(null)
+  // A SET of in-flight keys, not one scalar: with a scalar, starting a second clear overwrote
+  // the first's marker, so the first row re-enabled its button while its request was still
+  // outstanding (inviting a duplicate) and whichever request finished first cleared the pending
+  // indicator for the other. Review round 1, MEDIUM.
+  const [clearing, setClearing] = useState<ReadonlySet<string>>(new Set())
   const [clearError, setClearError] = useState<string | null>(null)
 
   const byState = new Map<DecisionState, DecisionRecord[]>(STATE_ORDER.map((s) => [s, []]))
@@ -99,7 +109,7 @@ function DecidedTables({
   }
 
   async function onClear(d: DecisionRecord) {
-    setClearing(d.key)
+    setClearing((current) => new Set(current).add(d.key))
     setClearError(null)
     try {
       await clearDecision(d.key)
@@ -107,7 +117,11 @@ function DecidedTables({
     } catch (error) {
       setClearError(error instanceof Error ? error.message : String(error))
     } finally {
-      setClearing(null)
+      setClearing((current) => {
+        const next = new Set(current)
+        next.delete(d.key)
+        return next
+      })
     }
   }
 
@@ -150,10 +164,10 @@ function DecidedTables({
         <Button
           variant="ghost"
           size="sm"
-          disabled={clearing === d.key}
+          disabled={clearing.has(d.key)}
           onClick={() => void onClear(d)}
         >
-          {clearing === d.key ? "Clearing…" : "Clear"}
+          {clearing.has(d.key) ? "Clearing…" : "Clear"}
         </Button>
       ),
     },

@@ -105,6 +105,17 @@ test("an unrelated key changes nothing", () => {
   expect(onSelect).not.toHaveBeenCalled()
 })
 
+test("a selected id not present in tabs still leaves the strip reachable by Tab", () => {
+  // Review round 1, MEDIUM: with tabIndex tied directly to isSelected, an unmatched `selected`
+  // gave EVERY tab tabIndex=-1, so a keyboard user tabbing the page skipped the tablist
+  // entirely -- a worse failure than the inert arrow keys below. Exactly one tab stop must
+  // survive.
+  render(<Tabstrip tabs={TABS} selected="gone" onSelect={() => {}} label="Example" />)
+  const stops = screen.getAllByRole("tab").filter((t) => t.getAttribute("tabindex") === "0")
+  expect(stops).toHaveLength(1)
+  expect(stops[0]).toHaveAccessibleName("Alpha")
+})
+
 test("a selected id not present in tabs leaves the keyboard handler inert", () => {
   // Defensive: a caller mid-reload could pass a stale id. Moving from "nowhere" would
   // otherwise land on an arbitrary tab.
