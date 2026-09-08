@@ -12,6 +12,10 @@
     "./suppression": {
       "types": "./dist/suppression.d.ts",
       "default": "./dist/suppression.js"
+    },
+    "./soundness": {
+      "types": "./dist/soundness.d.ts",
+      "default": "./dist/soundness.js"
     }
   },
   "files": [

@@ -89,6 +89,8 @@ test("the estate line counts items across every role, not just runtime", () => {
 test("renders the per-repo soundness line exactly as the server computed it", async () => {
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
   vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchSnapshots").mockResolvedValue([])
+  vi.spyOn(api, "fetchRepoSoundnessSeries").mockResolvedValue([])
   render(<History />)
   // Two matches, not one, and that is the assertion: with a single repo the estate line must
   // come out identical to that repo's own server-computed line. If the client-side estate
@@ -100,6 +102,147 @@ test("renders the per-repo soundness line exactly as the server computed it", as
   )
   expect(screen.getByText("Estate")).toBeInTheDocument()
   expect(screen.getByText("Rackbops/Tooling")).toBeInTheDocument()
+})
+
+// --- kenzen#38: the soundness sparkline ----------------------------------------------------
+function snapshotPoint(overrides: Partial<api.SnapshotSummary> = {}): api.SnapshotSummary {
+  return {
+    snapshotId: 1,
+    generatedAt: "2026-09-01T00:00:00Z",
+    inventoryItems: 1,
+    summary: {},
+    soundness: {
+      items: 1,
+      affected: 0,
+      behind: { major: 0, minor: 0, patch: 0 },
+      decided: 0,
+      unknown: 0,
+    },
+    ...overrides,
+  }
+}
+
+function repoPoint(
+  snapshotId: number,
+  behind: number,
+  generatedAt = "2026-09-01T00:00:00Z",
+): api.RepoSoundnessPoint {
+  return {
+    snapshotId,
+    generatedAt,
+    soundness: {
+      items: 1,
+      affected: 0,
+      behind: { major: behind, minor: 0, patch: 0 },
+      decided: 0,
+      unknown: 0,
+    },
+  }
+}
+
+test("renders an estate sparkline fetched from GET /api/snapshots, oldest-first (the endpoint returns newest-first)", async () => {
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  // Newest first, matching the server's real order -- History.tsx must reverse this itself.
+  vi.spyOn(api, "fetchSnapshots").mockResolvedValue([
+    snapshotPoint({
+      snapshotId: 2,
+      generatedAt: "2026-09-02T00:00:00Z",
+      soundness: {
+        items: 1,
+        affected: 0,
+        behind: { major: 0, minor: 0, patch: 3 },
+        decided: 0,
+        unknown: 0,
+      },
+    }),
+    snapshotPoint({
+      snapshotId: 1,
+      generatedAt: "2026-09-01T00:00:00Z",
+      soundness: {
+        items: 1,
+        affected: 0,
+        behind: { major: 0, minor: 0, patch: 1 },
+        decided: 0,
+        unknown: 0,
+      },
+    }),
+  ])
+  vi.spyOn(api, "fetchRepoSoundnessSeries").mockResolvedValue([])
+
+  render(<History />)
+  // 2 snapshots (oldest 1 behind -> newest 3 behind), first-to-last matches the reversed order.
+  await waitFor(() =>
+    expect(screen.getByRole("img", { name: "2 snapshots, 1 to 3 behind" })).toBeInTheDocument(),
+  )
+})
+
+test("renders a per-repo sparkline fetched from GET /api/repos/:repo/soundness (already oldest-first)", async () => {
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({ repo: "Rackbops/kenzen" })])
+  vi.spyOn(api, "fetchSnapshots").mockResolvedValue([])
+  const fetchRepoSoundnessSeries = vi
+    .spyOn(api, "fetchRepoSoundnessSeries")
+    .mockResolvedValue([repoPoint(1, 0), repoPoint(2, 2)])
+
+  render(<History />)
+  await waitFor(() =>
+    expect(screen.getByRole("img", { name: "2 snapshots, 0 to 2 behind" })).toBeInTheDocument(),
+  )
+  expect(fetchRepoSoundnessSeries).toHaveBeenCalledWith("Rackbops/kenzen", 30)
+})
+
+test("renders no sparkline (but still the text line) when the series has fewer than 2 points", async () => {
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchSnapshots").mockResolvedValue([snapshotPoint({})])
+  vi.spyOn(api, "fetchRepoSoundnessSeries").mockResolvedValue([repoPoint(1, 0)])
+
+  render(<History />)
+  await waitFor(() => expect(screen.getByText("Estate")).toBeInTheDocument())
+  expect(screen.queryByRole("img")).not.toBeInTheDocument()
+})
+
+test("a failed series fetch degrades to no sparkline, not a blanked soundness section", async () => {
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchSnapshots").mockRejectedValue(new Error("boom"))
+  vi.spyOn(api, "fetchRepoSoundnessSeries").mockResolvedValue([])
+
+  render(<History />)
+  // The text line (server-computed, independent of the series fetch) still renders -- once for
+  // the estate, once for the one repo, same as the no-series-fetched-yet case above.
+  await waitFor(() =>
+    expect(
+      screen.getAllByText("3 items · 0 affected · 1 behind (0/0/1) · 0 decided · 0 unknown"),
+    ).toHaveLength(2),
+  )
+  expect(screen.queryByRole("img")).not.toBeInTheDocument()
+})
+
+test("kenzen#38 review round 1, MEDIUM: one repo's series-fetch failure does not blank another repo's already-succeeded sparkline", async () => {
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([
+    repoSummary({ repo: "Rackbops/Tooling" }),
+    repoSummary({ repo: "Rackbops/kenzen" }),
+  ])
+  vi.spyOn(api, "fetchSnapshots").mockResolvedValue([])
+  vi.spyOn(api, "fetchRepoSoundnessSeries").mockImplementation(async (repo) => {
+    if (repo === "Rackbops/Tooling") {
+      throw new Error("transient failure for this one repo")
+    }
+    return [repoPoint(1, 0), repoPoint(2, 4)]
+  })
+
+  render(<History />)
+  // The repo whose OWN fetch succeeded still gets its sparkline, even though a sibling repo's
+  // fetch rejected -- Promise.all would have let that one rejection blank both.
+  await waitFor(() =>
+    expect(screen.getByRole("img", { name: "2 snapshots, 0 to 4 behind" })).toBeInTheDocument(),
+  )
+  // Exactly one sparkline (the failed repo's, and the estate's -- which has no data either --
+  // both correctly render nothing), not zero.
+  expect(screen.getAllByRole("img")).toHaveLength(1)
 })
 
 // --- per-item history ---------------------------------------------------------------------

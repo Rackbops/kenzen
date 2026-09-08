@@ -471,3 +471,139 @@ describe("GET /api/repos", () => {
     expect(repoNames).toEqual(["empty/repo", "o/r"])
   })
 })
+
+describe("GET /api/repos/:repo/soundness", () => {
+  it("returns an empty series before any ingest", async () => {
+    const { app } = testApp()
+    const res = await app.request("/api/repos/o%2Fr/soundness")
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ apiVersion: 1, repo: "o/r", series: [] })
+  })
+
+  it("kenzen#38 acceptance bullet 1: two ingests with one pin changed show two points whose behind differs by exactly the changed item, oldest first", async () => {
+    const { app, db } = testApp()
+    ingest(
+      db,
+      { repos: ["o/r"], readOnly: [], items: [invItem()] },
+      {
+        generatedAt: "2026-01-01T00:00:00Z",
+        inventoryItems: 1,
+        items: [repItem({ gap: "none" })],
+        repos: {},
+        summary: {},
+      },
+    )
+    ingest(
+      db,
+      { repos: ["o/r"], readOnly: [], items: [invItem()] },
+      {
+        generatedAt: "2026-01-02T00:00:00Z",
+        inventoryItems: 1,
+        items: [repItem({ gap: "minor", latest: "9.0.0" })],
+        repos: {},
+        summary: {},
+      },
+    )
+
+    const res = await app.request("/api/repos/o%2Fr/soundness")
+    const body = (await res.json()) as {
+      repo: string
+      series: {
+        snapshotId: number
+        generatedAt: string
+        soundness: { behind: Record<string, number> }
+      }[]
+    }
+    expect(body.repo).toBe("o/r")
+    expect(body.series).toHaveLength(2)
+    // Oldest first: snapshot 1 (no gap) before snapshot 2 (one minor gap appeared).
+    expect(body.series[0]?.snapshotId).toBe(1)
+    expect(body.series[0]?.soundness.behind).toEqual({ major: 0, minor: 0, patch: 0 })
+    expect(body.series[1]?.snapshotId).toBe(2)
+    expect(body.series[1]?.soundness.behind).toEqual({ major: 0, minor: 1, patch: 0 })
+  })
+
+  it("an unknown repo (never ingested) is a 200 with an empty series, not a 404 -- a repo name is a free-form identifier", async () => {
+    const { app, db } = testApp()
+    ingest(
+      db,
+      { repos: ["o/r"], readOnly: [], items: [invItem()] },
+      {
+        generatedAt: "2026-01-01T00:00:00Z",
+        inventoryItems: 1,
+        items: [repItem()],
+        repos: {},
+        summary: {},
+      },
+    )
+
+    const res = await app.request("/api/repos/never%2Fingested/soundness")
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ apiVersion: 1, repo: "never/ingested", series: [] })
+  })
+
+  it("a repo absent from an OLDER snapshot (added only later) is skipped for that point, not reported as a zeroed one", async () => {
+    const { app, db } = testApp()
+    // First ingest: only "o/r" exists.
+    ingest(
+      db,
+      { repos: ["o/r"], readOnly: [], items: [invItem()] },
+      {
+        generatedAt: "2026-01-01T00:00:00Z",
+        inventoryItems: 1,
+        items: [repItem()],
+        repos: {},
+        summary: {},
+      },
+    )
+    // Second ingest: "o/new" appears for the first time.
+    ingest(
+      db,
+      {
+        repos: ["o/r", "o/new"],
+        readOnly: [],
+        items: [invItem(), invItem({ repo: "o/new", source: "f:1" })],
+      },
+      {
+        generatedAt: "2026-01-02T00:00:00Z",
+        inventoryItems: 2,
+        items: [repItem(), repItem({ key: "o/new|npm-dep|foo|f:1", repo: "o/new", source: "f:1" })],
+        repos: {},
+        summary: {},
+      },
+    )
+
+    const res = await app.request("/api/repos/o%2Fnew/soundness")
+    const body = (await res.json()) as { series: { snapshotId: number }[] }
+    // Only the snapshot where "o/new" actually exists -- not a fabricated zero for snapshot 1.
+    expect(body.series).toHaveLength(1)
+    expect(body.series[0]?.snapshotId).toBe(2)
+  })
+
+  it("limit narrows to the N most recent snapshots (still oldest-first within that window)", async () => {
+    const { app, db } = testApp()
+    for (const day of ["01", "02", "03"]) {
+      ingest(
+        db,
+        { repos: ["o/r"], readOnly: [], items: [invItem()] },
+        {
+          generatedAt: `2026-01-${day}T00:00:00Z`,
+          inventoryItems: 1,
+          items: [repItem()],
+          repos: {},
+          summary: {},
+        },
+      )
+    }
+    const res = await app.request("/api/repos/o%2Fr/soundness?limit=2")
+    const body = (await res.json()) as { series: { snapshotId: number }[] }
+    expect(body.series.map((s) => s.snapshotId)).toEqual([2, 3])
+  })
+
+  it("422s a non-positive-integer limit, naming the parameter (shares /api/snapshots' own validation)", async () => {
+    const { app } = testApp()
+    const res = await app.request("/api/repos/o%2Fr/soundness?limit=0")
+    expect(res.status).toBe(422)
+    expect(await res.json()).toMatchObject({ path: "limit" })
+  })
+})

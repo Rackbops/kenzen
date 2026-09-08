@@ -2,14 +2,17 @@ import type { DatabaseSync } from "node:sqlite"
 import type { Context, Hono } from "hono"
 import type { DecisionRow } from "./decisions.js"
 import { countByRepoKindName, findDecisionForItem, listDecisions } from "./decisions.js"
+import { aggregateSoundness, computeRepoSummaries } from "./soundness.js"
 
 /** design.md section 4.3: every response carries apiVersion: 1. */
 export const API_VERSION = 1
 
 /** `limit` on `GET /api/snapshots` is capped here -- and defaults to it when absent -- so an
  * unbounded query can never return the whole history table in one response (kenzen#16's own
- * "limit capped (say 100)" ask). */
-const MAX_LIMIT = 100
+ * "limit capped (say 100)" ask). Exported: `repos-route.ts`'s `GET /api/repos/:repo/soundness`
+ * (kenzen#38) enforces the exact same cap on its own snapshot window, rather than the two
+ * routes' policies drifting apart if this number is ever revisited. */
+export const MAX_LIMIT = 100
 
 const KINDS = new Set([
   "dockerfile-base",
@@ -105,6 +108,19 @@ function toReportItem(row: ItemRow, decision: DecisionRow | null): Record<string
  * non-positive `limit` is a 422 naming the parameter (a caller bug worth surfacing); a `limit`
  * over `MAX_LIMIT`, or an absent one, is silently clamped to it -- a safety cap the caller
  * doesn't need to know about, unlike a nonsensical value.
+ *
+ * Each snapshot also carries `soundness` (kenzen#38, design.md section 6's "soundness line over
+ * time"), the ESTATE-wide `Soundness` for that specific snapshot -- additive alongside the
+ * pre-existing, deliberately opaque `summary` field, which is untouched and keeps whatever it
+ * already held. Computed lazily here (via `computeRepoSummaries`/`aggregateSoundness`, the same
+ * functions `GET /api/repos` calls for the latest snapshot only) rather than at ingest time and
+ * cached: this needs no backfill migration for snapshots ingested before this shipped, and a
+ * decision made today reads consistently across the whole series rather than only from the next
+ * ingest onward -- see soundness.ts's own docstring for the full reasoning. The N+1 query cost
+ * (one full per-repo computation per returned snapshot, up to `MAX_LIMIT`) is accepted rather
+ * than optimized here: correctness-by-reusing-the-exact-same-code as `/api/repos` (kenzen#38's
+ * own acceptance requires the two to never disagree) outweighs a query count that stays cheap at
+ * this app's actual scale (a few hundred items, at most 100 snapshots per call).
  */
 function mountSnapshotsListRoute(app: Hono, db: DatabaseSync): void {
   app.get("/api/snapshots", (c: Context) => {
@@ -131,6 +147,7 @@ function mountSnapshotsListRoute(app: Hono, db: DatabaseSync): void {
       generatedAt: r.generatedAt,
       inventoryItems: r.inventoryItems,
       summary: JSON.parse(r.summary_json) as unknown,
+      soundness: aggregateSoundness(computeRepoSummaries(db, r.id)),
     }))
 
     return c.json({ apiVersion: API_VERSION, snapshots })
