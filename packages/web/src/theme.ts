@@ -1,39 +1,64 @@
-import "@rackbops/styles/arcane-obsidian"
-
 /**
  * The active `@rackbops/styles` theme name, read from a build-time Vite env var
  * (design.md sections 3/6's "switchable by config") -- not a live server round-trip:
  * Kenzen is single-tenant, so a redeploy choosing a different theme is enough, and this
  * doesn't preclude a future per-viewer or live-switchable theme layering on top later.
  *
- * K4-7 review round 1, HIGH, live-verified, then reconsidered: an earlier version of this
- * file imported `@rackbops/styles/all` (every theme) so `resolveTheme` could genuinely
- * resolve to ANY theme name with matching CSS present -- but `all.css` pulls in all twelve
- * themes' CSS, and `neon-butterfly` alone bundles a 1.3MB background image none of Kenzen's
- * actual deployments (design.md section 7: arcane-obsidian only) will ever use. Measured
- * live: the built CSS bundle grew from 22.9kB to 286.5kB, plus that 1.3MB image asset, for
- * eleven themes nothing in this app's real deployment plan configures.
+ * K4-7 (kenzen#9) imported only `arcane-obsidian`'s CSS eagerly and validated the
+ * configured value against that one-entry `BUNDLED_THEMES` allowlist, because eagerly
+ * importing every theme (`@rackbops/styles/all`) grew the built CSS 22.9kB -> 286.5kB,
+ * plus a 1.3MB `neon-butterfly` background image, for themes nothing configured used --
+ * see kenzen#9's theme-scope comment. That made "switchable by config" true only for a
+ * single theme name.
  *
- * Only `arcane-obsidian`'s CSS -- the one theme any current Kenzen deployment actually
- * uses -- is imported, so this module's OWN capability is genuinely narrower than
- * "any @rackbops/styles theme name." `resolveTheme` validates against `BUNDLED_THEMES` and
- * falls back to the default (logging a warning) for anything else, rather than repeating
- * the round-1 bug's real failure mode: silently applying an unstyled configured value with
- * no signal anything is wrong. Deploying a genuinely different theme means adding its
- * import here too (one line, following this same pattern) AND adding it to
- * `BUNDLED_THEMES`, as a deliberate, reviewed change when that's a real need -- not
- * speculatively bundling all twelve today for a need nothing has yet.
+ * K4-7b (kenzen#24, roshne: "make it multi themed!") restores every `@rackbops/styles`
+ * theme as a genuinely selectable config value WITHOUT paying that eager-bundle cost:
+ * `import.meta.glob` over the package's per-theme `index.css` files, called WITHOUT
+ * `eager: true`, compiles each match to a `() => import(...)` loader -- Vite gives each
+ * matched theme's CSS its own chunk, fetched only when that specific loader is invoked.
+ * `loadTheme` awaits exactly one loader (the resolved theme's) at boot, in `main.tsx`.
+ * The default boot therefore still ships exactly one theme's CSS, same as K4-7; a
+ * deployment configured for a different bundled theme ships that one theme's CSS
+ * instead -- never more than one at a time. Omitting `eager: true` is the entire fix:
+ * adding it back would reintroduce the exact all-themes-eager cost K4-7 measured and
+ * backed out of.
  */
+
+// One lazy CSS-module loader per theme this package ships, keyed by theme name (e.g.
+// "arcane-obsidian" -> loader for ".../styles/arcane-obsidian/index.css"). The glob
+// pattern is relative to THIS file, resolving through packages/web's own node_modules
+// (a pnpm symlink into the workspace's @rackbops/styles install) -- see the theme
+// directory layout under node_modules/@rackbops/styles for what a "theme" is on disk.
+// `import.meta.glob` returns loader functions, not resolved modules -- nothing here
+// executes a network/module fetch until `loadTheme` calls one of them.
+const THEME_STYLESHEET_GLOB = import.meta.glob("../node_modules/@rackbops/styles/*/index.css")
+
+function themeNameFromGlobPath(path: string): string | undefined {
+  return /\/styles\/([^/]+)\/index\.css$/.exec(path)?.[1]
+}
+
+/** name -> lazy CSS-module loader. Mutable and exported for tests only (to spy on/swap
+ * individual loaders without touching real CSS module resolution) -- production code
+ * should always go through `loadTheme`, never read or write this map directly. */
+export const THEME_LOADERS: Record<string, () => Promise<unknown>> = {}
+for (const [path, loader] of Object.entries(THEME_STYLESHEET_GLOB)) {
+  const name = themeNameFromGlobPath(path)
+  if (name) {
+    THEME_LOADERS[name] = loader
+  }
+}
+
 export const DEFAULT_THEME = "arcane-obsidian"
 
-/** Every theme name this module actually has matching CSS for -- see the module docstring
- * for why this isn't "any @rackbops/styles theme." `resolveTheme` validates against this;
- * keep it in sync with the CSS imports at the top of this file. */
-export const BUNDLED_THEMES = [DEFAULT_THEME] as const
+/** Every theme name this module can lazily load -- derived from the glob above, so it
+ * stays in sync with whatever themes @rackbops/styles actually ships without a
+ * hand-maintained list. `resolveTheme` validates a configured name against this.
+ * Sorted for a deterministic, testable order. */
+export const BUNDLED_THEMES = Object.keys(THEME_LOADERS).sort() as readonly string[]
 
 /** Pure: resolveTheme(import.meta.env) at the call site, injected so it unit-tests without
  * depending on Vite's real env object. Falls back to DEFAULT_THEME (with a console warning)
- * for anything not in BUNDLED_THEMES, so a typo'd or not-yet-bundled theme name fails safe
+ * for anything not in BUNDLED_THEMES, so a typo'd or unrecognized theme name fails safe
  * (a working default, loudly) instead of silently shipping an unstyled page. */
 export function resolveTheme(env: Record<string, string | boolean | undefined>): string {
   const configured = env.VITE_KENZEN_THEME
@@ -50,6 +75,39 @@ export function resolveTheme(env: Record<string, string | boolean | undefined>):
   return configured
 }
 
+/** Fetches and applies the resolved theme's stylesheet as a side effect, awaited once at
+ * boot (`main.tsx`) before the app renders -- this is the one place a theme's CSS chunk is
+ * actually requested. `theme` must already be a resolved (i.e. bundled) name; pass it
+ * `resolveTheme`'s return value, never a raw config value. Falls back to loading
+ * DEFAULT_THEME's stylesheet if `theme` somehow names a loader this module doesn't have
+ * (defensive -- `resolveTheme` should never hand back an unbundled name). */
+export async function loadTheme(theme: string): Promise<void> {
+  const loader = THEME_LOADERS[theme] ?? THEME_LOADERS[DEFAULT_THEME]
+  if (!loader) {
+    throw new Error(
+      `theme.ts: no stylesheet loader for ${JSON.stringify(theme)} or the default ` +
+        `${JSON.stringify(DEFAULT_THEME)} -- BUNDLED_THEMES: ${BUNDLED_THEMES.join(", ")}`,
+    )
+  }
+  await loader()
+}
+
 export function applyTheme(theme: string, root: HTMLElement): void {
   root.dataset.rbStyle = theme
+}
+
+/** The single entry point `main.tsx` calls at boot: resolve the configured theme, await
+ * its stylesheet load, THEN apply it to `root` -- in that order, so `root`'s
+ * `data-rb-style` attribute is never set to a theme whose CSS hasn't finished loading.
+ * Pulled out of `main.tsx` (which also mounts the React tree and isn't itself unit-tested)
+ * so the resolve -> load -> apply sequence has real, direct test coverage. Returns the
+ * resolved theme name for callers that want to log/assert it. */
+export async function bootTheme(
+  env: Record<string, string | boolean | undefined>,
+  root: HTMLElement,
+): Promise<string> {
+  const theme = resolveTheme(env)
+  await loadTheme(theme)
+  applyTheme(theme, root)
+  return theme
 }
