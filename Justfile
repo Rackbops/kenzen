@@ -16,11 +16,15 @@ install:
 # Run all checks (lint + typecheck + test) -- the same gate as CI
 check: lint typecheck test
 
-# Lint, read-only
+# Lint, read-only -- the combined Biome check (lint + format), matching what `check`
+# below and CI actually gate on. package.json's own narrower "lint"/"format" scripts
+# expose Biome's finer-grained subcommands separately (e.g. for editor integration);
+# this recipe deliberately doesn't mirror that split, since a human running `just lint`
+# wants to know "will the gate complain", not just the lint subset of it.
 lint:
     biome check .
 
-# Auto-fix what Biome can fix
+# Auto-fix everything Biome can fix (lint + format together)
 fix:
     biome check --write .
 
