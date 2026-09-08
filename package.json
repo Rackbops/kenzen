@@ -10,9 +10,10 @@
   "scripts": {
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "build": "pnpm -r build",
     "lint": "biome lint .",
     "format": "biome format --write .",
-    "check": "biome check . && pnpm -r typecheck && pnpm -r test"
+    "check": "pnpm -r build && biome check . && pnpm -r typecheck && pnpm -r test"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0"

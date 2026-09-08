@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kenzen.internal/schemas/software-report.schema.json",
+  "title": "Tooling software-report.json",
+  "description": "Authored here (Tooling#478 K4-4) from the real file produced by software_report.py's build_report() (Tooling#425). Moves to Rackbops/Tooling as the source of truth in Tooling#477 and is vendored back byte-identically, listed in shared-helpers-manifest.json. Field shapes verified against a real production run (751 items, 2026-09-08) rather than design.md alone -- e.g. `changeUrl` is real output not documented in design.md section 4.1, and is included here as an additive field. draft-07 (not 2020-12/$defs) to match Rackbops/artifact-console's packages/contract/schema.json convention -- ajv's default export only ships the draft-07 meta-schema.",
+  "type": "object",
+  "required": ["generatedAt", "inventoryItems", "items", "repos", "summary"],
+  "properties": {
+    "generatedAt": { "type": "string" },
+    "inventoryItems": { "type": "integer", "minimum": 0 },
+    "items": { "type": "array", "items": { "$ref": "#/definitions/reportItem" } },
+    "repos": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/repoEntry" }
+    },
+    "summary": { "type": "object" }
+  },
+  "definitions": {
+    "reportItem": {
+      "type": "object",
+      "required": [
+        "key",
+        "repo",
+        "kind",
+        "name",
+        "pinned",
+        "pinStyle",
+        "role",
+        "source",
+        "gap",
+        "advisoryStatus",
+        "advisories"
+      ],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "repo": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": [
+            "dockerfile-base",
+            "compose-image",
+            "github-action",
+            "npm-dep",
+            "pip-dep",
+            "runtime-pin"
+          ]
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "pinned": { "type": "string" },
+        "pinStyle": { "enum": ["exact", "major", "floating"] },
+        "role": { "enum": ["runtime", "test", "build", "ci", "infra"] },
+        "source": { "type": "string", "minLength": 1 },
+        "latest": { "type": ["string", "null"] },
+        "latestInMajor": { "type": ["string", "null"] },
+        "changeUrl": { "type": ["string", "null"] },
+        "gap": { "enum": ["none", "patch", "minor", "major", "unknown"] },
+        "advisoryStatus": { "enum": ["affected", "historical-only", "none", "unknown"] },
+        "advisories": { "type": "array", "items": { "$ref": "#/definitions/advisory" } },
+        "assumed": { "type": ["string", "null"] },
+        "note": { "type": "string" }
+      }
+    },
+    "advisory": {
+      "type": "object",
+      "required": ["id", "summary", "severity", "url", "source", "affected"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string" },
+        "severity": { "type": "string" },
+        "url": { "type": "string" },
+        "source": { "enum": ["osv", "ghsa"] },
+        "affected": { "type": "boolean" }
+      }
+    },
+    "repoEntry": {
+      "type": "object",
+      "required": ["dependabotAlerts"],
+      "properties": {
+        "dependabotAlerts": {
+          "oneOf": [
+            { "const": "not enabled" },
+            { "type": "array", "items": { "$ref": "#/definitions/dependabotAlert" } }
+          ]
+        }
+      }
+    },
+    "dependabotAlert": {
+      "type": "object",
+      "required": ["package", "severity", "ghsaId", "manifestPath"],
+      "properties": {
+        "package": { "type": "string" },
+        "severity": { "type": "string" },
+        "ghsaId": { "type": "string" },
+        "manifestPath": { "type": "string" }
+      }
+    }
+  }
+}

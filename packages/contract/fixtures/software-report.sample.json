@@ -1,0 +1,476 @@
+{
+  "generatedAt": "2026-09-08T03:08:53Z",
+  "inventoryItems": 10,
+  "items": [
+    {
+      "key": "Lepid-Labs/LoreHearth|github-action|amannn/action-semantic-pull-request|.github/workflows/pr-guidelines.yml:14",
+      "repo": "Lepid-Labs/LoreHearth",
+      "kind": "github-action",
+      "name": "amannn/action-semantic-pull-request",
+      "pinned": "v5",
+      "pinStyle": "major",
+      "role": "ci",
+      "source": ".github/workflows/pr-guidelines.yml:14",
+      "latest": "v6.1.1",
+      "latestInMajor": "v5.5.3",
+      "changeUrl": "https://github.com/amannn/action-semantic-pull-request/releases/tag/v6.1.1",
+      "gap": "none",
+      "advisoryStatus": "none",
+      "advisories": [],
+      "assumed": "range-floor",
+      "note": ""
+    },
+    {
+      "key": "Lepid-Labs/Lorepath|dockerfile-base|node|Dockerfile:6",
+      "repo": "Lepid-Labs/Lorepath",
+      "kind": "dockerfile-base",
+      "name": "node",
+      "pinned": "24-alpine",
+      "pinStyle": "major",
+      "role": "build",
+      "source": "Dockerfile:6",
+      "latest": "26.8.1-alpine",
+      "latestInMajor": "24.20.0-alpine",
+      "changeUrl": null,
+      "gap": "none",
+      "advisoryStatus": "unknown",
+      "advisories": [],
+      "assumed": null,
+      "note": ""
+    },
+    {
+      "key": "Lepid-Labs/Lorepath|npm-dep|@lorepath/core|apps/web/package.json:14",
+      "repo": "Lepid-Labs/Lorepath",
+      "kind": "npm-dep",
+      "name": "@lorepath/core",
+      "pinned": "workspace:*",
+      "pinStyle": "floating",
+      "role": "runtime",
+      "source": "apps/web/package.json:14",
+      "latest": null,
+      "latestInMajor": null,
+      "changeUrl": null,
+      "gap": "unknown",
+      "advisoryStatus": "unknown",
+      "advisories": [],
+      "assumed": null,
+      "note": "floating pin"
+    },
+    {
+      "key": "Lepid-Labs/Lorepath|npm-dep|@sveltejs/kit|apps/web/package.json:26",
+      "repo": "Lepid-Labs/Lorepath",
+      "kind": "npm-dep",
+      "name": "@sveltejs/kit",
+      "pinned": "^2.63.0",
+      "pinStyle": "major",
+      "role": "build",
+      "source": "apps/web/package.json:26",
+      "latest": "2.70.3",
+      "latestInMajor": "2.70.3",
+      "changeUrl": "https://www.npmjs.com/package/@sveltejs/kit",
+      "gap": "minor",
+      "advisoryStatus": "affected",
+      "advisories": [
+        {
+          "id": "GHSA-29g2-3rmr-qm68",
+          "summary": "",
+          "severity": "unknown",
+          "url": "https://osv.dev/vulnerability/GHSA-29g2-3rmr-qm68",
+          "source": "osv",
+          "affected": true
+        },
+        {
+          "id": "GHSA-866w-xmhq-wj7x",
+          "summary": "",
+          "severity": "unknown",
+          "url": "https://osv.dev/vulnerability/GHSA-866w-xmhq-wj7x",
+          "source": "osv",
+          "affected": true
+        },
+        {
+          "id": "GHSA-wqjv-9729-c5q2",
+          "summary": "",
+          "severity": "unknown",
+          "url": "https://osv.dev/vulnerability/GHSA-wqjv-9729-c5q2",
+          "source": "osv",
+          "affected": true
+        },
+        {
+          "id": "GHSA-hgv7-v322-mmgr",
+          "summary": "@sveltejs/kit: `query.batch` cross-talk",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-hgv7-v322-mmgr",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-3f6h-2hrp-w5wx",
+          "summary": "@sveltejs/kit: Unvalidated redirect in handle hook causes Denial-of-Service",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-3f6h-2hrp-w5wx",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-2crg-3p73-43xp",
+          "summary": "@sveltejs/adapter-node has a BODY_SIZE_LIMIT bypass",
+          "severity": "high",
+          "url": "https://github.com/advisories/GHSA-2crg-3p73-43xp",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-fpg4-jhqr-589c",
+          "summary": "SvelteKit  has deserialization expansion in unvalidated `form` remote function leading to Denial of Service (experimental only)",
+          "severity": "low",
+          "url": "https://github.com/advisories/GHSA-fpg4-jhqr-589c",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-88qp-p4qg-rqm6",
+          "summary": "CPU exhaustion in SvelteKit remote form deserialization (experimental only)",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-88qp-p4qg-rqm6",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-vrhm-gvg7-fpcf",
+          "summary": " Memory exhaustion in SvelteKit remote form deserialization (experimental only)",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-vrhm-gvg7-fpcf",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-j2f3-wq62-6q46",
+          "summary": "@sveltejs/kit has memory amplification DoS vulnerability in Remote Functions binary form deserializer (application/x-sveltekit-formdata)",
+          "severity": "high",
+          "url": "https://github.com/advisories/GHSA-j2f3-wq62-6q46",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-j62c-4x62-9r35",
+          "summary": "SvelteKit is vulnerable to denial of service and possible SSRF when using prerendering",
+          "severity": "high",
+          "url": "https://github.com/advisories/GHSA-j62c-4x62-9r35",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-6q87-84jw-cjhp",
+          "summary": "@sveltejs/kit vulnerable to Cross-site Scripting via tracked search_params",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-6q87-84jw-cjhp",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-rjjv-87mx-6x3h",
+          "summary": "@sveltejs/kit vulnerable to XSS on dev mode 404 page",
+          "severity": "low",
+          "url": "https://github.com/advisories/GHSA-rjjv-87mx-6x3h",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-mh2x-fcqh-fmqv",
+          "summary": "@sveltejs/kit has unescaped error message included on error page",
+          "severity": "low",
+          "url": "https://github.com/advisories/GHSA-mh2x-fcqh-fmqv",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-g5m6-hxpp-fc49",
+          "summary": "Sending a GET or HEAD request with a body crashes SvelteKit",
+          "severity": "high",
+          "url": "https://github.com/advisories/GHSA-g5m6-hxpp-fc49",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-gv7g-x59x-wf8f",
+          "summary": "SvelteKit framework has Insufficient CSRF protection for CORS requests",
+          "severity": "high",
+          "url": "https://github.com/advisories/GHSA-gv7g-x59x-wf8f",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-5p75-vc5g-8rv2",
+          "summary": "SvelteKit vulnerable to Cross-Site Request Forgery",
+          "severity": "high",
+          "url": "https://github.com/advisories/GHSA-5p75-vc5g-8rv2",
+          "source": "ghsa",
+          "affected": false
+        }
+      ],
+      "assumed": "range-floor",
+      "note": ""
+    },
+    {
+      "key": "Lepid-Labs/Lorepath|npm-dep|idb|apps/web/package.json:22",
+      "repo": "Lepid-Labs/Lorepath",
+      "kind": "npm-dep",
+      "name": "idb",
+      "pinned": "^8.0.0",
+      "pinStyle": "major",
+      "role": "runtime",
+      "source": "apps/web/package.json:22",
+      "latest": "8.0.3",
+      "latestInMajor": "8.0.3",
+      "changeUrl": "https://www.npmjs.com/package/idb",
+      "gap": "patch",
+      "advisoryStatus": "none",
+      "advisories": [],
+      "assumed": "range-floor",
+      "note": ""
+    },
+    {
+      "key": "Lepid-Labs/Lorepath|npm-dep|svelte|apps/web/package.json:28",
+      "repo": "Lepid-Labs/Lorepath",
+      "kind": "npm-dep",
+      "name": "svelte",
+      "pinned": "^5.56.1",
+      "pinStyle": "major",
+      "role": "build",
+      "source": "apps/web/package.json:28",
+      "latest": "5.57.0",
+      "latestInMajor": "5.57.0",
+      "changeUrl": "https://www.npmjs.com/package/svelte",
+      "gap": "minor",
+      "advisoryStatus": "historical-only",
+      "advisories": [
+        {
+          "id": "GHSA-f3cj-j4f6-wq85",
+          "summary": "Svelte: SSR XSS via Insecure Promise Serialization in hydratable",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-f3cj-j4f6-wq85",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-rcqx-6q8c-2c42",
+          "summary": "Svelte Vulnerable to XSS via DOM Clobbering of Internal Framework State",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-rcqx-6q8c-2c42",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-9rmh-mm8f-r9h6",
+          "summary": "Svelte: ReDoS in `<svelte:element>` Tag Validation",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-9rmh-mm8f-r9h6",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-pr6f-5x2q-rwfp",
+          "summary": "Svelte SSR vulnerable to cross-site scripting via spread attributes",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-pr6f-5x2q-rwfp",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-qgvg-pr8v-6rr3",
+          "summary": "Svelte: XSS via HTML Comment Injection in SSR Error Boundary Hydration Markers",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-qgvg-pr8v-6rr3",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-phwv-c562-gvmh",
+          "summary": "Svelte vulnerable to XSS during SSR with contenteditable `bind:innerText` and `bind:textContent`",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-phwv-c562-gvmh",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-crpf-4hrx-3jrp",
+          "summary": "Svelte SSR attribute spreading includes inherited properties from prototype chain",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-crpf-4hrx-3jrp",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-m56q-vw4c-c2cp",
+          "summary": "Svelte SSR does not validate dynamic element tag names in `<svelte:element>`",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-m56q-vw4c-c2cp",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-f7gr-6p89-r883",
+          "summary": "Svelte affected by cross-site scripting via spread attributes in Svelte SSR",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-f7gr-6p89-r883",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-h7h7-mm68-gmrc",
+          "summary": "Svelte affected by XSS in SSR `<option>` element",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-h7h7-mm68-gmrc",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-gw32-9rmw-qwww",
+          "summary": "svelte is vulnerable to XSS with textarea bind:value",
+          "severity": "high",
+          "url": "https://github.com/advisories/GHSA-gw32-9rmw-qwww",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-6738-r8g5-qwp3",
+          "summary": "svelte vulnerable to Cross-site Scripting",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-6738-r8g5-qwp3",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-8266-84wp-wv5c",
+          "summary": "Svelte has a potential mXSS vulnerability due to improper HTML escaping",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-8266-84wp-wv5c",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-wv8q-r932-8hc7",
+          "summary": "Svelte vulnerable to XSS when using objects during server-side rendering",
+          "severity": "medium",
+          "url": "https://github.com/advisories/GHSA-wv8q-r932-8hc7",
+          "source": "ghsa",
+          "affected": false
+        }
+      ],
+      "assumed": "range-floor",
+      "note": ""
+    },
+    {
+      "key": "Lepid-Labs/Lorepath|runtime-pin|pnpm|package.json:16",
+      "repo": "Lepid-Labs/Lorepath",
+      "kind": "runtime-pin",
+      "name": "pnpm",
+      "pinned": "11.17.0",
+      "pinStyle": "exact",
+      "role": "runtime",
+      "source": "package.json:16",
+      "latest": "12.3.4",
+      "latestInMajor": "11.26.0",
+      "changeUrl": "https://github.com/pnpm/pnpm/releases/tag/v12.3.4",
+      "gap": "major",
+      "advisoryStatus": "none",
+      "advisories": [],
+      "assumed": null,
+      "note": ""
+    },
+    {
+      "key": "Rackbops/Tooling|pip-dep|pytest|requirements-dev.txt:4",
+      "repo": "Rackbops/Tooling",
+      "kind": "pip-dep",
+      "name": "pytest",
+      "pinned": ">=8,<10",
+      "pinStyle": "major",
+      "role": "test",
+      "source": "requirements-dev.txt:4",
+      "latest": "9.1.1",
+      "latestInMajor": "9.1.1",
+      "changeUrl": "https://pypi.org/project/pytest/#history",
+      "gap": "major",
+      "advisoryStatus": "affected",
+      "advisories": [
+        {
+          "id": "GHSA-6w46-j5rx-g56g",
+          "summary": "",
+          "severity": "unknown",
+          "url": "https://osv.dev/vulnerability/GHSA-6w46-j5rx-g56g",
+          "source": "osv",
+          "affected": true
+        },
+        {
+          "id": "PYSEC-2026-1845",
+          "summary": "",
+          "severity": "unknown",
+          "url": "https://osv.dev/vulnerability/PYSEC-2026-1845",
+          "source": "osv",
+          "affected": true
+        }
+      ],
+      "assumed": "range-floor",
+      "note": ""
+    },
+    {
+      "key": "Rackbops/rackbops-discord-bot|compose-image|cloudflare/cloudflared|docker-compose.yml:112",
+      "repo": "Rackbops/rackbops-discord-bot",
+      "kind": "compose-image",
+      "name": "cloudflare/cloudflared",
+      "pinned": "2026.8.3",
+      "pinStyle": "exact",
+      "role": "infra",
+      "source": "docker-compose.yml:112",
+      "latest": "2026.8.3",
+      "latestInMajor": "2026.8.3",
+      "changeUrl": null,
+      "gap": "none",
+      "advisoryStatus": "historical-only",
+      "advisories": [
+        {
+          "id": "GHSA-7mjv-x3jf-545x",
+          "summary": "cloudflared's Installer has Local Privilege Escalation Vulnerability",
+          "severity": "high",
+          "url": "https://github.com/advisories/GHSA-7mjv-x3jf-545x",
+          "source": "ghsa",
+          "affected": false
+        },
+        {
+          "id": "GHSA-hgwp-4vp4-qmm2",
+          "summary": "Local Privilege Escalation in cloudflared",
+          "severity": "high",
+          "url": "https://github.com/advisories/GHSA-hgwp-4vp4-qmm2",
+          "source": "ghsa",
+          "affected": false
+        }
+      ],
+      "assumed": null,
+      "note": ""
+    }
+  ],
+  "repos": {
+    "Rackbops/Tooling": {
+      "dependabotAlerts": []
+    },
+    "Rackbops/rackbops-discord-bot": {
+      "dependabotAlerts": []
+    }
+  },
+  "summary": {
+    "gap": {
+      "major": 2,
+      "minor": 2,
+      "none": 3,
+      "patch": 1,
+      "unknown": 1
+    },
+    "advisoryStatus": {
+      "affected": 2,
+      "historical-only": 2,
+      "none": 3,
+      "unknown": 2
+    },
+    "resolverCalls": {}
+  }
+}

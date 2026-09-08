@@ -15,7 +15,8 @@ import { getVersion } from "./version.js"
  * logic lives in the tested modules above -- this file has no dedicated unit test, same as
  * artifact-console's; verified instead by actually running it (K4-2's acceptance:
  * `curl :8686/healthz`, the boot log line, the relative-KENZEN_CONFIG_DIR rejection; K4-3's:
- * a second boot applying zero migrations).
+ * a second boot applying zero migrations; K4-4's: ingesting the real Tooling files and a
+ * missing KENZEN_INGEST_TOKEN refusing to start).
  */
 
 function readFileOrNull(path: string): string | null {
@@ -24,6 +25,22 @@ function readFileOrNull(path: string): string | null {
   } catch {
     return null
   }
+}
+
+/**
+ * KENZEN_INGEST_TOKEN is a secret (design.md section 4.2: "generated once... never in either
+ * repo"), so unlike host/port/staticDir/stateDir it has no config.toml fallback and no
+ * built-in default -- it is read directly from the environment, not threaded through
+ * `resolveConfig`. This is the first genuinely-required field `config.ts`'s own docstring
+ * anticipated back in K4-2: refusing to start when it's absent is the app-config standard's
+ * "refuses to start only when config is absent everywhere" finally made concrete.
+ */
+function requireIngestToken(env: Record<string, string | undefined>): string {
+  const token = env.KENZEN_INGEST_TOKEN
+  if (token === undefined || token === "") {
+    throw new Error("KENZEN_INGEST_TOKEN is not set -- ingest cannot be authenticated")
+  }
+  return token
 }
 
 async function main(): Promise<void> {
@@ -54,7 +71,14 @@ async function main(): Promise<void> {
     }
   })
 
-  const app = createApp({ version: getVersion(), staticDir: config.staticDir })
+  const ingestToken = requireIngestToken(process.env)
+  const app = createApp({
+    version: getVersion(),
+    staticDir: config.staticDir,
+    db: state.db,
+    ingestToken,
+    log,
+  })
   const handle = await startServer(app, { host: config.host, port: config.port, log })
 
   const shutdown = (signal: string): void => {
