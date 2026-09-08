@@ -3,10 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The Kenzen server: Hono, SQLite migrations, ingest, decisions (design.md section 3). Empty scaffold until K4-2.",
+  "description": "The Kenzen server: Hono serving /healthz and the SPA, config resolution, logging (K4-2). SQLite migrations, ingest and decisions land in K4-3/K4-4.",
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "start": "node dist/main.js",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.0.0",
+    "hono": "^4.0.0",
+    "smol-toml": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",
