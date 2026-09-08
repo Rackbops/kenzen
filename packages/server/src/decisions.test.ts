@@ -2,8 +2,8 @@ import { dirname, resolve } from "node:path"
 import type { DatabaseSync } from "node:sqlite"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
-import type { DecisionPatch } from "./decisions.js"
-import { listDecisions, putDecision } from "./decisions.js"
+import type { DecisionPatch, DecisionRow } from "./decisions.js"
+import { findDecisionForItem, listDecisions, putDecision } from "./decisions.js"
 import type { InventoryDoc, ReportDoc } from "./ingest.js"
 import { ingest } from "./ingest.js"
 import { createLogger } from "./log.js"
@@ -550,5 +550,108 @@ describe("decision_history: append-only audit trail", () => {
     putDecision(db, KEY, { field: "clear" }, "alice", "2026-06-02T00:00:00.000Z")
     expect(listDecisions(db)).toEqual([])
     expect(history(db, KEY)).toHaveLength(2)
+  })
+})
+
+describe("putDecision: carry-over is read-only (Tooling#478 K4-5b)", () => {
+  it("a PUT against an item's moved key creates a new row rather than adopting the stale one", () => {
+    // Documents a deliberate, named limitation (see findDecisionForItem's own docstring): the
+    // re-matching this issue adds is consulted by reads (GET /api/repos), not by writes. A
+    // decision made under the item's NEW key after a source move does not touch, and does not
+    // merge with, the stale row left behind under the old key.
+    const db = freshDb()
+    seedItem(db) // KEY = o/r|npm-dep|foo|package.json:1
+    putDecision(db, KEY, { field: "skippedVersion", value: "2.0.0" }, "alice", NOW)
+
+    const movedKey = "o/r|npm-dep|foo|package.json:99"
+    putDecision(db, movedKey, { field: "remindAt", value: "2099-01-01T00:00:00.000Z" }, "bob", NOW)
+
+    const all = listDecisions(db)
+    expect(all).toHaveLength(2)
+    expect(all.find((d) => d.key === KEY)?.skippedVersion).toBe("2.0.0")
+    expect(all.find((d) => d.key === movedKey)?.remindAt).toBe("2099-01-01T00:00:00.000Z")
+  })
+})
+
+describe("findDecisionForItem (Tooling#478 K4-5b)", () => {
+  function decision(overrides: Partial<DecisionRow> = {}): DecisionRow {
+    return {
+      key: "o/r|npm-dep|foo|package.json:1",
+      repo: "o/r",
+      kind: "npm-dep",
+      name: "foo",
+      source: "package.json:1",
+      skippedVersion: null,
+      remindAt: null,
+      approvedVersion: null,
+      approvedFromPinned: null,
+      acknowledgedAdvisories: null,
+      updatedAt: NOW,
+      updatedBy: "alice",
+      ...overrides,
+    }
+  }
+
+  const item = { key: "o/r|npm-dep|foo|package.json:1", repo: "o/r", kind: "npm-dep", name: "foo" }
+
+  it("returns the exact key match when one exists", () => {
+    const d = decision()
+    expect(findDecisionForItem([d], item)).toBe(d)
+  })
+
+  it("is null when nothing matches at all", () => {
+    const unrelated = decision({ key: "o/r|npm-dep|bar|package.json:1", name: "bar" })
+    expect(findDecisionForItem([unrelated], item)).toBeNull()
+  })
+
+  it("falls back to a repo|kind|name match when the exact key has moved (a file edit shifted the source line)", () => {
+    // The item's CURRENT key (package.json:5) has no decision; the only decision on record is
+    // under the OLD key (package.json:1) from before the source line moved.
+    const stale = decision({ key: "o/r|npm-dep|foo|package.json:1", source: "package.json:1" })
+    const movedItem = { ...item, key: "o/r|npm-dep|foo|package.json:5" }
+    expect(findDecisionForItem([stale], movedItem)).toBe(stale)
+  })
+
+  it("does not fall back across a different kind or name -- repo|kind|name must all match", () => {
+    const wrongKind = decision({ key: "x", kind: "pip-dep" })
+    const wrongName = decision({ key: "y", name: "bar" })
+    const movedItem = { ...item, key: "o/r|npm-dep|foo|package.json:5" }
+    expect(findDecisionForItem([wrongKind, wrongName], movedItem)).toBeNull()
+  })
+
+  it("resolves two repo|kind|name candidates deterministically to the newer one by updatedAt", () => {
+    const older = decision({
+      key: "o/r|npm-dep|foo|package.json:1",
+      source: "package.json:1",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      skippedVersion: "1.0.0",
+    })
+    const newer = decision({
+      key: "o/r|npm-dep|foo|package.json:5",
+      source: "package.json:5",
+      updatedAt: "2026-02-01T00:00:00.000Z",
+      skippedVersion: "2.0.0",
+    })
+    // Neither candidate's key matches the item's CURRENT (third) key -- both must come from the
+    // repo|kind|name fallback, order in the input array deliberately reversed to prove the
+    // result isn't just "first in the array".
+    const movedItem = { ...item, key: "o/r|npm-dep|foo|package.json:9" }
+    expect(findDecisionForItem([newer, older], movedItem)).toBe(newer)
+    expect(findDecisionForItem([older, newer], movedItem)).toBe(newer)
+  })
+
+  it("an exact key match wins even over a newer repo|kind|name candidate under a different key", () => {
+    const exact = decision({
+      key: "o/r|npm-dep|foo|package.json:5",
+      source: "package.json:5",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    })
+    const newerButDifferentKey = decision({
+      key: "o/r|npm-dep|foo|package.json:9",
+      source: "package.json:9",
+      updatedAt: "2099-01-01T00:00:00.000Z",
+    })
+    const movedItem = { ...item, key: "o/r|npm-dep|foo|package.json:5" }
+    expect(findDecisionForItem([newerButDifferentKey, exact], movedItem)).toBe(exact)
   })
 })

@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite"
 import type { Context, Hono } from "hono"
-import { listDecisions } from "./decisions.js"
-import type { Decision, SuppressionItem } from "./suppression.js"
+import { findDecisionForItem, listDecisions } from "./decisions.js"
+import type { SuppressionItem } from "./suppression.js"
 import { effectiveAdvisoryStatus, suppressionState } from "./suppression.js"
 
 /** design.md section 4.3: every response carries apiVersion: 1. */
@@ -29,6 +29,8 @@ function latestSnapshotId(db: DatabaseSync): number | null {
 interface ItemRow {
   key: string
   repo: string
+  kind: string
+  name: string
   role: string | null
   pinned: string | null
   latest: string | null
@@ -48,6 +50,11 @@ interface ItemRow {
  * actionable gap or advisory count -- a "remind" verdict does NOT count as decided (design.md:
  * a due reminder surfaces again, it doesn't quietly resolve), and an item decided on BOTH axes
  * (a suppressed gap and an acknowledged advisory) still counts once, not twice.
+ *
+ * The decision per item is resolved via `findDecisionForItem` (K4-5b), not a plain key lookup:
+ * an item whose `source` line moved since it was decided (a file edit bumped its line number,
+ * so its `key` changed) is re-matched by `repo|kind|name` rather than silently losing its
+ * decision -- design.md section 5.
  */
 export function mountReposRoute(app: Hono, db: DatabaseSync): void {
   app.get("/api/repos", (c: Context) => {
@@ -73,7 +80,7 @@ export function mountReposRoute(app: Hono, db: DatabaseSync): void {
 
     const itemRows = db
       .prepare(
-        `SELECT key, repo, role, pinned, latest, gap, advisoryStatus, advisories_json
+        `SELECT key, repo, kind, name, role, pinned, latest, gap, advisoryStatus, advisories_json
          FROM items WHERE snapshotId = ?`,
       )
       .all(snapshotId) as unknown as ItemRow[]
@@ -85,7 +92,7 @@ export function mountReposRoute(app: Hono, db: DatabaseSync): void {
       dependabotRows.map((r) => [r.repo, JSON.parse(r.dependabot_json) as unknown]),
     )
 
-    const decisionsByKey = new Map<string, Decision>(listDecisions(db).map((d) => [d.key, d]))
+    const decisions = listDecisions(db)
     const now = new Date().toISOString()
 
     const byRepo = new Map<string, RepoSummary>()
@@ -110,7 +117,7 @@ export function mountReposRoute(app: Hono, db: DatabaseSync): void {
         entry.role[row.role] = (entry.role[row.role] ?? 0) + 1
       }
 
-      const decision = decisionsByKey.get(row.key) ?? null
+      const decision = findDecisionForItem(decisions, row)
       const item: SuppressionItem = {
         pinned: row.pinned,
         latest: row.latest,

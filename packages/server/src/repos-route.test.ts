@@ -282,6 +282,124 @@ describe("GET /api/repos", () => {
     expect(body.repos[0]?.decided).toBe(0)
   })
 
+  it("K4-5b: a decision carries over when a later ingest moves the item's source line", async () => {
+    const { app, db } = testApp()
+    // First ingest: the item lives at f:1, gap major.
+    ingest(
+      db,
+      { repos: ["o/r"], readOnly: [], items: [invItem({ source: "f:1" })] },
+      {
+        generatedAt: "2026-01-01T00:00:00Z",
+        inventoryItems: 1,
+        items: [
+          repItem({ key: "o/r|npm-dep|foo|f:1", source: "f:1", gap: "major", latest: "9.0.0" }),
+        ],
+        repos: {},
+        summary: {},
+      },
+    )
+    // Skipped under the f:1 key.
+    putDecision(
+      db,
+      "o/r|npm-dep|foo|f:1",
+      { field: "skippedVersion", value: "9.0.0" },
+      "alice",
+      "2026-02-01T00:00:00.000Z",
+    )
+    // A file edit moves the pin to f:7 -- a new ingest, a new item key, same repo|kind|name.
+    // The decision is still stored under the OLD key (f:1); nothing re-writes it.
+    ingest(
+      db,
+      { repos: ["o/r"], readOnly: [], items: [invItem({ source: "f:7" })] },
+      {
+        generatedAt: "2026-03-01T00:00:00Z",
+        inventoryItems: 1,
+        items: [
+          repItem({ key: "o/r|npm-dep|foo|f:7", source: "f:7", gap: "major", latest: "9.0.0" }),
+        ],
+        repos: {},
+        summary: {},
+      },
+    )
+
+    const res = await app.request("/api/repos")
+    const body = (await res.json()) as {
+      repos: { gap: Record<string, number>; decided: number }[]
+    }
+    // Without re-matching, this item would show up as a fresh, undecided major gap. With it,
+    // the old skip (still not passed by latest 9.0.0) is found and correctly still suppresses it.
+    expect(body.repos[0]?.gap.major ?? 0).toBe(0)
+    expect(body.repos[0]?.decided).toBe(1)
+  })
+
+  it("K4-5b: two decisions sharing repo|kind|name under different (stale) sources resolve to the newer one", async () => {
+    const { app, db } = testApp()
+    ingest(
+      db,
+      { repos: ["o/r"], readOnly: [], items: [invItem({ source: "f:1" })] },
+      {
+        generatedAt: "2026-01-01T00:00:00Z",
+        inventoryItems: 1,
+        items: [
+          repItem({ key: "o/r|npm-dep|foo|f:1", source: "f:1", gap: "major", latest: "5.0.0" }),
+        ],
+        repos: {},
+        summary: {},
+      },
+    )
+    // Two source moves, two decisions made along the way -- f:1 (skip 3.0.0, long spent) then
+    // f:5 (skip 5.0.0, still holds). Both are now stale relative to the item's current key.
+    putDecision(
+      db,
+      "o/r|npm-dep|foo|f:1",
+      { field: "skippedVersion", value: "3.0.0" },
+      "alice",
+      "2026-01-15T00:00:00.000Z",
+    )
+    ingest(
+      db,
+      { repos: ["o/r"], readOnly: [], items: [invItem({ source: "f:5" })] },
+      {
+        generatedAt: "2026-02-01T00:00:00Z",
+        inventoryItems: 1,
+        items: [
+          repItem({ key: "o/r|npm-dep|foo|f:5", source: "f:5", gap: "major", latest: "5.0.0" }),
+        ],
+        repos: {},
+        summary: {},
+      },
+    )
+    putDecision(
+      db,
+      "o/r|npm-dep|foo|f:5",
+      { field: "skippedVersion", value: "5.0.0" },
+      "alice",
+      "2026-02-15T00:00:00.000Z",
+    )
+    // Third move -- neither f:1 nor f:5 is the item's key any more.
+    ingest(
+      db,
+      { repos: ["o/r"], readOnly: [], items: [invItem({ source: "f:9" })] },
+      {
+        generatedAt: "2026-03-01T00:00:00Z",
+        inventoryItems: 1,
+        items: [
+          repItem({ key: "o/r|npm-dep|foo|f:9", source: "f:9", gap: "major", latest: "5.0.0" }),
+        ],
+        repos: {},
+        summary: {},
+      },
+    )
+
+    const res = await app.request("/api/repos")
+    const body = (await res.json()) as { repos: { gap: Record<string, number>; decided: number }[] }
+    // The NEWER decision (skip 5.0.0, not yet passed by latest 5.0.0) must win -- if the older
+    // one (skip 3.0.0, spent since latest 5.0.0 > 3.0.0) won instead, this item would show as
+    // an undecided major gap, not suppressed.
+    expect(body.repos[0]?.gap.major ?? 0).toBe(0)
+    expect(body.repos[0]?.decided).toBe(1)
+  })
+
   it("includes a repo with Dependabot data but zero tracked items", async () => {
     const { app, db } = testApp()
     ingest(

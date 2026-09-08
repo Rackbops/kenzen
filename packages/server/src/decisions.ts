@@ -87,6 +87,44 @@ export function listDecisions(db: DatabaseSync): DecisionRow[] {
   return rows.map(rowToDecision)
 }
 
+/**
+ * The decision that applies to `item`, or `null`. An exact `key` match always wins outright.
+ * Failing that, design.md section 5: "a decision made on an item whose `source` line moves
+ * (file edited) is re-matched by `repo|kind|name`" -- the newest (by `updatedAt`) decision
+ * sharing repo/kind/name, so a decided item doesn't silently lose its decision the moment a
+ * file edit shifts which line its pin is on (Tooling#478 K4-5b). `updatedAt` is always this
+ * app's own `Date.prototype.toISOString()` output (never user-supplied, unlike `remindAt`), so
+ * comparing parsed instants rather than raw strings is purely defensive consistency with the
+ * rest of this module, not a fix for an actual reachable bug here.
+ *
+ * Read-only, deliberately: this is consulted by `GET /api/repos` (and any future read that
+ * needs "the decision for this item"), not by `putDecision`. A `PUT` against the item's
+ * CURRENT key after a carry-over match creates a new row rather than adopting/updating the
+ * stale one under the old key -- the K4-5b issue named this ambiguity explicitly (re-point the
+ * stale row on next write, or leave it alone) and left it open; leaving it alone is the safer
+ * of the two until a real answer is needed, since silently re-pointing risks merging two
+ * decisions a user made deliberately at different times. See `decisions.test.ts`'s
+ * `putDecision: carry-over is read-only` for the current, deliberate behavior this implies.
+ */
+export function findDecisionForItem(
+  decisions: DecisionRow[],
+  item: { key: string; repo: string; kind: string; name: string },
+): DecisionRow | null {
+  const exact = decisions.find((d) => d.key === item.key)
+  if (exact) {
+    return exact
+  }
+  const candidates = decisions.filter(
+    (d) => d.repo === item.repo && d.kind === item.kind && d.name === item.name,
+  )
+  if (candidates.length === 0) {
+    return null
+  }
+  return candidates.reduce((newest, d) =>
+    Date.parse(d.updatedAt) > Date.parse(newest.updatedAt) ? d : newest,
+  )
+}
+
 function latestItemByKey(db: DatabaseSync, key: string): CurrentItem | null {
   const row = db
     .prepare(
