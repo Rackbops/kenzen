@@ -1,5 +1,6 @@
 import { Badge, Card } from "@rackbops/ui-react"
 import { useMemo, useState } from "react"
+import { AdvisoryList } from "../AdvisoryList.js"
 import { fetchLatestSnapshotItems, type ReportItem } from "../api.js"
 import { advisoryVariant, gapVariant } from "../badgeVariants.js"
 import { DataTable, type DataTableColumn } from "../components/DataTable.js"
@@ -53,7 +54,10 @@ const COLUMNS: DataTableColumn<ReportItem>[] = [
     header: "Advisories",
     render: (i) =>
       i.advisoryStatus === "affected" ? (
-        <Badge variant={advisoryVariant(i.advisoryStatus)}>{i.advisories.length} affected</Badge>
+        <>
+          <Badge variant={advisoryVariant(i.advisoryStatus)}>{i.advisories.length} affected</Badge>{" "}
+          <AdvisoryList advisories={i.advisories} />
+        </>
       ) : null,
   },
   {

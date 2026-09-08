@@ -113,6 +113,41 @@ test("an affected item is prioritized above a gapped item in row order", async (
   expect(rows[1]?.textContent).toContain("behind-pkg")
 })
 
+test("an affected item's advisories render as links to their real URLs", async () => {
+  const snapshot = {
+    snapshotId: 1,
+    generatedAt: "2026-09-08T00:00:00Z",
+    inventoryItems: 1,
+    summary: {},
+  }
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot,
+    items: [
+      item({
+        key: "vuln",
+        name: "vuln-pkg",
+        advisoryStatus: "affected",
+        advisories: [
+          {
+            id: "GHSA-7mjv-x3jf-545x",
+            summary: "Local Privilege Escalation",
+            severity: "high",
+            url: "https://github.com/advisories/GHSA-7mjv-x3jf-545x",
+            source: "ghsa",
+            affected: true,
+          },
+        ],
+      }),
+    ],
+  })
+  render(<NeedsDecision />)
+  await waitFor(() => expect(screen.getByText("vuln-pkg")).toBeInTheDocument())
+  expect(screen.getByRole("link", { name: "GHSA-7mjv-x3jf-545x" })).toHaveAttribute(
+    "href",
+    "https://github.com/advisories/GHSA-7mjv-x3jf-545x",
+  )
+})
+
 test("the repo filter narrows the rendered rows", async () => {
   const snapshot = {
     snapshotId: 1,

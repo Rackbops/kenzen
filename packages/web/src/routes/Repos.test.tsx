@@ -211,6 +211,42 @@ test("the role filter narrows every repo's table -- role=runtime hides a build/c
   expect(screen.queryByText("build-stage-image")).not.toBeInTheDocument()
 })
 
+test("a historical-only item's advisories render as links, not just the status word", async () => {
+  // Matches the real cloudflared/rackbops-discord-bot acceptance scenario: historical-only
+  // advisories are exactly as linkable as an affected item's (round 2, MEDIUM: advisory links
+  // were named in kenzen#10's own Scope line alongside source links, but never built).
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot: SNAPSHOT,
+    items: [
+      item({
+        key: "cf",
+        name: "cloudflare/cloudflared",
+        kind: "compose-image",
+        advisoryStatus: "historical-only",
+        advisories: [
+          {
+            id: "GHSA-hgwp-4vp4-qmm2",
+            summary: "Local Privilege Escalation in cloudflared",
+            severity: "high",
+            url: "https://github.com/advisories/GHSA-hgwp-4vp4-qmm2",
+            source: "ghsa",
+            affected: false,
+          },
+        ],
+      }),
+    ],
+  })
+  render(<Repos />)
+  await waitFor(() => expect(screen.getByText("cloudflare/cloudflared")).toBeInTheDocument())
+  const table = screen.getByRole("table")
+  expect(within(table).getByText("historical-only")).toBeInTheDocument()
+  expect(within(table).getByRole("link", { name: "GHSA-hgwp-4vp4-qmm2" })).toHaveAttribute(
+    "href",
+    "https://github.com/advisories/GHSA-hgwp-4vp4-qmm2",
+  )
+})
+
 test("clicking the Gap header sorts by severity, not alphabetically", async () => {
   // K4-8a review round 1, LOW: sortValue used to be the raw gap string, so "none" (no gap)
   // sorted between "minor" and "patch" -- lexicographic, not meaningful.
