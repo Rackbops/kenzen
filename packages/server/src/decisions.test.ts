@@ -115,6 +115,93 @@ describe("putDecision: identity and round-trip", () => {
     })
   })
 
+  it("validates acknowledgedAdvisories against the LATEST snapshot's item, not an older one's", () => {
+    const db = freshDb()
+    seedItem(db, {
+      advisories: [
+        {
+          id: "GHSA-old",
+          summary: "x",
+          severity: "high",
+          url: "u",
+          source: "ghsa",
+          affected: true,
+        },
+      ],
+    })
+    // A second, later ingest changes which advisory id is actually on the item.
+    ingest(
+      db,
+      {
+        repos: ["o/r"],
+        readOnly: [],
+        items: [
+          {
+            repo: "o/r",
+            kind: "npm-dep",
+            name: "foo",
+            pinned: "1.0.0",
+            pinStyle: "exact",
+            role: "runtime",
+            source: "package.json:1",
+            resolver: "npm",
+          },
+        ],
+      },
+      {
+        generatedAt: "2026-02-01T00:00:00Z",
+        inventoryItems: 1,
+        items: [
+          {
+            key: KEY,
+            repo: "o/r",
+            kind: "npm-dep",
+            name: "foo",
+            pinned: "1.0.0",
+            pinStyle: "exact",
+            role: "runtime",
+            source: "package.json:1",
+            latest: "1.0.0",
+            latestInMajor: "1.0.0",
+            gap: "none",
+            advisoryStatus: "affected",
+            advisories: [
+              {
+                id: "GHSA-new",
+                summary: "y",
+                severity: "high",
+                url: "u",
+                source: "ghsa",
+                affected: true,
+              },
+            ],
+            assumed: null,
+            note: "",
+          },
+        ],
+        repos: {},
+        summary: {},
+      },
+    )
+
+    const stale = putDecision(
+      db,
+      KEY,
+      { field: "acknowledgedAdvisories", value: ["GHSA-old"] },
+      "alice",
+      NOW,
+    )
+    expect(stale.ok).toBe(false)
+    const fresh = putDecision(
+      db,
+      KEY,
+      { field: "acknowledgedAdvisories", value: ["GHSA-new"] },
+      "alice",
+      NOW,
+    )
+    expect(fresh.ok).toBe(true)
+  })
+
   it("422s a key that neither matches a live item nor parses as repo|kind|name|source", () => {
     const db = freshDb()
     const result = putDecision(
