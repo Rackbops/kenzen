@@ -1,5 +1,7 @@
 import type { DatabaseSync } from "node:sqlite"
 import { Hono } from "hono"
+import type { VerifyAccessJwt } from "./access-identity.js"
+import { mountDecisionsRoute } from "./decisions-route.js"
 import { mountIngestRoute } from "./ingest-route.js"
 import { mountItemHistoryRoute } from "./item-history-route.js"
 import type { Logger } from "./log.js"
@@ -10,8 +12,8 @@ import { spaHandler } from "./static.js"
 /**
  * design.md section 4.3: every Kenzen API response carries `apiVersion: 1`; additive-only
  * contract (new fields yes, renamed or removed never). `/healthz`, `/api/ingest`, `/api/repos`
- * (K4-4), and `/api/snapshots`, `/api/snapshots/:id/items`, `/api/items/:key/history` (K4-4b)
- * exist; `/api/decisions` lands with K4-5.
+ * (K4-4), `/api/snapshots`, `/api/snapshots/:id/items`, `/api/items/:key/history` (K4-4b), and
+ * `GET/PUT /api/decisions` (K4-5) all exist.
  */
 export const API_VERSION = 1
 
@@ -21,14 +23,16 @@ export interface AppOptions {
   db: DatabaseSync
   ingestToken: string
   log: Logger
+  verifyAccessJwt?: VerifyAccessJwt
+  devIdentity?: string
 }
 
 /**
  * The server's HTTP app. `GET /healthz` -> `{ok, version, apiVersion}` (design.md section 4.3);
  * `POST /api/ingest` and `GET /api/repos` (K4-4); `GET /api/snapshots`,
- * `GET /api/snapshots/:id/items`, `GET /api/items/:key/history` (K4-4b); everything else is
- * served from the SPA static dir. Pure builder -- no listening -- so it unit-tests via
- * `app.request()`.
+ * `GET /api/snapshots/:id/items`, `GET /api/items/:key/history` (K4-4b);
+ * `GET/PUT /api/decisions` (K4-5); everything else is served from the SPA static dir. Pure
+ * builder -- no listening -- so it unit-tests via `app.request()`.
  */
 export function createApp(options: AppOptions): Hono {
   const app = new Hono()
@@ -40,6 +44,12 @@ export function createApp(options: AppOptions): Hono {
   mountReposRoute(app, options.db)
   mountSnapshotsRoute(app, options.db)
   mountItemHistoryRoute(app, options.db)
+  mountDecisionsRoute(app, {
+    db: options.db,
+    log: options.log,
+    verifyAccessJwt: options.verifyAccessJwt,
+    devIdentity: options.devIdentity,
+  })
   app.get("*", spaHandler(options.staticDir))
 
   // Without this, an error escaping a route (e.g. a real DB exception ingest.ts couldn't
