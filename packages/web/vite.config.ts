@@ -18,5 +18,16 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: "./src/setupTests.ts",
+    restoreMocks: true,
+    // Vitest 4 changed vi.spyOn: re-spying an object property that's already a mock now
+    // returns the SAME mock instance instead of a fresh one carrying only the inherited
+    // implementation (vitest 3's spyOn created a new spy with empty .mock.calls each time,
+    // per @vitest/spy's own `if (isMockFunction(fn)) return fn` fast path added in v4). Every
+    // test in this suite re-establishes its spies with `vi.spyOn(...)` fresh, so without this
+    // their call counts silently accumulate across the whole file instead of resetting per
+    // test -- e.g. Decided.test.tsx's "clear calls the API ... and refetches" asserts
+    // `fetchDecisions` was called exactly twice but was actually seeing every prior test's
+    // calls to the same never-reset spy. restoreMocks restores the original implementation
+    // and clears call history before each test, matching vitest 3's de facto behavior.
   },
 })
