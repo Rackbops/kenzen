@@ -2,3 +2,7 @@ node_modules/
 dist/
 *.log
 .env
+
+# K4-7: packages/server/public/ is Vite's build output (packages/web -> vite build), not
+# hand-authored content -- the K4-2 placeholder that used to live here is removed.
+packages/server/public/
