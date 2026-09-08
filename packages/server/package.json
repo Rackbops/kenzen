@@ -19,7 +19,7 @@
   "dependencies": {
     "@hono/node-server": "^1.0.0",
     "@kenzen/contract": "workspace:*",
-    "@rackbops/node-app-kit": "file:../../../rackbops-node-app-kit",
+    "@rackbops/node-app-kit": "^0.1.0",
     "hono": "^4.0.0",
     "jose": "^6.0.0"
   },
