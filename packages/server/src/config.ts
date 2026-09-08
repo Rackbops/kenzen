@@ -42,7 +42,16 @@ export function resolveConfig(
   env: Record<string, string | undefined>,
   options: ResolveOptions,
 ): ResolvedConfig {
-  const configDirRaw = env.KENZEN_CONFIG_DIR
+  // A set-but-blank value (a common env-file/compose slip) is treated as unset everywhere
+  // below, not just for KENZEN_HOST -- an artifact-console adversarial review on this port
+  // (Tooling#478 K4-2) found that asymmetry inherited byte-for-byte from artifact-console's
+  // own config.ts: KENZEN_HOST="" already fell back to the default, but
+  // KENZEN_CONFIG_DIR/KENZEN_STATIC_DIR/KENZEN_PORT set to "" hard-crashed instead, and a
+  // blank KENZEN_STATIC_DIR even shadowed a valid config.toml value (`??` only skips
+  // null/undefined, not ""). None of that was a security issue -- failing loud beats failing
+  // silently wrong -- but there's no reason the same env-file slip should be handled
+  // differently depending on which field it hits.
+  const configDirRaw = nonEmpty(env.KENZEN_CONFIG_DIR)
   if (configDirRaw !== undefined) {
     requireAbsolute(configDirRaw, "KENZEN_CONFIG_DIR")
   }
@@ -53,24 +62,26 @@ export function resolveConfig(
   const configSource: "file" | "defaults" = fileText === null ? "defaults" : "file"
   const fileConfig = fileText === null ? {} : parseConfigFile(fileText, configFile)
 
-  // An empty host (a set-but-blank KENZEN_HOST, a common env-file slip) must NOT bind all
-  // interfaces -- treat it as unset so the loopback default (the security floor) holds.
+  // An empty host must NOT bind all interfaces -- treat it as unset so the loopback default
+  // (the security floor) holds.
   const host = nonEmpty(env.KENZEN_HOST) ?? nonEmpty(asString(fileConfig.host)) ?? DEFAULT_HOST
 
+  const portEnv = nonEmpty(env.KENZEN_PORT)
   let port: number
-  if (env.KENZEN_PORT !== undefined) {
-    port = coercePort(env.KENZEN_PORT, "KENZEN_PORT")
+  if (portEnv !== undefined) {
+    port = coercePort(portEnv, "KENZEN_PORT")
   } else if ("port" in fileConfig) {
     port = coercePort(fileConfig.port, `${configFile} [port]`)
   } else {
     port = DEFAULT_PORT
   }
 
-  const staticDirRaw = env.KENZEN_STATIC_DIR ?? asString(fileConfig.static_dir)
+  const staticDirEnv = nonEmpty(env.KENZEN_STATIC_DIR)
+  const staticDirRaw = staticDirEnv ?? asString(fileConfig.static_dir)
   if (staticDirRaw !== undefined) {
     requireAbsolute(
       staticDirRaw,
-      env.KENZEN_STATIC_DIR !== undefined ? "KENZEN_STATIC_DIR" : `${configFile} [static_dir]`,
+      staticDirEnv !== undefined ? "KENZEN_STATIC_DIR" : `${configFile} [static_dir]`,
     )
   }
   const staticDir = staticDirRaw ?? options.defaultStaticDir

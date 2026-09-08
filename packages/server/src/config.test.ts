@@ -50,6 +50,42 @@ describe("resolveConfig", () => {
     expect(cfg.host).toBe("127.0.0.1")
   })
 
+  // A set-but-blank value (a common env-file/compose slip) must be treated as unset for
+  // EVERY field, not just KENZEN_HOST -- an adversarial review on K4-2 found this asymmetry
+  // inherited from artifact-console's own config.ts and asked for it to be fixed here.
+  it("an empty KENZEN_CONFIG_DIR falls through to the default dir rather than throwing", () => {
+    const cfg = resolveConfig(
+      { KENZEN_CONFIG_DIR: "" },
+      opts(() => null),
+    )
+    expect(cfg.configFile).toBe("/config/config.toml")
+  })
+
+  it("an empty KENZEN_PORT falls through to config.toml's port rather than throwing", () => {
+    const cfg = resolveConfig(
+      { KENZEN_PORT: "" },
+      opts(() => "port = 9000\n"),
+    )
+    expect(cfg.port).toBe(9000)
+  })
+
+  it("an empty KENZEN_STATIC_DIR falls through to config.toml's static_dir, not the default, and not a throw", () => {
+    const cfg = resolveConfig(
+      { KENZEN_STATIC_DIR: "" },
+      opts(() => 'static_dir = "/srv/from-file"\n'),
+    )
+    expect(cfg.staticDir).toBe("/srv/from-file")
+  })
+
+  it("a blank KENZEN_STATIC_DIR plus a bad relative static_dir in the file blames the file, not the env var", () => {
+    expect(() =>
+      resolveConfig(
+        { KENZEN_STATIC_DIR: "" },
+        opts(() => 'static_dir = "rel/path"\n'),
+      ),
+    ).toThrow(/\[static_dir\] must be an absolute path, got: rel\/path/)
+  })
+
   // The acceptance bullet this backs: "a relative KENZEN_CONFIG_DIR rejected with a clear error."
   it("KENZEN_CONFIG_DIR relocates the config file and must be absolute", () => {
     expect(
