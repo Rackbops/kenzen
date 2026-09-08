@@ -87,32 +87,76 @@ export function listDecisions(db: DatabaseSync): DecisionRow[] {
   return rows.map(rowToDecision)
 }
 
+function repoKindNameKey(item: { repo: string; kind: string; name: string }): string {
+  return `${item.repo}|${item.kind}|${item.name}`
+}
+
+/**
+ * How many DISTINCT items (by `key`) share each `repo|kind|name` within one set of items --
+ * normally every item currently in a snapshot. `findDecisionForItem`'s ambiguity gate needs
+ * this: re-matching by repo|kind|name is only safe when there is exactly one live occurrence
+ * to apply a carried-over decision to.
+ */
+export function countByRepoKindName(
+  items: { key: string; repo: string; kind: string; name: string }[],
+): Map<string, number> {
+  const seenKeysByRkn = new Map<string, Set<string>>()
+  for (const it of items) {
+    const rkn = repoKindNameKey(it)
+    const keys = seenKeysByRkn.get(rkn)
+    if (keys) {
+      keys.add(it.key)
+    } else {
+      seenKeysByRkn.set(rkn, new Set([it.key]))
+    }
+  }
+  return new Map(Array.from(seenKeysByRkn, ([rkn, keys]) => [rkn, keys.size]))
+}
+
 /**
  * The decision that applies to `item`, or `null`. An exact `key` match always wins outright.
  * Failing that, design.md section 5: "a decision made on an item whose `source` line moves
  * (file edited) is re-matched by `repo|kind|name`" -- the newest (by `updatedAt`) decision
  * sharing repo/kind/name, so a decided item doesn't silently lose its decision the moment a
- * file edit shifts which line its pin is on (Tooling#478 K4-5b). `updatedAt` is always this
- * app's own `Date.prototype.toISOString()` output (never user-supplied, unlike `remindAt`), so
- * comparing parsed instants rather than raw strings is purely defensive consistency with the
- * rest of this module, not a fix for an actual reachable bug here.
+ * file edit shifts which line its pin is on (Tooling#478 K4-5b).
  *
- * Read-only, deliberately: this is consulted by `GET /api/repos` (and any future read that
- * needs "the decision for this item"), not by `putDecision`. A `PUT` against the item's
- * CURRENT key after a carry-over match creates a new row rather than adopting/updating the
- * stale one under the old key -- the K4-5b issue named this ambiguity explicitly (re-point the
- * stale row on next write, or leave it alone) and left it open; leaving it alone is the safer
- * of the two until a real answer is needed, since silently re-pointing risks merging two
- * decisions a user made deliberately at different times. See `decisions.test.ts`'s
+ * `occurrenceCounts` (from `countByRepoKindName`, over the SAME snapshot's full item set --
+ * not just whatever subset a filtered query happens to return) gates the fallback: it only
+ * runs when `item` is the ONLY currently-live item for its repo|kind|name. A monorepo
+ * dependency required by two workspace packages, or a GitHub Action used across several
+ * workflow files, are real, simultaneously-live items sharing repo|kind|name today, not a
+ * moved pin -- re-matching by name alone in that case would guess which occurrence a decision
+ * belongs to, and could silently apply one item's skip/acknowledge to an entirely different,
+ * never-reviewed item (Tooling#478 K4-5b review round 1, CRITICAL, confirmed live: deciding
+ * one workspace package's occurrence made a sibling package's identical-name occurrence read
+ * as decided too, even though nobody had looked at it). Ambiguous cases fall through to `null`
+ * -- each occurrence needs its own decision, same as before this fallback existed.
+ *
+ * `updatedAt` is always this app's own `Date.prototype.toISOString()` output (never
+ * user-supplied, unlike `remindAt`), so comparing parsed instants rather than raw strings is
+ * purely defensive consistency with the rest of this module, not a fix for an actual reachable
+ * bug here.
+ *
+ * Read-only, deliberately: this is consulted by reads (`GET /api/repos`,
+ * `GET /api/snapshots/:id/items`), not by `putDecision`. A `PUT` against the item's CURRENT key
+ * after a carry-over match creates a new row rather than adopting/updating the stale one under
+ * the old key -- the K4-5b issue named this ambiguity explicitly (re-point the stale row on
+ * next write, or leave it alone) and left it open; leaving it alone is the safer of the two
+ * until a real answer is needed, since silently re-pointing risks merging two decisions a user
+ * made deliberately at different times. See `decisions.test.ts`'s
  * `putDecision: carry-over is read-only` for the current, deliberate behavior this implies.
  */
 export function findDecisionForItem(
   decisions: DecisionRow[],
   item: { key: string; repo: string; kind: string; name: string },
+  occurrenceCounts: Map<string, number>,
 ): DecisionRow | null {
   const exact = decisions.find((d) => d.key === item.key)
   if (exact) {
     return exact
+  }
+  if ((occurrenceCounts.get(repoKindNameKey(item)) ?? 0) > 1) {
+    return null
   }
   const candidates = decisions.filter(
     (d) => d.repo === item.repo && d.kind === item.kind && d.name === item.name,

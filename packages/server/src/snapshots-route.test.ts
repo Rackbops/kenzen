@@ -3,6 +3,7 @@ import type { DatabaseSync } from "node:sqlite"
 import { fileURLToPath } from "node:url"
 import { Hono } from "hono"
 import { describe, expect, it } from "vitest"
+import { putDecision } from "./decisions.js"
 import { ingest } from "./ingest.js"
 import { createLogger } from "./log.js"
 import { mountSnapshotsRoute } from "./snapshots-route.js"
@@ -427,7 +428,7 @@ describe("GET /api/snapshots/:id/items", () => {
     expect(body.path).toBe(param)
   })
 
-  it("decision is null for an item with no decisions row (K4-5 hasn't shipped yet)", async () => {
+  it("decision is null for an item with no decisions row anywhere", async () => {
     const { app, db } = testApp()
     const snapshotId = ingestSnapshot(db, "2026-01-01T00:00:00Z", [
       { inv: invItem(), rep: repItem() },
@@ -468,6 +469,79 @@ describe("GET /api/snapshots/:id/items", () => {
       updatedAt: "2026-01-02T00:00:00Z",
       updatedBy: "roshne",
     })
+  })
+
+  it("K4-5b REGRESSION (Tooling#478 review round 1, HIGH): carries a decision over when the item's source moves, matching GET /api/repos", async () => {
+    // The exact live inconsistency an adversarial reviewer found: GET /api/repos already
+    // re-matched a moved item's decision (K4-5b), but this endpoint's plain `d.key = i.key`
+    // join did not, so the two live endpoints disagreed about whether the item was decided.
+    const { app, db } = testApp()
+    ingestSnapshot(db, "2026-01-01T00:00:00Z", [
+      {
+        inv: invItem({ source: "f:1" }),
+        rep: repItem({ key: "o/r|npm-dep|foo|f:1", source: "f:1" }),
+      },
+    ])
+    putDecision(
+      db,
+      "o/r|npm-dep|foo|f:1",
+      { field: "skippedVersion", value: "1.0.0" },
+      "roshne",
+      "2026-01-02T00:00:00.000Z",
+    )
+    // The source moves in a later ingest -- a file edit shifted the pin's line.
+    const secondSnapshotId = ingestSnapshot(db, "2026-02-01T00:00:00Z", [
+      {
+        inv: invItem({ source: "f:9" }),
+        rep: repItem({ key: "o/r|npm-dep|foo|f:9", source: "f:9" }),
+      },
+    ])
+
+    const res = await app.request(`/api/snapshots/${secondSnapshotId}/items`)
+    const body = (await res.json()) as {
+      items: { key: string; decision: { skippedVersion: string | null } | null }[]
+    }
+    expect(body.items[0]?.key).toBe("o/r|npm-dep|foo|f:9")
+    expect(body.items[0]?.decision?.skippedVersion).toBe("1.0.0")
+  })
+
+  it("K4-5b REGRESSION (Tooling#478 review round 1, CRITICAL): does not cross-contaminate two DISTINCT live items sharing repo|kind|name", async () => {
+    // Two simultaneously-live items -- e.g. the same npm package required by two workspace
+    // packages -- not one item that moved. Only one occurrence is ever decided.
+    const { app, db } = testApp()
+    const snapshotId = ingestSnapshot(db, "2026-01-01T00:00:00Z", [
+      {
+        inv: invItem({ source: "packages/a/package.json:5" }),
+        rep: repItem({
+          key: "o/r|npm-dep|foo|packages/a/package.json:5",
+          source: "packages/a/package.json:5",
+        }),
+      },
+      {
+        inv: invItem({ source: "packages/b/package.json:3" }),
+        rep: repItem({
+          key: "o/r|npm-dep|foo|packages/b/package.json:3",
+          source: "packages/b/package.json:3",
+        }),
+      },
+    ])
+    putDecision(
+      db,
+      "o/r|npm-dep|foo|packages/a/package.json:5",
+      { field: "skippedVersion", value: "1.0.0" },
+      "roshne",
+      "2026-01-02T00:00:00.000Z",
+    )
+
+    const res = await app.request(`/api/snapshots/${snapshotId}/items`)
+    const body = (await res.json()) as {
+      items: { key: string; decision: { skippedVersion: string | null } | null }[]
+    }
+    const a = body.items.find((i) => i.key === "o/r|npm-dep|foo|packages/a/package.json:5")
+    const b = body.items.find((i) => i.key === "o/r|npm-dep|foo|packages/b/package.json:3")
+    expect(a?.decision?.skippedVersion).toBe("1.0.0")
+    // b must NOT inherit a's decision just because the name matches.
+    expect(b?.decision).toBeNull()
   })
 
   it("apiVersion is present on the happy path and every error branch", async () => {

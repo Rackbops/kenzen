@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite"
 import type { Context, Hono } from "hono"
-import { findDecisionForItem, listDecisions } from "./decisions.js"
+import { countByRepoKindName, findDecisionForItem, listDecisions } from "./decisions.js"
 import type { SuppressionItem } from "./suppression.js"
 import { effectiveAdvisoryStatus, suppressionState } from "./suppression.js"
 
@@ -93,6 +93,7 @@ export function mountReposRoute(app: Hono, db: DatabaseSync): void {
     )
 
     const decisions = listDecisions(db)
+    const occurrenceCounts = countByRepoKindName(itemRows)
     const now = new Date().toISOString()
 
     const byRepo = new Map<string, RepoSummary>()
@@ -117,7 +118,7 @@ export function mountReposRoute(app: Hono, db: DatabaseSync): void {
         entry.role[row.role] = (entry.role[row.role] ?? 0) + 1
       }
 
-      const decision = findDecisionForItem(decisions, row)
+      const decision = findDecisionForItem(decisions, row, occurrenceCounts)
       const item: SuppressionItem = {
         pinned: row.pinned,
         latest: row.latest,

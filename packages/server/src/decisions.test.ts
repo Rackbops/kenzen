@@ -3,7 +3,12 @@ import type { DatabaseSync } from "node:sqlite"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 import type { DecisionPatch, DecisionRow } from "./decisions.js"
-import { findDecisionForItem, listDecisions, putDecision } from "./decisions.js"
+import {
+  countByRepoKindName,
+  findDecisionForItem,
+  listDecisions,
+  putDecision,
+} from "./decisions.js"
 import type { InventoryDoc, ReportDoc } from "./ingest.js"
 import { ingest } from "./ingest.js"
 import { createLogger } from "./log.js"
@@ -594,14 +599,25 @@ describe("findDecisionForItem (Tooling#478 K4-5b)", () => {
 
   const item = { key: "o/r|npm-dep|foo|package.json:1", repo: "o/r", kind: "npm-dep", name: "foo" }
 
+  // Most tests below have exactly one live occurrence of the item's repo|kind|name -- the
+  // common, unambiguous case -- expressed directly as a count rather than routing every call
+  // through countByRepoKindName (which has its own dedicated tests further down).
+  function soleOccurrence(rknItem: {
+    repo: string
+    kind: string
+    name: string
+  }): Map<string, number> {
+    return new Map([[`${rknItem.repo}|${rknItem.kind}|${rknItem.name}`, 1]])
+  }
+
   it("returns the exact key match when one exists", () => {
     const d = decision()
-    expect(findDecisionForItem([d], item)).toBe(d)
+    expect(findDecisionForItem([d], item, soleOccurrence(item))).toBe(d)
   })
 
   it("is null when nothing matches at all", () => {
     const unrelated = decision({ key: "o/r|npm-dep|bar|package.json:1", name: "bar" })
-    expect(findDecisionForItem([unrelated], item)).toBeNull()
+    expect(findDecisionForItem([unrelated], item, soleOccurrence(item))).toBeNull()
   })
 
   it("falls back to a repo|kind|name match when the exact key has moved (a file edit shifted the source line)", () => {
@@ -609,14 +625,28 @@ describe("findDecisionForItem (Tooling#478 K4-5b)", () => {
     // under the OLD key (package.json:1) from before the source line moved.
     const stale = decision({ key: "o/r|npm-dep|foo|package.json:1", source: "package.json:1" })
     const movedItem = { ...item, key: "o/r|npm-dep|foo|package.json:5" }
-    expect(findDecisionForItem([stale], movedItem)).toBe(stale)
+    expect(findDecisionForItem([stale], movedItem, soleOccurrence(movedItem))).toBe(stale)
   })
 
   it("does not fall back across a different kind or name -- repo|kind|name must all match", () => {
     const wrongKind = decision({ key: "x", kind: "pip-dep" })
     const wrongName = decision({ key: "y", name: "bar" })
     const movedItem = { ...item, key: "o/r|npm-dep|foo|package.json:5" }
-    expect(findDecisionForItem([wrongKind, wrongName], movedItem)).toBeNull()
+    expect(
+      findDecisionForItem([wrongKind, wrongName], movedItem, soleOccurrence(movedItem)),
+    ).toBeNull()
+  })
+
+  it("does not fall back across a different repo -- an identical kind|name in another repo must never match", () => {
+    // Tooling#478 K4-5b review round 2: no prior test discriminated on repo alone (every
+    // decision and item shared "o/r"). The shipped filter includes `d.repo === item.repo`,
+    // but nothing proved a mutant that dropped it would be caught.
+    const sameKindName = decision({
+      key: "other/repo|npm-dep|foo|package.json:1",
+      repo: "other/repo",
+    })
+    const movedItem = { ...item, key: "o/r|npm-dep|foo|package.json:5" }
+    expect(findDecisionForItem([sameKindName], movedItem, soleOccurrence(movedItem))).toBeNull()
   })
 
   it("resolves two repo|kind|name candidates deterministically to the newer one by updatedAt", () => {
@@ -636,8 +666,9 @@ describe("findDecisionForItem (Tooling#478 K4-5b)", () => {
     // repo|kind|name fallback, order in the input array deliberately reversed to prove the
     // result isn't just "first in the array".
     const movedItem = { ...item, key: "o/r|npm-dep|foo|package.json:9" }
-    expect(findDecisionForItem([newer, older], movedItem)).toBe(newer)
-    expect(findDecisionForItem([older, newer], movedItem)).toBe(newer)
+    const counts = soleOccurrence(movedItem)
+    expect(findDecisionForItem([newer, older], movedItem, counts)).toBe(newer)
+    expect(findDecisionForItem([older, newer], movedItem, counts)).toBe(newer)
   })
 
   it("an exact key match wins even over a newer repo|kind|name candidate under a different key", () => {
@@ -652,6 +683,79 @@ describe("findDecisionForItem (Tooling#478 K4-5b)", () => {
       updatedAt: "2099-01-01T00:00:00.000Z",
     })
     const movedItem = { ...item, key: "o/r|npm-dep|foo|package.json:5" }
-    expect(findDecisionForItem([newerButDifferentKey, exact], movedItem)).toBe(exact)
+    expect(
+      findDecisionForItem([newerButDifferentKey, exact], movedItem, soleOccurrence(movedItem)),
+    ).toBe(exact)
+  })
+
+  it("REGRESSION (Tooling#478 K4-5b review round 1, CRITICAL): refuses to fall back when more than one live item shares repo|kind|name", () => {
+    // Two DIFFERENT, simultaneously-live items -- e.g. the same npm package required by two
+    // workspace packages in a monorepo -- not one item that moved. Only ONE of them (:a) was
+    // ever decided; the other (:b) has no decision under its own key.
+    const decidedA = decision({ key: "o/r|npm-dep|foo|packages/a/package.json:5" })
+    const itemA = {
+      key: "o/r|npm-dep|foo|packages/a/package.json:5",
+      repo: "o/r",
+      kind: "npm-dep",
+      name: "foo",
+    }
+    const itemB = {
+      key: "o/r|npm-dep|foo|packages/b/package.json:3",
+      repo: "o/r",
+      kind: "npm-dep",
+      name: "foo",
+    }
+    const bothLive = new Map([["o/r|npm-dep|foo", 2]])
+
+    // itemA still gets its own exact-key decision.
+    expect(findDecisionForItem([decidedA], itemA, bothLive)).toBe(decidedA)
+    // itemB must NOT inherit itemA's decision just because the name matches -- the fallback is
+    // ambiguous with two live occurrences, so itemB reads as genuinely undecided.
+    expect(findDecisionForItem([decidedA], itemB, bothLive)).toBeNull()
+  })
+})
+
+describe("countByRepoKindName (Tooling#478 K4-5b review round 1)", () => {
+  it("counts one for a single item", () => {
+    const counts = countByRepoKindName([
+      { key: "o/r|npm-dep|foo|f:1", repo: "o/r", kind: "npm-dep", name: "foo" },
+    ])
+    expect(counts.get("o/r|npm-dep|foo")).toBe(1)
+  })
+
+  it("counts two DISTINCT keys sharing repo|kind|name as 2, not deduplicated away", () => {
+    const counts = countByRepoKindName([
+      {
+        key: "o/r|npm-dep|foo|packages/a/package.json:5",
+        repo: "o/r",
+        kind: "npm-dep",
+        name: "foo",
+      },
+      {
+        key: "o/r|npm-dep|foo|packages/b/package.json:3",
+        repo: "o/r",
+        kind: "npm-dep",
+        name: "foo",
+      },
+    ])
+    expect(counts.get("o/r|npm-dep|foo")).toBe(2)
+  })
+
+  it("keeps repos, kinds, and names that only differ in one field as separate entries", () => {
+    const counts = countByRepoKindName([
+      { key: "a|npm-dep|foo|f:1", repo: "a", kind: "npm-dep", name: "foo" },
+      { key: "b|npm-dep|foo|f:1", repo: "b", kind: "npm-dep", name: "foo" },
+      { key: "a|pip-dep|foo|f:1", repo: "a", kind: "pip-dep", name: "foo" },
+      { key: "a|npm-dep|bar|f:1", repo: "a", kind: "npm-dep", name: "bar" },
+    ])
+    expect(counts.get("a|npm-dep|foo")).toBe(1)
+    expect(counts.get("b|npm-dep|foo")).toBe(1)
+    expect(counts.get("a|pip-dep|foo")).toBe(1)
+    expect(counts.get("a|npm-dep|bar")).toBe(1)
+    expect(counts.size).toBe(4)
+  })
+
+  it("is empty for an empty item list", () => {
+    expect(countByRepoKindName([]).size).toBe(0)
   })
 })

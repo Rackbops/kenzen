@@ -400,6 +400,57 @@ describe("GET /api/repos", () => {
     expect(body.repos[0]?.decided).toBe(1)
   })
 
+  it("K4-5b REGRESSION (Tooling#478 review round 1, CRITICAL): does not cross-contaminate two DISTINCT live items sharing repo|kind|name", async () => {
+    // Two simultaneously-live items -- e.g. the same npm package required by two workspace
+    // packages in a monorepo -- not one item that moved. Only one occurrence is decided.
+    const { app, db } = testApp()
+    ingest(
+      db,
+      {
+        repos: ["o/r"],
+        readOnly: [],
+        items: [
+          invItem({ source: "packages/a/package.json:5" }),
+          invItem({ source: "packages/b/package.json:3" }),
+        ],
+      },
+      {
+        generatedAt: "2026-01-01T00:00:00Z",
+        inventoryItems: 2,
+        items: [
+          repItem({
+            key: "o/r|npm-dep|foo|packages/a/package.json:5",
+            source: "packages/a/package.json:5",
+            gap: "major",
+            latest: "9.0.0",
+          }),
+          repItem({
+            key: "o/r|npm-dep|foo|packages/b/package.json:3",
+            source: "packages/b/package.json:3",
+            gap: "major",
+            latest: "9.0.0",
+          }),
+        ],
+        repos: {},
+        summary: {},
+      },
+    )
+    putDecision(
+      db,
+      "o/r|npm-dep|foo|packages/a/package.json:5",
+      { field: "skippedVersion", value: "9.0.0" },
+      "alice",
+      "2026-01-02T00:00:00.000Z",
+    )
+
+    const res = await app.request("/api/repos")
+    const body = (await res.json()) as { repos: { gap: Record<string, number>; decided: number }[] }
+    // Only "a" was decided -- "b" must still show as an active, undecided major gap, not
+    // silently inherit "a"'s skip just because the name matches.
+    expect(body.repos[0]?.gap.major).toBe(1)
+    expect(body.repos[0]?.decided).toBe(1)
+  })
+
   it("includes a repo with Dependabot data but zero tracked items", async () => {
     const { app, db } = testApp()
     ingest(
