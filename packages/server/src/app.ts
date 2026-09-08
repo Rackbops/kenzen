@@ -38,6 +38,26 @@ export interface AppOptions {
 export function createApp(options: AppOptions): Hono {
   const app = new Hono()
 
+  // K4-6c (kenzen#44): Kenzen always serves its dashboard UI -- the SPA fallback below is
+  // unconditional, there is no headless/API-only mode -- so an unconfigured Access verifier
+  // means PUT /api/decisions/* has no verified identity path. This PR's own review gate went
+  // through two drafts that each overclaimed a specific per-request outcome (round 1: "every
+  // write 401s" -- false when KENZEN_DEV_IDENTITY is set and no JWT header arrives; round 2's
+  // fix for that: "writes succeed via devIdentity" -- also false, because resolveUpdatedBy in
+  // decisions-route.ts (see its own doc comment) only reaches the devIdentity fallback when NO
+  // Cf-Access-Jwt-Assertion header is present at all, and a real Access-gated request (the
+  // live incident's own shape: Access fronts the Cloudflare tunnel per design.md section 7,
+  // independently of whether this app's own KENZEN_ACCESS_TEAM_DOMAIN/AUD are set) always
+  // carries that header, so it is rejected outright regardless of devIdentity --
+  // decisions-route.test.ts "401s a JWT-bearing request when this instance has no verifier
+  // configured" proves it even with devIdentity set). What's actually knowable at BOOT time,
+  // true unconditionally, is only that no verified path exists -- so that's all this warns.
+  if (options.verifyAccessJwt === undefined) {
+    options.log.warn(
+      "Access JWT verification is not configured -- PUT /api/decisions/* has no verified identity path (a request carrying an Access JWT header is rejected outright regardless of KENZEN_DEV_IDENTITY; set KENZEN_ACCESS_TEAM_DOMAIN and KENZEN_ACCESS_AUD)",
+    )
+  }
+
   app.get("/healthz", healthz({ version: options.version, apiVersion: API_VERSION }))
   mountIngestRoute(app, { db: options.db, ingestToken: options.ingestToken, log: options.log })
   mountReposRoute(app, options.db)
