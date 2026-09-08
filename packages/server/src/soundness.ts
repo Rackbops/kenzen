@@ -66,11 +66,16 @@ export function computeRepoSummaries(
   // `repo`, when given, scopes every query below to just that one repo -- kenzen#38 review
   // round 1, HIGH: `GET /api/repos/:repo/soundness` originally called this UNSCOPED once per
   // snapshot in its window and threw away every repo's result but one, an N+1-within-N+1 cost
-  // that a live benchmark (60 snapshots x 20 repos x 800 items, matching this app's real scale)
-  // measured at ~2.3s of synchronous, single-threaded compute for one page load -- long enough
-  // to block `POST /api/ingest` or any other request for the duration, and it gets WORSE as the
-  // exact two things this feature accumulates (tracked repos, snapshot history) grow. `/api/repos`
-  // (the all-repos listing) still calls this with `repo` omitted, unchanged from before.
+  // that scales with O(repos x items) instead of O(items in the one requested repo). At this
+  // deployment's actual current scale (765 items across ~19 repos, `History.tsx`'s real
+  // `SERIES_LIMIT` of 30 snapshots), the unscoped pattern measured ~105ms and the scoped one
+  // ~15ms -- not an availability crisis today, but the ratio between them widens as either
+  // tracked-repo count or snapshot history grows, and the scoped query is free to write either
+  // way. (Round 2 review, MEDIUM: an earlier version of this comment cited a ~2.3s figure from
+  // a benchmark at 800 items PER REPO, ~20x this app's real ~40 items/repo -- corrected here to
+  // the deployment's own measured numbers rather than an extrapolated worst case.)
+  // `/api/repos` (the all-repos listing) still calls this with `repo` omitted, unchanged from
+  // before.
   //
   // Scoping the item query to one repo cannot change `countByRepoKindName`'s ambiguity counts
   // for that repo's own items: `repo` is part of the `repo|kind|name` key it disambiguates on,
