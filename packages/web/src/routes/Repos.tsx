@@ -1,4 +1,4 @@
-import { Badge, Card } from "@rackbops/ui-react"
+import { Badge, Card, DataTable, type DataTableColumn } from "@rackbops/ui-react"
 import { type ReactNode, useMemo, useState } from "react"
 import { AdvisoryList } from "../AdvisoryList.js"
 import {
@@ -9,7 +9,6 @@ import {
   type RepoSummary,
 } from "../api.js"
 import { advisoryVariant, gapVariant } from "../badgeVariants.js"
-import { DataTable, type DataTableColumn } from "../components/DataTable.js"
 import { DecisionActions } from "../DecisionActions.js"
 import { gapPriority } from "../gapPriority.js"
 import { applyItemFilters, type ItemFilterState, ItemFilters } from "../ItemFilters.js"

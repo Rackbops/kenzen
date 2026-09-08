@@ -3,7 +3,7 @@ import type { ReportItem } from "./api.js"
 
 /** Kenzen-specific filter controls over a ReportItem array (design.md section 6:
  * "repo/kind/role/status filters"). Not a give-back candidate -- it's ReportItem-shaped, not
- * generic -- unlike DataTable/components/. */
+ * generic -- unlike DataTable, which shipped to @rackbops/ui-react at K4-10. */
 
 export interface ItemFilterState {
   repo?: string

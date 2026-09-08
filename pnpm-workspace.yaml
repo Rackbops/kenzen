@@ -17,3 +17,5 @@ catalog:
 
 minimumReleaseAgeExclude:
   - '@rackbops/node-app-kit@0.1.0'
+  - '@rackbops/styles@0.2.16'
+  - '@rackbops/ui-react@0.2.16'

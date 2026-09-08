@@ -1,4 +1,4 @@
-import { Card } from "@rackbops/ui-react"
+import { Card, DataTable, type DataTableColumn } from "@rackbops/ui-react"
 import { useState } from "react"
 import {
   fetchItemHistory,
@@ -8,7 +8,6 @@ import {
   type ReportItem,
   type RepoSummary,
 } from "../api.js"
-import { DataTable, type DataTableColumn } from "../components/DataTable.js"
 import { useAsync } from "../useAsync.js"
 
 /**

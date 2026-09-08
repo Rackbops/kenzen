@@ -1,8 +1,6 @@
-import { Button } from "@rackbops/ui-react"
+import { Button, DataTable, type DataTableColumn, Tabstrip } from "@rackbops/ui-react"
 import { useCallback, useState } from "react"
 import { clearDecision, type DecisionRecord, fetchDecisions } from "../api.js"
-import { DataTable, type DataTableColumn } from "../components/DataTable.js"
-import { Tabstrip } from "../components/Tabstrip.js"
 import { useAsync } from "../useAsync.js"
 
 /**

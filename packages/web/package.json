@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@kenzen/contract": "workspace:*",
-    "@rackbops/styles": "^0.2.4",
-    "@rackbops/ui-react": "^0.2.4",
+    "@rackbops/styles": "^0.2.16",
+    "@rackbops/ui-react": "^0.2.16",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router": "^8.3.0"
