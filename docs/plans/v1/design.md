@@ -1,6 +1,6 @@
 # Kenzen-sei (Kenzen) 1.0 -- design
 
-Status: **draft for audit** (2026-09-08). Epic: [Tooling#473](https://github.com/Rackbops/Tooling/issues/473); this doc is [Tooling#476](https://github.com/Rackbops/Tooling/issues/476). Companion: [`plan.md`](plan.md). Research: Tooling's [`research/software-inventory-and-update-surfacing.md`](https://github.com/Rackbops/Tooling/blob/main/research/software-inventory-and-update-surfacing.md).
+Status: **audited 2026-09-08** (one independent claims-vs-code pass: 3 findings -- `resolver` absent from the report item, K4-10's filing repo, K4-10 missing from the milestones -- all fixed; 2 minor notes addressed). Epic: [Tooling#473](https://github.com/Rackbops/Tooling/issues/473); this doc is [Tooling#476](https://github.com/Rackbops/Tooling/issues/476). Companion: [`plan.md`](plan.md). Research: Tooling's [`research/software-inventory-and-update-surfacing.md`](https://github.com/Rackbops/Tooling/blob/main/research/software-inventory-and-update-surfacing.md).
 
 Claims below are marked **[code]** (true of something that exists, with a citation), **[decided]** (roshne's call, dated) or **[proposed]** (this doc's design, to be proven by the plan's ratchets).
 
@@ -26,11 +26,11 @@ Kenzen is an app of its own, not a plugin of artifact-console 2.0, because a plu
  +--------------------------------------------------------------+        +------------------------------------------+
 ```
 
-- **Tooling stays the collection engine** **[code]**: `software_inventory.py` (Tooling#424) emits the inventory; `software_report.py` (Tooling#425) resolves latest versions and advisories into the report; `software_digest.py` (Tooling#426, in flight) posts deltas to Discord and honours decisions. All Python, stdlib, scheduled on the dev box. Kenzen re-collects nothing. **[decided 2026-09-07, decision 4]**
+- **Tooling stays the collection engine** **[code]**: `software_inventory.py` (Tooling#424) emits the inventory; `software_report.py` (Tooling#425) resolves latest versions and advisories into the report; `software_digest.py` (Tooling#426, in flight) posts deltas to Discord and honours decisions. All Python, stdlib, scheduled on the dev box. Kenzen re-collects nothing. **[decided 2026-09-08, decision 4]**
 - **Kenzen ingests, stores every snapshot, renders, and owns the decision state.** The hand-edited `software-decisions.json` in Tooling becomes the fallback the digest uses when Kenzen is unreachable ([Tooling#477](https://github.com/Rackbops/Tooling/issues/477)).
 - **Interim** **[code]**: until Kenzen 1.0 is live, the Python-rendered Markdown page in the artifact-console 1.x store (Tooling PR #486) is the dashboard. Tooling#480 retires or demotes it.
 
-## 3. Stack **[decided 2026-09-07, decision 1]**
+## 3. Stack **[decided 2026-09-08, decision 1]**
 
 TypeScript end to end, the artifact-console 2.0 choices so a later plugin port is re-hosting rather than rewriting:
 
@@ -39,7 +39,7 @@ TypeScript end to end, the artifact-console 2.0 choices so a later plugin port i
 | Runtime | Node 24 (`.nvmrc`), pnpm workspace | artifact-console `.nvmrc` = `24`, `pnpm-workspace.yaml` |
 | API | Hono + `@hono/node-server`; JSON schema validation with `ajv` | artifact-console `packages/host/package.json` deps: `hono ^4`, `@hono/node-server ^1`, `ajv ^8.17` |
 | State | SQLite via `node:sqlite`, numbered `NNNN_name.sql` migrations tracked by `PRAGMA user_version`, append-only and immutable once shipped | artifact-console `packages/host/migrations/README.md` (copied verbatim as Kenzen's contract) |
-| UI | React 19 + react-router SPA built by Vite into the server's `public/`; `@rackbops/styles` theme imported once at the root; components from `@rackbops/ui-react` | artifact-console `packages/ui-shell`; `rackbops-ui-ux-std-lib` README "React components" (`Button`, `Card`, `NavLink`; themes swappable via `rb-*` class names) |
+| UI | React 19 + react-router SPA built by Vite into the server's `public/`; `@rackbops/styles` theme imported once at the root; components from `@rackbops/ui-react` | artifact-console `packages/ui-shell`; `rackbops-ui-ux-std-lib` README "React components" (`Button`, `Card`, `NavLink`; components carry fixed `rb-*` classes and the theme is selected by the `data-rb-style` attribute, so themes stay swappable) |
 | Tests / lint | Vitest, Biome, TypeScript strict | artifact-console `biome.json`, `tsconfig.base.json` |
 | CI | the org's disposable runner pool (`runs-on: [self-hosted, disposable]`; private repo, so permitted), image ratchet on the `docker` DinD slot | artifact-console `.github/workflows/test.yml`, `image-ratchet.yml` |
 | Image | `ghcr.io/rackbops/kenzen`, multi-arch on `v*` tags, version sourced from `package.json` with a tag-pin test | artifact-console `release.yml` |
@@ -54,11 +54,11 @@ Layout: `packages/server` (Hono, migrations, ingest, decisions), `packages/web` 
 
 `software-inventory.json` (Tooling#424, committed at Tooling's root): `{"_comment", "repos": [owned], "readOnly": [forks], "items": [Item]}`, Item = `repo, kind, name, pinned, pinStyle, role, source, resolver` with `kind ∈ {dockerfile-base, compose-image, github-action, npm-dep, pip-dep, runtime-pin}`, `pinStyle ∈ {exact, major, floating}`, `role ∈ {runtime, test, build, ci, infra}`, `source = "path:line"`, `resolver ∈ {dockerhub, ghcr, npm, pypi, gh-release, gh-tag, none}` (`software_inventory.py` `class Item`, lines 40-51 as merged).
 
-`software-report.json` (Tooling#425, written under the out-of-git state dir): `{"generatedAt", "inventoryItems", "items": [ReportItem], "repos": {repo: {"dependabotAlerts": "not enabled" | [...]}}, "summary": {...}}`; ReportItem = the Item fields plus `key` (`repo|kind|name|source`), `latest`, `latestInMajor`, `gap ∈ {none, patch, minor, major, unknown}`, `advisoryStatus ∈ {affected, historical-only, none, unknown}`, `advisories: [{id, summary, severity, url, source ∈ {osv, ghsa}, affected}]`, `assumed`, `note` (`software_report.py` `build_report`, lines ~1103-1163 as merged).
+`software-report.json` (Tooling#425, written under the out-of-git state dir): `{"generatedAt", "inventoryItems", "items": [ReportItem], "repos": {repo: {"dependabotAlerts": "not enabled" | [...]}}, "summary": {...}}`; ReportItem = the Item fields **except `resolver`** (the report copies `repo, kind, name, pinned, pinStyle, role, source` only -- `software_report.py` lines 1141-1149) plus `key` (`repo|kind|name|source`), `latest`, `latestInMajor`, `gap ∈ {none, patch, minor, major, unknown}`, `advisoryStatus ∈ {affected, historical-only, none, unknown}`, `advisories: [{id, summary, severity, url, source ∈ {osv, ghsa}, affected}]`, `assumed`, `note` (`software_report.py` `build_report`, lines ~1103-1163 as merged).
 
 ### 4.2 Ingest **[proposed]**
 
-`POST /api/ingest` -- body `{"apiVersion": 1, "generatedAt", "inventory": <software-inventory.json>, "report": <software-report.json>}`, header `Authorization: Bearer <token>`. Validated with `ajv` against JSON Schemas kept in `packages/contract/schemas/` and **vendored byte-identically from Tooling** (`schemas/software-inventory.schema.json`, `schemas/software-report.schema.json`, published by Tooling#477 and listed in `shared-helpers-manifest.json` so the daily drift watcher alarms if the twins diverge). Idempotent on `generatedAt` (a re-post of the same snapshot is a 200 no-op). Response `{"apiVersion": 1, "snapshotId", "items", "generatedAt"}`. Every ingest is a snapshot; nothing is overwritten -- history is the point.
+`POST /api/ingest` -- body `{"apiVersion": 1, "generatedAt", "inventory": <software-inventory.json>, "report": <software-report.json>}`, header `Authorization: Bearer <token>`. Validated with `ajv` against JSON Schemas kept in `packages/contract/schemas/` and **vendored byte-identically from Tooling** (`schemas/software-inventory.schema.json`, `schemas/software-report.schema.json`, published by Tooling#477 and listed in `shared-helpers-manifest.json` so the daily drift watcher alarms if the twins diverge). Idempotent on `generatedAt` (a re-post of the same snapshot is a 200 no-op). Because the body carries both documents, ingest joins them: each stored item is the ReportItem plus `resolver` backfilled from the inventory item with the same `repo|kind|name|source` (an inventory item with no report row is stored with `latest`/`gap`/`advisoryStatus` null and `note = "not in report"`; a report row with no inventory item is a 422, since the report is derived from the inventory). Response `{"apiVersion": 1, "snapshotId", "items", "generatedAt"}`. Every ingest is a snapshot; nothing is overwritten -- history is the point.
 
 The token: generated once, stored on nucbox in the app's `.env` as `KENZEN_INGEST_TOKEN` and on the dev box as `secrets/kenzen.json` (`{"ingestToken": ...}`), read by Tooling via `notify.secrets_path("kenzen.json")`. Never in either repo.
 
@@ -101,7 +101,7 @@ Sections, in this order, per repo filters on every table:
 
 Components: `Card`, `Button`, `NavLink` from `@rackbops/ui-react` as they exist **[code]**; the data table and a tab strip do **not** exist there yet **[code: README lists only those three]**, so Kenzen builds them on the `rb-*` contract and **gives them back** (section 9). No bespoke shell: theme CSS imported once at the root, layout only.
 
-## 7. Deployment **[decided 2026-09-07, decisions 2 + 3]**
+## 7. Deployment **[decided 2026-09-08, decisions 2 + 3]**
 
 - **Host:** nucbox (10 GiB, 8.6 GiB available, no swap pressure, every other fronted app and tunnel already there; nitro carries the monitoring stack and 8 runner slots and is in swap) -- measured 2026-09-08.
 - **Hostname:** `kenzen.rackbops.com`, Cloudflare Access in front with the existing two-person policy. A shipped identifier once Access and Uptime Kuma reference it.
@@ -172,7 +172,7 @@ The server is written as a Hono app mounted under a prefix with its own SQLite f
 
 Running the scanner from Kenzen (a button through AC 2.0's agent); multi-user roles beyond the Access identity; a score; Bolt or other feeds as separate ingest sources (Tooling#462 decides whether that feed exists at all); public status pages.
 
-## 14. Questions put to roshne -- all answered 2026-09-07/08
+## 14. Questions put to roshne -- all answered 2026-09-08 (the app-vs-plugin decision itself was 2026-09-07)
 
 1. Stack: TypeScript, AC 2.0's choices -- **approved**.
 2. Hostname: `kenzen.rackbops.com`, Access-gated -- **approved**.
