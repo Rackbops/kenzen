@@ -1,6 +1,6 @@
+import { createLogger } from "@rackbops/node-app-kit/log"
 import { Hono } from "hono"
 import { describe, expect, it } from "vitest"
-import { createLogger } from "./log.js"
 import { startServer } from "./server.js"
 
 const silentLog = () => createLogger({ write: () => {} })

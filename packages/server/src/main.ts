@@ -1,15 +1,15 @@
 import { readFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { createLogger } from "@rackbops/node-app-kit/log"
+import { openState } from "@rackbops/node-app-kit/state"
+import { getVersion } from "@rackbops/node-app-kit/version"
 import { createRemoteJWKSet } from "jose"
 import type { VerifyAccessJwt } from "./access-identity.js"
 import { createAccessJwtVerifier, normalizeTeamDomain } from "./access-identity.js"
 import { createApp } from "./app.js"
 import { resolveConfig } from "./config.js"
-import { createLogger } from "./log.js"
 import { startServer } from "./server.js"
-import { openState } from "./state.js"
-import { getVersion } from "./version.js"
 
 /**
  * The executable entry (`node dist/main.js`). Thin wiring only, matching
@@ -97,7 +97,7 @@ async function main(): Promise<void> {
   const ingestToken = requireIngestToken(process.env)
   const verifyAccessJwt = buildAccessVerifier(config.accessTeamDomain, config.accessAud)
   const app = createApp({
-    version: getVersion(),
+    version: getVersion(import.meta.url),
     staticDir: config.staticDir,
     db: state.db,
     ingestToken,
