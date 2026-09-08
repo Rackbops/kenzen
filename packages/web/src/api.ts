@@ -154,25 +154,27 @@ export async function fetchItemHistory(
  * section 6, section 3's *clear* action). The same `encodeURIComponent` requirement as
  * `fetchItemHistory` applies, for the same reason.
  *
- * Not routed through `fetchJson`: that helper is GET-only and returns the parsed body, whereas
- * this needs a method/headers/body and only the outcome. The apiVersion check is kept anyway --
- * a write that silently succeeded against an incompatible server would be worse than a read
- * that did.
+ * Shares `fetchJson`'s transport with `putDecision` rather than doing its own fetch, so a
+ * clear surfaces the server's real error message (a 401 from an unauthenticated write, say)
+ * exactly as the inline actions do, and the apiVersion check applies to writes too.
+ *
+ * Deliberately NOT folded into `DecisionPatch`: that union is exhaustively switched on by
+ * `useOptimisticDecisions.axisOf` to place an item on the gap or advisory axis, and a clear has
+ * no axis -- it removes a decision rather than expressing one. Adding a variant there would
+ * force an answer to a question that does not apply. K4-9 left `clear` out of the union for the
+ * same reason (see `DecisionPatch`'s own comment); this shares the transport without distorting
+ * the type.
  */
 export async function clearDecision(key: string, fetchImpl: typeof fetch = fetch): Promise<void> {
-  const path = `/api/decisions/${encodeURIComponent(key)}`
-  const res = await fetchImpl(path, {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ clear: true }),
-  })
-  if (!res.ok) {
-    throw new Error(`PUT ${path} -> ${res.status}`)
-  }
-  const body: unknown = await res.json()
-  if (!isVersioned(body) || body.apiVersion !== SUPPORTED_API_VERSION) {
-    throw new ApiVersionError(isVersioned(body) ? body.apiVersion : undefined)
-  }
+  await fetchJson<{ apiVersion: 1; decision: ItemDecision | null }>(
+    `/api/decisions/${encodeURIComponent(key)}`,
+    fetchImpl,
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ clear: true }),
+    },
+  )
 }
 
 /** design.md section 4.3 / packages/server/src/snapshots-route.ts's real, shipped shape (K4-4b). */
