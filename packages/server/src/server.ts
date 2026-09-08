@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server"
+import type { Logger } from "@rackbops/node-app-kit/log"
 import type { Hono } from "hono"
-import type { Logger } from "./log.js"
 
 /**
  * Binds a Hono app to a real port via `@hono/node-server`. Copied from

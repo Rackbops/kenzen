@@ -48,15 +48,15 @@ importers:
       '@kenzen/contract':
         specifier: workspace:*
         version: link:../contract
+      '@rackbops/node-app-kit':
+        specifier: file:../../../rackbops-node-app-kit
+        version: file:../rackbops-node-app-kit(hono@4.13.7)
       hono:
         specifier: ^4.0.0
         version: 4.13.7
       jose:
         specifier: ^6.0.0
         version: 6.2.12
-      smol-toml:
-        specifier: ^1.0.0
-        version: 1.8.0
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -396,6 +396,12 @@ packages:
 
   '@oxc-project/types@0.148.0':
     resolution: {integrity: sha512-Nm4s/jB+4FpFsPhWGEC4h7rzksesmtnMXomo6rCMcg/b8zLQuOziRgkCS1fxDCXOlJB/6Q8oABOZ/OP6RIPj9A==}
+
+  '@rackbops/node-app-kit@file:../rackbops-node-app-kit':
+    resolution: {directory: ../rackbops-node-app-kit, type: directory}
+    engines: {node: '>=24'}
+    peerDependencies:
+      hono: '>=4.0.0'
 
   '@rackbops/styles@0.2.8':
     resolution: {integrity: sha512-3fHzd7TUrWC/BdLpDG43A+jnQA45MOt5zl3jtJNuUpJg0XfhLKJcrmA5zrWbGoL+gytgkcnF001+dfRkdOxiSA==}
@@ -1571,6 +1577,11 @@ snapshots:
     optional: true
 
   '@oxc-project/types@0.148.0': {}
+
+  '@rackbops/node-app-kit@file:../rackbops-node-app-kit(hono@4.13.7)':
+    dependencies:
+      hono: 4.13.7
+      smol-toml: 1.8.0
 
   '@rackbops/styles@0.2.8': {}
 

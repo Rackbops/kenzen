@@ -19,9 +19,9 @@
   "dependencies": {
     "@hono/node-server": "^1.0.0",
     "@kenzen/contract": "workspace:*",
+    "@rackbops/node-app-kit": "file:../../../rackbops-node-app-kit",
     "hono": "^4.0.0",
-    "jose": "^6.0.0",
-    "smol-toml": "^1.0.0"
+    "jose": "^6.0.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",

@@ -1,10 +1,10 @@
 import type { DatabaseSync } from "node:sqlite"
+import type { Logger } from "@rackbops/node-app-kit/log"
 import type { Context, Hono } from "hono"
 import type { VerifyAccessJwt } from "./access-identity.js"
 import { ACCESS_JWT_HEADER } from "./access-identity.js"
 import type { DecisionPatch, DecisionRow } from "./decisions.js"
 import { listDecisions, putDecision } from "./decisions.js"
-import type { Logger } from "./log.js"
 
 export const API_VERSION = 1
 
