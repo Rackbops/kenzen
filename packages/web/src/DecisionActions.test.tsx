@@ -44,6 +44,7 @@ function decision(overrides: Partial<ItemDecision>): ItemDecision {
     skippedVersion: null,
     remindAt: null,
     approvedVersion: null,
+    approvedFromPinned: null,
     acknowledgedAdvisories: null,
     updatedAt: NOW,
     updatedBy: "roshne",
@@ -221,6 +222,60 @@ test("a remind whose date has passed resurfaces the gap buttons -- the whole poi
   )
   expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument()
   expect(screen.queryByText(/Snoozed/)).not.toBeInTheDocument()
+})
+
+test("a still-current approval shows the gap summary, not buttons", () => {
+  render(
+    <DecisionActions
+      item={item({
+        gap: "minor",
+        pinned: "4.0.0",
+        latest: "4.1.0",
+        decision: decision({ approvedVersion: "4.1.0", approvedFromPinned: "4.0.0" }),
+      })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.getByText("Approved 4.1.0 by roshne")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
+})
+
+test("an approval whose pinned has since moved (the PR merged) resurfaces the gap buttons -- K4-9 round 2 coverage gap: approvedFromPinned reaching the client is what this path depends on", () => {
+  render(
+    <DecisionActions
+      item={item({
+        gap: "minor",
+        pinned: "4.1.0",
+        latest: "4.1.0",
+        decision: decision({ approvedVersion: "4.1.0", approvedFromPinned: "4.0.0" }),
+      })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument()
+  expect(screen.queryByText(/Approved/)).not.toBeInTheDocument()
+})
+
+test("an approval superseded by a newer latest resurfaces the gap buttons even when pinned hasn't moved", () => {
+  render(
+    <DecisionActions
+      item={item({
+        gap: "minor",
+        pinned: "4.0.0",
+        latest: "4.2.0",
+        decision: decision({ approvedVersion: "4.1.0", approvedFromPinned: "4.0.0" }),
+      })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument()
+  expect(screen.queryByText(/Approved/)).not.toBeInTheDocument()
 })
 
 // --- Advisory axis (acknowledge), independent of the gap axis ---

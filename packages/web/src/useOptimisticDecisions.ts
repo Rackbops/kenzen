@@ -21,6 +21,16 @@ import { putDecision } from "./api.js"
  * a call only commits its result if its own number is still the key's current one when the
  * PUT settles, so a stale response from a superseded call is silently dropped rather than
  * clobbering a newer one.
+ *
+ * Round 2 review (MEDIUM, both reviewers independently found it live): the optimistic preview
+ * used to rebuild from an all-null base regardless of what was already decided, so acting on
+ * ONE axis (say, Skip) transiently wiped the OTHER axis's already-confirmed value (an
+ * Acknowledge summary) out of the UI until the PUT settled and the real merged response
+ * replaced it -- visible flicker, briefly wrong display, only reachable now that round 1 made
+ * both axes independently actionable on one row. `optimisticDecision` now merges onto
+ * whatever decision the key currently has, replicating decisions.ts's own real merge rule
+ * (design.md section 5: the gap trio -- skip/remind/approve -- resets together since only one
+ * can hold at a time; acknowledgedAdvisories is untouched by a trio write and vice versa).
  */
 
 export interface DecisionActionState {
@@ -32,20 +42,54 @@ export interface DecisionActionState {
   apply: (key: string, patch: DecisionPatch) => Promise<void>
 }
 
-function optimisticDecision(patch: DecisionPatch): ItemDecision {
+/**
+ * Mirrors decisions.ts's own real merge rule exactly (design.md section 5): the version trio
+ * (skippedVersion/remindAt/approvedVersion) is mutually exclusive, so writing any one of them
+ * resets the other two -- it does NOT layer onto whatever the trio previously held.
+ * acknowledgedAdvisories is a separate, untouched axis on a trio write and vice versa. `current`
+ * is the item's existing decision as the UI currently shows it (confirmed or already-optimistic)
+ * -- passing null here (as this function used to do unconditionally) is what caused round 2's
+ * flicker bug: it discarded the OTHER axis's already-confirmed value for the optimistic preview.
+ */
+function optimisticDecision(
+  patch: DecisionPatch,
+  current: ItemDecision | null,
+  pinned: string | null,
+): ItemDecision {
   const now = new Date().toISOString()
-  const base: ItemDecision = {
-    skippedVersion: null,
-    remindAt: null,
-    approvedVersion: null,
-    acknowledgedAdvisories: null,
+  const isTrioField =
+    patch.field === "skippedVersion" ||
+    patch.field === "remindAt" ||
+    patch.field === "approvedVersion"
+  const versionTrio = isTrioField
+    ? {
+        skippedVersion: patch.field === "skippedVersion" ? patch.value : null,
+        remindAt: patch.field === "remindAt" ? patch.value : null,
+        approvedVersion: patch.field === "approvedVersion" ? patch.value : null,
+        // Captured fresh from the item's own current `pinned`, same as decisions.ts's
+        // `item?.pinned ?? null` -- never carried over from a prior approval.
+        approvedFromPinned: patch.field === "approvedVersion" ? pinned : null,
+      }
+    : {
+        skippedVersion: current?.skippedVersion ?? null,
+        remindAt: current?.remindAt ?? null,
+        approvedVersion: current?.approvedVersion ?? null,
+        approvedFromPinned: current?.approvedFromPinned ?? null,
+      }
+  const acknowledgedAdvisories =
+    patch.field === "acknowledgedAdvisories"
+      ? patch.value
+      : (current?.acknowledgedAdvisories ?? null)
+
+  return {
+    ...versionTrio,
+    acknowledgedAdvisories,
     updatedAt: now,
     // Real identity is server-resolved (the Access JWT / dev identity) -- unknown until the
     // PUT actually resolves; the confirmed decision that replaces this one carries the real
     // value.
     updatedBy: null,
   }
-  return { ...base, [patch.field]: patch.value }
 }
 
 export function useOptimisticDecisions(
@@ -84,7 +128,16 @@ export function useOptimisticDecisions(
     sequenceRef.current.set(key, mySequence)
     const isCurrent = () => sequenceRef.current.get(key) === mySequence
 
-    setOverrides((prev) => new Map(prev).set(key, optimisticDecision(patch)))
+    // `effectiveItems` already carries whatever this key's current decision is -- confirmed
+    // from `items`, or a still-in-flight optimistic value from a previous `apply()` call on the
+    // OTHER axis -- so this is the same value the UI has on screen right now. `hadOverride`
+    // records whether that came from an override entry at all, so a failed PUT can put back
+    // exactly what was there rather than deleting the key outright (see the catch block).
+    const currentItem = effectiveItems.find((i) => i.key === key)
+    const current = currentItem?.decision ?? null
+    const hadOverride = overrides.has(key)
+    const optimistic = optimisticDecision(patch, current, currentItem?.pinned ?? null)
+    setOverrides((prev) => new Map(prev).set(key, optimistic))
     setErrors((prev) => {
       const next = new Map(prev)
       next.delete(key)
@@ -97,9 +150,18 @@ export function useOptimisticDecisions(
       }
     } catch (err) {
       if (isCurrent()) {
+        // Roll back to exactly the pre-action state -- `next.delete(key)` unconditionally (the
+        // old behaviour) is only correct when there was no override yet. When another axis's
+        // action had already confirmed into an override before this one started, deleting the
+        // key would revert to stale `items` and silently drop that confirmed axis from the
+        // local view too, not just undo this failed action.
         setOverrides((prev) => {
           const next = new Map(prev)
-          next.delete(key)
+          if (hadOverride) {
+            next.set(key, current)
+          } else {
+            next.delete(key)
+          }
           return next
         })
         setErrors((prev) =>

@@ -30,6 +30,7 @@ const decision = {
   skippedVersion: "9.0.0",
   remindAt: null,
   approvedVersion: null,
+  approvedFromPinned: null,
   acknowledgedAdvisories: null,
   updatedAt: "2026-09-08T00:00:00Z",
   updatedBy: "roshne",
@@ -78,6 +79,94 @@ test("apply rolls back to no decision when the PUT rejects, and records the erro
   })
 
   expect(result.current.items[0]?.decision).toBeNull()
+  expect(result.current.errorFor("a")).toBe("unauthorized")
+})
+
+test("applying one axis while the OTHER axis already has a confirmed decision preserves it optimistically -- round 2 review, MEDIUM: the old all-null-base rebuild wiped it until the PUT resolved", async () => {
+  let resolvePut: (value: api.ItemDecision | null) => void = () => {}
+  vi.spyOn(api, "putDecision").mockReturnValue(
+    new Promise<api.ItemDecision | null>((resolve) => {
+      resolvePut = resolve
+    }),
+  )
+
+  const acknowledged = { ...decision, skippedVersion: null, acknowledgedAdvisories: ["GHSA-1"] }
+  const { result } = renderHook(() =>
+    useOptimisticDecisions([item({ key: "a", decision: acknowledged })], 1),
+  )
+  expect(result.current.items[0]?.decision?.acknowledgedAdvisories).toEqual(["GHSA-1"])
+
+  act(() => {
+    void result.current.apply("a", { field: "skippedVersion", value: "9.0.0" })
+  })
+
+  // While the skip PUT is still in flight, the optimistic decision must still carry the
+  // acknowledgment that was already confirmed on the advisory axis -- merging onto `current`
+  // instead of rebuilding from an all-null base is the whole point of the fix.
+  await waitFor(() => expect(result.current.items[0]?.decision?.skippedVersion).toBe("9.0.0"))
+  expect(result.current.items[0]?.decision?.acknowledgedAdvisories).toEqual(["GHSA-1"])
+
+  await act(async () => {
+    resolvePut({ ...acknowledged, skippedVersion: "9.0.0" })
+    await Promise.resolve()
+  })
+  expect(result.current.items[0]?.decision?.acknowledgedAdvisories).toEqual(["GHSA-1"])
+})
+
+test("applying a new gap-trio action (skip/remind/approve) optimistically resets the OTHER trio fields instead of layering onto them -- the trio is mutually exclusive per design.md section 5", async () => {
+  let resolvePut: (value: api.ItemDecision | null) => void = () => {}
+  vi.spyOn(api, "putDecision").mockReturnValue(
+    new Promise<api.ItemDecision | null>((resolve) => {
+      resolvePut = resolve
+    }),
+  )
+
+  const skipped = { ...decision, skippedVersion: "5.0.0" }
+  const { result } = renderHook(() =>
+    useOptimisticDecisions([item({ key: "a", decision: skipped })], 1),
+  )
+
+  act(() => {
+    void result.current.apply("a", { field: "approvedVersion", value: "6.0.0" })
+  })
+
+  await waitFor(() => expect(result.current.items[0]?.decision?.approvedVersion).toBe("6.0.0"))
+  // A naive merge (spread the patch onto `current`) would have left the old skippedVersion
+  // sitting alongside the new approvedVersion -- the two must never both be set.
+  expect(result.current.items[0]?.decision?.skippedVersion).toBeNull()
+
+  await act(async () => {
+    resolvePut({ ...skipped, skippedVersion: null, approvedVersion: "6.0.0" })
+    await Promise.resolve()
+  })
+})
+
+test("a failed action on one axis rolls back to the OTHER axis's confirmed decision, not to no-decision -- the unconditional next.delete(key) this replaced would wipe a confirmed sibling axis too", async () => {
+  // The "other axis" state must come from a REAL prior override (a confirmed apply()), not a
+  // decision baked into the initial `items` prop -- otherwise deleting the override still falls
+  // back correctly via `items` itself, and the test would pass even with the old unconditional
+  // delete (it did, the first time this test was written: `items`'s own fallback masked the bug).
+  const putDecision = vi.spyOn(api, "putDecision")
+  putDecision.mockResolvedValueOnce({
+    ...decision,
+    skippedVersion: null,
+    acknowledgedAdvisories: ["GHSA-1"],
+  })
+  putDecision.mockRejectedValueOnce(new Error("unauthorized"))
+
+  const { result } = renderHook(() => useOptimisticDecisions([item({ key: "a" })], 1))
+
+  await act(async () => {
+    await result.current.apply("a", { field: "acknowledgedAdvisories", value: ["GHSA-1"] })
+  })
+  expect(result.current.items[0]?.decision?.acknowledgedAdvisories).toEqual(["GHSA-1"])
+
+  await act(async () => {
+    await result.current.apply("a", { field: "skippedVersion", value: "9.0.0" })
+  })
+
+  expect(result.current.items[0]?.decision?.skippedVersion).toBeNull()
+  expect(result.current.items[0]?.decision?.acknowledgedAdvisories).toEqual(["GHSA-1"])
   expect(result.current.errorFor("a")).toBe("unauthorized")
 })
 

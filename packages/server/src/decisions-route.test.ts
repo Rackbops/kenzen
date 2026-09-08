@@ -244,6 +244,29 @@ describe("PUT /api/decisions/:key -- round trip and key encoding", () => {
     expect(afterClear.decisions).toEqual([])
   })
 
+  it("an approve's response and GET /api/decisions both surface approvedFromPinned -- K4-9 round 2, HIGH: the client needs it to detect a merged PR itself", async () => {
+    const { app, db } = testApp({ devIdentity: "alice" })
+    seedItem(db) // pinned: "4.0.0"
+
+    const approve = await app.request(putUrl(KEY), {
+      method: "PUT",
+      body: JSON.stringify({ approvedVersion: "4.1.0" }),
+    })
+    expect(approve.status).toBe(200)
+    const approveBody = (await approve.json()) as { decision: Record<string, unknown> }
+    expect(approveBody.decision).toMatchObject({
+      approvedVersion: "4.1.0",
+      approvedFromPinned: "4.0.0",
+    })
+
+    const get = await app.request("/api/decisions")
+    const getBody = (await get.json()) as { decisions: Record<string, unknown>[] }
+    expect(getBody.decisions[0]).toMatchObject({
+      approvedVersion: "4.1.0",
+      approvedFromPinned: "4.0.0",
+    })
+  })
+
   it("round-trips a real key containing '/' and ':' via encodeURIComponent/decodeURIComponent", async () => {
     const { app, db } = testApp({ devIdentity: "alice" })
     seedItem(db)

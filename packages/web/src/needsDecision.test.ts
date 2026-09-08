@@ -31,6 +31,7 @@ function decision(overrides: Partial<ItemDecision>): ItemDecision {
     skippedVersion: null,
     remindAt: null,
     approvedVersion: null,
+    approvedFromPinned: null,
     acknowledgedAdvisories: null,
     updatedAt: NOW,
     updatedBy: "roshne",

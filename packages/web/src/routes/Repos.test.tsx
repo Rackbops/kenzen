@@ -308,6 +308,7 @@ test("end to end: skipping an item on the real Repos page calls putDecision and 
     skippedVersion: "9.9.9",
     remindAt: null,
     approvedVersion: null,
+    approvedFromPinned: null,
     acknowledgedAdvisories: null,
     updatedAt: "2026-09-08T00:00:00Z",
     updatedBy: "roshne",

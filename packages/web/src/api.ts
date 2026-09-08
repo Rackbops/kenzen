@@ -110,6 +110,11 @@ export interface ItemDecision {
   skippedVersion: string | null
   remindAt: string | null
   approvedVersion: string | null
+  /** The item's `pinned` string at the moment `approvedVersion` was set -- needed by
+   * `@kenzen/contract/suppression`'s `suppressionState` to detect "the approved PR merged"
+   * (K4-9 round 2, HIGH: omitted from the wire until here, which made that resurface path
+   * permanently unreachable client-side -- see snapshots-route.ts's own doc for the history). */
+  approvedFromPinned: string | null
   acknowledgedAdvisories: string[] | null
   updatedAt: string
   updatedBy: string | null
