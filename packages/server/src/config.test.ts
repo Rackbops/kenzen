@@ -17,6 +17,48 @@ describe("resolveConfig", () => {
     expect(cfg.staticDir).toBe("/app/public")
     expect(cfg.configFile).toBe("/config/config.toml")
     expect(cfg.configSource).toBe("defaults")
+    expect(cfg.stateDir).toBe("/state")
+    expect(cfg.dbFile).toBe("/state/kenzen.db")
+  })
+
+  it("KENZEN_STATE_DIR relocates the db file and must be absolute", () => {
+    expect(
+      resolveConfig(
+        { KENZEN_STATE_DIR: "/data/kenzen" },
+        opts(() => null),
+      ).dbFile,
+    ).toBe("/data/kenzen/kenzen.db")
+    expect(() =>
+      resolveConfig(
+        { KENZEN_STATE_DIR: "relative/state" },
+        opts(() => null),
+      ),
+    ).toThrow(/KENZEN_STATE_DIR must be an absolute path, got: relative\/state/)
+  })
+
+  it("reads state_dir from config.toml when KENZEN_STATE_DIR is unset", () => {
+    const cfg = resolveConfig(
+      {},
+      opts(() => 'state_dir = "/srv/state"\n'),
+    )
+    expect(cfg.dbFile).toBe("/srv/state/kenzen.db")
+  })
+
+  it("an empty KENZEN_STATE_DIR falls through to the default rather than throwing", () => {
+    const cfg = resolveConfig(
+      { KENZEN_STATE_DIR: "" },
+      opts(() => null),
+    )
+    expect(cfg.stateDir).toBe("/state")
+  })
+
+  it("a blank KENZEN_STATE_DIR plus a bad relative state_dir in the file blames the file, not the env var", () => {
+    expect(() =>
+      resolveConfig(
+        { KENZEN_STATE_DIR: "" },
+        opts(() => 'state_dir = "rel/path"\n'),
+      ),
+    ).toThrow(/\[state_dir\] must be an absolute path, got: rel\/path/)
   })
 
   it("reads host/port/static_dir from config.toml when present", () => {
