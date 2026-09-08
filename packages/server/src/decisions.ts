@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite"
-import { parseVersion } from "./suppression.js"
+import { parseVersion } from "@kenzen/contract/suppression"
 
 /**
  * The decisions API's DB read/write logic, design.md sections 4.3 and 5. Split the same way

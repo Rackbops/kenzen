@@ -70,6 +70,9 @@ importers:
 
   packages/web:
     dependencies:
+      '@kenzen/contract':
+        specifier: workspace:*
+        version: link:../contract
       '@rackbops/styles':
         specifier: ^0.2.4
         version: 0.2.8

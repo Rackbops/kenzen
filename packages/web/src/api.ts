@@ -22,17 +22,37 @@ function isVersioned(body: unknown): body is Versioned {
   return typeof body === "object" && body !== null && "apiVersion" in body
 }
 
-/** GET `path`, parse JSON, and assert apiVersion === SUPPORTED_API_VERSION before returning
- * it. `fetchImpl` is injected so callers/tests don't depend on the real global fetch. */
+interface ErrorBody extends Versioned {
+  error: unknown
+}
+
+function isErrorBody(body: unknown): body is ErrorBody {
+  return isVersioned(body) && "error" in body && typeof (body as ErrorBody).error === "string"
+}
+
+/** `path` (GET by default; pass `init` for a write), parse JSON, and assert
+ * apiVersion === SUPPORTED_API_VERSION before returning it. `fetchImpl` is injected so
+ * callers/tests don't depend on the real global fetch.
+ *
+ * On a non-ok response, surfaces the server's own `error` message (every Kenzen error body
+ * carries one -- `{apiVersion, error, path?}`) rather than just the HTTP status, so a decision
+ * PUT's real 401/422 reason (design.md section 4.3 / decisions-route.ts) reaches the UI's
+ * rollback-with-error path intact instead of a bare "PUT ... -> 422". */
 export async function fetchJson<T extends Versioned>(
   path: string,
   fetchImpl: typeof fetch = fetch,
+  init?: RequestInit,
 ): Promise<T> {
-  const res = await fetchImpl(path)
+  const res = await fetchImpl(path, init)
+  const body: unknown = await res.json().catch(() => undefined)
   if (!res.ok) {
-    throw new Error(`GET ${path} -> ${res.status}`)
+    const method = init?.method ?? "GET"
+    throw new Error(
+      isErrorBody(body)
+        ? `${method} ${path} -> ${res.status}: ${body.error}`
+        : `${method} ${path} -> ${res.status}`,
+    )
   }
-  const body: unknown = await res.json()
   if (!isVersioned(body)) {
     throw new ApiVersionError(undefined)
   }
@@ -81,14 +101,16 @@ export interface Advisory {
   affected: boolean
 }
 
-/** The decision currently on record for an item, or null when none exists yet -- see
- * decisions-route.ts's decisionJson: absent optional fields are simply not present on the
- * real response, so every field here is optional except the two always-set ones. */
+/** The decision currently on record for an item, or null when none exists yet. Matches
+ * `snapshots-route.ts`'s `toReportItem` exactly: every optional field is present with an
+ * explicit `null`, not omitted (unlike `GET /api/decisions`'s own `decisionJson`, which omits
+ * an unset field entirely) -- always check `!= null`, never rely on `in`/`hasOwnProperty` to
+ * tell "unset" apart from "set to null" here. */
 export interface ItemDecision {
-  skippedVersion?: string
-  remindAt?: string
-  approvedVersion?: string
-  acknowledgedAdvisories?: string[]
+  skippedVersion: string | null
+  remindAt: string | null
+  approvedVersion: string | null
+  acknowledgedAdvisories: string[] | null
   updatedAt: string
   updatedBy: string | null
 }
@@ -159,4 +181,40 @@ export async function fetchLatestSnapshotItems(
   }
   const items = await fetchSnapshotItems(snapshot.snapshotId, fetchImpl)
   return { snapshot, items }
+}
+
+/** design.md section 5 / decisions-route.ts's real PUT body: exactly one of these fields.
+ * `clear` is deliberately not modeled here -- K4-9's scope is the four inline actions
+ * (skip/remind/approve/acknowledge); a clear action belongs to the Decided page (K4-8b). */
+export type DecisionPatch =
+  | { field: "skippedVersion"; value: string }
+  | { field: "remindAt"; value: string }
+  | { field: "approvedVersion"; value: string }
+  | { field: "acknowledgedAdvisories"; value: string[] }
+
+function patchBody(patch: DecisionPatch): Record<string, string | string[]> {
+  return { [patch.field]: patch.value }
+}
+
+/** PUT /api/decisions/:key, design.md sections 4.3/5. `key` is `repo|kind|name|source` and is
+ * URL-encoded here -- callers pass the raw key, never a pre-encoded one. Identity (`updatedBy`)
+ * is resolved server-side from the Access JWT (or a dev-identity fallback) -- this function
+ * never sends one; an unauthenticated caller gets the real 401 `fetchJson` now surfaces with
+ * its actual message intact. Returns the persisted decision (or null after a clear, which this
+ * type doesn't expose -- see DecisionPatch). */
+export async function putDecision(
+  key: string,
+  patch: DecisionPatch,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ItemDecision | null> {
+  const data = await fetchJson<{ apiVersion: 1; decision: ItemDecision | null }>(
+    `/api/decisions/${encodeURIComponent(key)}`,
+    fetchImpl,
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patchBody(patch)),
+    },
+  )
+  return data.decision
 }

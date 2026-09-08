@@ -1,8 +1,8 @@
 import type { DatabaseSync } from "node:sqlite"
+import type { SuppressionItem } from "@kenzen/contract/suppression"
+import { effectiveAdvisoryStatus, suppressionState } from "@kenzen/contract/suppression"
 import type { Context, Hono } from "hono"
 import { countByRepoKindName, findDecisionForItem, listDecisions } from "./decisions.js"
-import type { SuppressionItem } from "./suppression.js"
-import { effectiveAdvisoryStatus, suppressionState } from "./suppression.js"
 
 /** design.md section 4.3: every response carries apiVersion: 1. */
 export const API_VERSION = 1
