@@ -60,6 +60,9 @@ assertion logic is separately unit-tested against fixture servers in
 Docker. **`release.yml`** publishes multi-arch (amd64/arm64) to `ghcr.io/rackbops/kenzen` on a
 `v*` tag, on `ubuntu-latest` (not the disposable pool -- buildx/QEMU needs GitHub-hosted
 Docker), version-pinned to `packages/server/package.json` by `scripts/version-tag.mjs`
-(`packages/server/src/version-tag.test.ts` unit-tests the pin). Both workflows' fork-guard,
-DinD runner label, and no-PAT/no-`secrets: inherit` properties are guarded by
-`ci-hygiene.test.ts` alongside the two lanes above.
+(`packages/server/src/version-tag.test.ts` unit-tests the pin). `ci-hygiene.test.ts` guards
+each workflow's own applicable properties, not a uniform set across all four: `image-ratchet.yml`
+has no secrets and no fork-guard to check (self-hosted with no fork-guard is this repo's existing
+`test.yml` convention already), so only its DinD runner label is asserted; `release.yml` runs on
+`ubuntu-latest`, not the DinD label, so only its fork-guard, GITHUB_TOKEN-not-a-PAT, and
+no-`secrets: inherit` properties are asserted.
