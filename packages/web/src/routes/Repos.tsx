@@ -1,13 +1,21 @@
 import { Badge, Card } from "@rackbops/ui-react"
 import { type ReactNode, useMemo, useState } from "react"
 import { AdvisoryList } from "../AdvisoryList.js"
-import { fetchLatestSnapshotItems, fetchRepos, type ReportItem, type RepoSummary } from "../api.js"
+import {
+  type DecisionPatch,
+  fetchLatestSnapshotItems,
+  fetchRepos,
+  type ReportItem,
+  type RepoSummary,
+} from "../api.js"
 import { advisoryVariant, gapVariant } from "../badgeVariants.js"
 import { DataTable, type DataTableColumn } from "../components/DataTable.js"
+import { DecisionActions } from "../DecisionActions.js"
 import { gapPriority } from "../gapPriority.js"
 import { applyItemFilters, type ItemFilterState, ItemFilters } from "../ItemFilters.js"
 import { sourceUrl } from "../sourceLink.js"
 import { useAsync } from "../useAsync.js"
+import { useOptimisticDecisions } from "../useOptimisticDecisions.js"
 
 /**
  * Design.md section 6, section 2 ("Per repo"): one table per repo, grouped by role, columns
@@ -42,45 +50,72 @@ function pinnedCell(item: ReportItem): ReactNode {
   )
 }
 
-const COLUMNS: DataTableColumn<ReportItem>[] = [
-  { key: "kind", header: "Kind", render: (i) => i.kind, sortValue: (i) => i.kind },
-  { key: "name", header: "Name", render: (i) => i.name, sortValue: (i) => i.name },
-  { key: "pinned", header: "Pinned → latest", render: pinnedCell },
-  {
-    key: "gap",
-    header: "Gap",
-    render: (i) =>
-      i.gap && i.gap !== "none" ? <Badge variant={gapVariant(i.gap)}>{i.gap}</Badge> : i.gap,
-    sortValue: (i) => gapPriority(i.gap),
-  },
-  {
-    key: "advisories",
-    header: "Advisories",
-    render: (i) =>
-      i.advisoryStatus && i.advisoryStatus !== "none" ? (
-        <>
-          <Badge variant={advisoryVariant(i.advisoryStatus)}>
-            {i.advisoryStatus === "affected" ? `${i.advisories.length} affected` : i.advisoryStatus}
-          </Badge>{" "}
-          <AdvisoryList advisories={i.advisories} />
-        </>
-      ) : null,
-  },
-  {
-    key: "source",
-    header: "Source",
-    render: (i) => {
-      const url = i.source ? sourceUrl(i.repo, i.source) : null
-      return url ? (
-        <a href={url} target="_blank" rel="noreferrer">
-          {i.source}
-        </a>
-      ) : (
-        (i.source ?? "?")
-      )
+function columns(
+  now: string,
+  onApply: (key: string, patch: DecisionPatch) => void,
+  errorFor: (key: string) => string | undefined,
+): DataTableColumn<ReportItem>[] {
+  return [
+    { key: "kind", header: "Kind", render: (i) => i.kind, sortValue: (i) => i.kind },
+    { key: "name", header: "Name", render: (i) => i.name, sortValue: (i) => i.name },
+    { key: "pinned", header: "Pinned → latest", render: pinnedCell },
+    {
+      key: "gap",
+      header: "Gap",
+      render: (i) =>
+        i.gap && i.gap !== "none" ? <Badge variant={gapVariant(i.gap)}>{i.gap}</Badge> : i.gap,
+      sortValue: (i) => gapPriority(i.gap),
     },
-  },
-]
+    {
+      key: "advisories",
+      header: "Advisories",
+      render: (i) =>
+        i.advisoryStatus && i.advisoryStatus !== "none" ? (
+          <>
+            <Badge variant={advisoryVariant(i.advisoryStatus)}>
+              {i.advisoryStatus === "affected"
+                ? `${i.advisories.length} affected`
+                : i.advisoryStatus}
+            </Badge>{" "}
+            <AdvisoryList advisories={i.advisories} />
+          </>
+        ) : null,
+    },
+    {
+      key: "source",
+      header: "Source",
+      render: (i) => {
+        const url = i.source ? sourceUrl(i.repo, i.source) : null
+        return url ? (
+          <a href={url} target="_blank" rel="noreferrer">
+            {i.source}
+          </a>
+        ) : (
+          (i.source ?? "?")
+        )
+      },
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      // Unlike NeedsDecision.tsx (which already only ever holds rows that need one), Repos
+      // shows every item, decided or not, sound or not (design.md section 6.2). No gate here
+      // -- always render DecisionActions and trust its own per-axis logic to return null for a
+      // fully-sound, never-decided item. Round 1 review, HIGH: an earlier version duplicated
+      // that same "anything to show" question out here as `item.decision !== null ||
+      // needsDecision(...)`, which was ALSO wrong (see needsDecision.js's own history) -- two
+      // places independently deciding the same thing is exactly how they drifted apart before.
+      render: (i) => (
+        <DecisionActions
+          item={i}
+          now={now}
+          onApply={(patch) => onApply(i.key, patch)}
+          error={errorFor(i.key)}
+        />
+      ),
+    },
+  ]
+}
 
 /**
  * Two independent fetches, not one combined `Promise.all` (K4-8a review round 1, MEDIUM,
@@ -111,6 +146,7 @@ export function Repos() {
   if (reposState.status === "error") {
     return <p role="alert">Could not load repos: {reposState.error.message}</p>
   }
+  const snapshotItems = itemsState.status === "ready" ? itemsState.data : null
   return (
     <div>
       {itemsState.status === "error" && (
@@ -118,7 +154,8 @@ export function Repos() {
       )}
       <RepoList
         repos={reposState.data}
-        items={itemsState.status === "ready" ? (itemsState.data?.items ?? []) : []}
+        items={snapshotItems?.items ?? []}
+        snapshotId={snapshotItems?.snapshot.snapshotId ?? null}
         filters={filters}
         onFiltersChange={setFilters}
       />
@@ -129,17 +166,31 @@ export function Repos() {
 function RepoList({
   repos,
   items,
+  snapshotId,
   filters,
   onFiltersChange,
 }: {
   repos: RepoSummary[]
   items: ReportItem[]
+  /** null when there's no items fetch to key a reset on yet (still loading/errored) --
+   * useOptimisticDecisions needs some resetKey regardless, and -1 can never collide with a
+   * real (positive, autoincrement) snapshot id. */
+  snapshotId: number | null
   filters: ItemFilterState
   onFiltersChange: (next: ItemFilterState) => void
 }) {
+  const decisions = useOptimisticDecisions(items, snapshotId ?? -1)
+  // Not memoized -- cheap, and re-evaluates "is a remindAt due yet" against the real current
+  // time on every render rather than freezing it at whenever items last changed.
+  const now = new Date().toISOString()
+  const tableColumns = useMemo(
+    () => columns(now, decisions.apply, decisions.errorFor),
+    [now, decisions.apply, decisions.errorFor],
+  )
+
   const itemsByRepo = useMemo(() => {
     const map = new Map<string, ReportItem[]>()
-    for (const item of items) {
+    for (const item of decisions.items) {
       const bucket = map.get(item.repo)
       if (bucket) {
         bucket.push(item)
@@ -148,7 +199,7 @@ function RepoList({
       }
     }
     return map
-  }, [items])
+  }, [decisions.items])
 
   if (repos.length === 0) {
     return <p>No repos ingested yet.</p>
@@ -156,7 +207,7 @@ function RepoList({
   return (
     <div>
       <ItemFilters
-        items={items}
+        items={decisions.items}
         value={filters}
         onChange={onFiltersChange}
         dimensions={["kind", "role", "status"]}
@@ -166,19 +217,28 @@ function RepoList({
           key={repo.repo}
           repo={repo}
           items={applyItemFilters(itemsByRepo.get(repo.repo) ?? [], filters)}
+          columns={tableColumns}
         />
       ))}
     </div>
   )
 }
 
-function RepoCard({ repo, items }: { repo: RepoSummary; items: ReportItem[] }) {
+function RepoCard({
+  repo,
+  items,
+  columns,
+}: {
+  repo: RepoSummary
+  items: ReportItem[]
+  columns: DataTableColumn<ReportItem>[]
+}) {
   return (
     <Card>
       <h3>{repo.repo}</h3>
       <p>{repo.soundness}</p>
       <DataTable
-        columns={COLUMNS}
+        columns={columns}
         rows={items}
         rowKey={(i) => i.key}
         groupBy={(i) => i.role ?? "unknown"}

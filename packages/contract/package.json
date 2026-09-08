@@ -8,6 +8,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./suppression": {
+      "types": "./dist/suppression.d.ts",
+      "default": "./dist/suppression.js"
     }
   },
   "files": [

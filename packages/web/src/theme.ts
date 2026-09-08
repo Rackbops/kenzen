@@ -101,13 +101,25 @@ export function applyTheme(theme: string, root: HTMLElement): void {
  * `data-rb-style` attribute is never set to a theme whose CSS hasn't finished loading.
  * Pulled out of `main.tsx` (which also mounts the React tree and isn't itself unit-tested)
  * so the resolve -> load -> apply sequence has real, direct test coverage. Returns the
- * resolved theme name for callers that want to log/assert it. */
+ * resolved theme name for callers that want to log/assert it.
+ *
+ * A rejected `loadTheme` -- a real network/chunk-load failure, not a resolveTheme-level
+ * misconfiguration -- is caught and logged, not rethrown: `main.tsx` top-level-`await`s
+ * this before mounting, so an unhandled rejection here would leave the page permanently
+ * blank (no React tree ever mounts) instead of degrading to one unstyled first paint.
+ * `applyTheme` still runs on the caught path -- `data-rb-style` reflects the intended
+ * theme even though its CSS didn't load this time, so a later successful chunk fetch (a
+ * retry, a service-worker revalidation) needs no extra wiring to take effect. */
 export async function bootTheme(
   env: Record<string, string | boolean | undefined>,
   root: HTMLElement,
 ): Promise<string> {
   const theme = resolveTheme(env)
-  await loadTheme(theme)
+  try {
+    await loadTheme(theme)
+  } catch (err) {
+    console.error(`theme.ts: failed to load "${theme}"'s stylesheet -- rendering unstyled.`, err)
+  }
   applyTheme(theme, root)
   return theme
 }
