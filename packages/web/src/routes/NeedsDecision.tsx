@@ -5,11 +5,13 @@ import { Card } from "@rackbops/ui-react"
  * (not acknowledged) first, then `gap` without a decision, each row with the four inline
  * decision actions.
  *
- * TODO(kenzen#16, kenzen#7): real data needs `/api/snapshots/:id/items` (kenzen#16, K4-4's
- * item-level read API -- landing in parallel with this PR) joined against the decisions API
- * (kenzen#7, K4-5, not yet landed either) to know which items are undecided. Fixture-shaped
- * placeholder data below (design.md section 4.3's ReportItem shape) until both exist; the
- * inline decision actions themselves are K4-9's job, not this shell.
+ * TODO(K4-8a): `/api/snapshots/:id/items` (kenzen#16) and the decisions API (kenzen#7, K4-5)
+ * both merged to main while this PR was in review -- the data this route needs now genuinely
+ * exists. Left as fixture-shaped placeholder data (design.md section 4.3's ReportItem shape)
+ * deliberately, not because the data is unavailable: the real rendering here (the `DataTable`,
+ * filters, and the four inline decision actions) is explicitly K4-8a/K4-9's job per this
+ * issue's own scope, not this shell's -- wiring a throwaway simple version now would only be
+ * replaced wholesale when that lands.
  */
 
 interface NeedsDecisionItem {

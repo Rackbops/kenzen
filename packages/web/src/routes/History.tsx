@@ -4,9 +4,11 @@ import { Card } from "@rackbops/ui-react"
  * Design.md section 6, section 5 ("History"): for any item, its pins and gaps across
  * snapshots; for any repo, the soundness line over time.
  *
- * TODO(kenzen#16): real data needs `GET /api/items/:key/history` (K4-4's item-level read API,
- * design.md section 4.3), landing in parallel with this PR. Fixture-shaped placeholder data
- * below (that endpoint's own documented row shape) until it exists.
+ * TODO(K4-8b): `GET /api/items/:key/history` (kenzen#16, design.md section 4.3) merged to
+ * main while this PR was in review -- the data this route needs now genuinely exists. Left
+ * as fixture-shaped placeholder data deliberately, not because the data is unavailable: the
+ * real rendering here (per-item history and the per-repo soundness line over time, on real
+ * snapshot data) is K4-8b's job per this issue's own scope, not this shell's.
  */
 
 interface HistoryEntry {
