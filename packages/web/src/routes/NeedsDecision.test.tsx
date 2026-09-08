@@ -90,6 +90,31 @@ test("includes an affected item and a gapped item, excludes a sound item and a d
   expect(screen.queryByText("already-decided-pkg")).not.toBeInTheDocument()
 })
 
+test("each of major, minor, and patch individually counts as needing a decision", async () => {
+  // Round 3 mutation-testing found this real gap: the existing tests only ever exercised
+  // gap="minor" (included) and gap="major" (excluded via a decision), so dropping the
+  // `|| item.gap === "patch"` branch of needsDecision() left the full suite green.
+  const snapshot = {
+    snapshotId: 1,
+    generatedAt: "2026-09-08T00:00:00Z",
+    inventoryItems: 3,
+    summary: {},
+  }
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot,
+    items: [
+      item({ key: "j", name: "major-behind-pkg", advisoryStatus: "none", gap: "major" }),
+      item({ key: "n", name: "minor-behind-pkg", advisoryStatus: "none", gap: "minor" }),
+      item({ key: "p", name: "patch-behind-pkg", advisoryStatus: "none", gap: "patch" }),
+    ],
+  })
+  render(<NeedsDecision />)
+  await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument())
+  expect(screen.getByText("major-behind-pkg")).toBeInTheDocument()
+  expect(screen.getByText("minor-behind-pkg")).toBeInTheDocument()
+  expect(screen.getByText("patch-behind-pkg")).toBeInTheDocument()
+})
+
 test("an affected item is prioritized above a gapped item in row order", async () => {
   const snapshot = {
     snapshotId: 1,
