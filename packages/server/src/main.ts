@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { createRemoteJWKSet } from "jose"
+import type { VerifyAccessJwt } from "./access-identity.js"
+import { createAccessJwtVerifier, normalizeTeamDomain } from "./access-identity.js"
 import { createApp } from "./app.js"
 import { resolveConfig } from "./config.js"
 import { createLogger } from "./log.js"
@@ -43,6 +46,24 @@ function requireIngestToken(env: Record<string, string | undefined>): string {
   return token
 }
 
+/**
+ * `undefined` when Access isn't configured (config.ts already enforces both-or-neither on
+ * `accessTeamDomain`/`accessAud`) -- `PUT /api/decisions/*` then refuses every JWT it sees
+ * rather than pretending to verify one, matching the bot's own admin panel behavior for the
+ * same unconfigured case.
+ */
+function buildAccessVerifier(
+  accessTeamDomain: string | undefined,
+  accessAud: string | undefined,
+): VerifyAccessJwt | undefined {
+  if (accessTeamDomain === undefined || accessAud === undefined) {
+    return undefined
+  }
+  const teamDomain = normalizeTeamDomain(accessTeamDomain)
+  const jwksUrl = new URL(`https://${teamDomain}/cdn-cgi/access/certs`)
+  return createAccessJwtVerifier(createRemoteJWKSet(jwksUrl), teamDomain, accessAud)
+}
+
 async function main(): Promise<void> {
   const log = createLogger()
   const here = dirname(fileURLToPath(import.meta.url))
@@ -56,6 +77,8 @@ async function main(): Promise<void> {
     port: config.port,
     staticDir: config.staticDir,
     stateDir: config.stateDir,
+    accessConfigured: config.accessTeamDomain !== undefined,
+    devIdentityConfigured: config.devIdentity !== undefined,
   })
 
   // migrations/ ships as a sibling of both src/ and dist/ (never compiled/copied by tsc), so
@@ -72,12 +95,15 @@ async function main(): Promise<void> {
   })
 
   const ingestToken = requireIngestToken(process.env)
+  const verifyAccessJwt = buildAccessVerifier(config.accessTeamDomain, config.accessAud)
   const app = createApp({
     version: getVersion(),
     staticDir: config.staticDir,
     db: state.db,
     ingestToken,
     log,
+    verifyAccessJwt,
+    devIdentity: config.devIdentity,
   })
   const handle = await startServer(app, { host: config.host, port: config.port, log })
 

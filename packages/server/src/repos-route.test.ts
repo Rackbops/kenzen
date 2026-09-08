@@ -3,6 +3,7 @@ import type { DatabaseSync } from "node:sqlite"
 import { fileURLToPath } from "node:url"
 import { Hono } from "hono"
 import { describe, expect, it } from "vitest"
+import { putDecision } from "./decisions.js"
 import { ingest } from "./ingest.js"
 import { createLogger } from "./log.js"
 import { mountReposRoute } from "./repos-route.js"
@@ -147,6 +148,96 @@ describe("GET /api/repos", () => {
     const res = await app.request("/api/repos")
     const body = (await res.json()) as { repos: { gap: Record<string, number> }[] }
     expect(body.repos[0]?.gap).toEqual({ none: 1 }) // not { major: 1 } from the first snapshot
+  })
+
+  it("K4-5: a suppressing decision moves an item from behind/affected into decided", async () => {
+    const { app, db } = testApp()
+    ingest(
+      db,
+      {
+        repos: ["o/r"],
+        readOnly: [],
+        items: [invItem({ name: "a", source: "f:1" }), invItem({ name: "b", source: "f:2" })],
+      },
+      {
+        generatedAt: "2026-01-01T00:00:00Z",
+        inventoryItems: 2,
+        items: [
+          repItem({
+            key: "o/r|npm-dep|a|f:1",
+            name: "a",
+            source: "f:1",
+            latest: "9.0.0",
+            gap: "major",
+            advisoryStatus: "none",
+          }),
+          repItem({
+            key: "o/r|npm-dep|b|f:2",
+            name: "b",
+            source: "f:2",
+            gap: "none",
+            advisoryStatus: "affected",
+            advisories: [
+              {
+                id: "GHSA-x",
+                summary: "s",
+                severity: "high",
+                url: "u",
+                source: "ghsa",
+                affected: true,
+              },
+            ],
+          }),
+        ],
+        repos: {},
+        summary: {},
+      },
+    )
+
+    const before = (await (await app.request("/api/repos")).json()) as {
+      repos: {
+        gap: Record<string, number>
+        advisoryStatus: Record<string, number>
+        decided: number
+      }[]
+    }
+    expect(before.repos[0]).toMatchObject({
+      gap: { major: 1, none: 1 },
+      advisoryStatus: { none: 1, affected: 1 },
+      decided: 0,
+    })
+
+    // Skip item "a"'s gap (latest 9.0.0 not yet passed by the skip target) and acknowledge
+    // item "b"'s only advisory -- both should move out of behind/affected and into decided.
+    putDecision(
+      db,
+      "o/r|npm-dep|a|f:1",
+      { field: "skippedVersion", value: "9.0.0" },
+      "alice",
+      "2026-06-01T00:00:00.000Z",
+    )
+    putDecision(
+      db,
+      "o/r|npm-dep|b|f:2",
+      { field: "acknowledgedAdvisories", value: ["GHSA-x"] },
+      "alice",
+      "2026-06-01T00:00:00.000Z",
+    )
+
+    const after = (await (await app.request("/api/repos")).json()) as {
+      repos: {
+        gap: Record<string, number>
+        advisoryStatus: Record<string, number>
+        decided: number
+        soundness: string
+      }[]
+    }
+    expect(after.repos[0]?.gap.major ?? 0).toBe(0)
+    expect(after.repos[0]?.advisoryStatus.affected ?? 0).toBe(0)
+    expect(after.repos[0]?.decided).toBe(2)
+    expect(after.repos[0]?.soundness).toBe(
+      "2 items · 0 affected · 0 behind (0/0/0) · 2 decided · 0 unknown",
+    )
   })
 
   it("includes a repo with Dependabot data but zero tracked items", async () => {

@@ -1,5 +1,8 @@
 import type { DatabaseSync } from "node:sqlite"
 import type { Context, Hono } from "hono"
+import { listDecisions } from "./decisions.js"
+import type { Decision, SuppressionItem } from "./suppression.js"
+import { effectiveAdvisoryStatus, suppressionState } from "./suppression.js"
 
 /** design.md section 4.3: every response carries apiVersion: 1. */
 export const API_VERSION = 1
@@ -10,6 +13,9 @@ export interface RepoSummary {
   gap: Record<string, number>
   advisoryStatus: Record<string, number>
   dependabotAlerts: unknown
+  /** Items removed from `gap`/`advisoryStatus`'s actionable counts by a suppressing decision
+   * (K4-5) -- the same number the soundness line's "D decided" reads. */
+  decided: number
   soundness: string
 }
 
@@ -20,16 +26,28 @@ function latestSnapshotId(db: DatabaseSync): number | null {
   return row?.id ?? null
 }
 
+interface ItemRow {
+  key: string
+  repo: string
+  role: string | null
+  pinned: string | null
+  latest: string | null
+  gap: string | null
+  advisoryStatus: string | null
+  advisories_json: string | null
+}
+
 /**
  * `GET /api/repos` -> per repo: item counts by role, counts by gap and advisoryStatus, the
  * Dependabot read-back, and the soundness line (design.md sections 4.3, 6). All computed live
  * from the LATEST snapshot's items -- nothing is precomputed at ingest time, so this always
  * reflects the current data even before any UI/formatting layer exists.
  *
- * The soundness line's "D decided" is always 0 here: the decisions API (K4-5) doesn't exist
- * yet, so nothing has ever been decided against any ingested item. This is a correct reflection
- * of current state, not a placeholder to fix later in this same module -- it becomes real once
- * K4-5 ships and starts writing to the `decisions` table.
+ * "D decided" (K4-5): an item counts as decided when `suppressionState`/
+ * `effectiveAdvisoryStatus` (design.md section 5) removes it from what would otherwise be an
+ * actionable gap or advisory count -- a "remind" verdict does NOT count as decided (design.md:
+ * a due reminder surfaces again, it doesn't quietly resolve), and an item decided on BOTH axes
+ * (a suppressed gap and an acknowledged advisory) still counts once, not twice.
  */
 export function mountReposRoute(app: Hono, db: DatabaseSync): void {
   app.get("/api/repos", (c: Context) => {
@@ -53,19 +71,12 @@ export function mountReposRoute(app: Hono, db: DatabaseSync): void {
       .all(snapshotId) as { repo: string; c: number }[]
     const totals = new Map(totalRows.map((r) => [r.repo, r.c]))
 
-    const roleRows = db
+    const itemRows = db
       .prepare(
-        "SELECT repo, role, COUNT(*) as c FROM items WHERE snapshotId = ? GROUP BY repo, role",
+        `SELECT key, repo, role, pinned, latest, gap, advisoryStatus, advisories_json
+         FROM items WHERE snapshotId = ?`,
       )
-      .all(snapshotId) as { repo: string; role: string | null; c: number }[]
-    const gapRows = db
-      .prepare("SELECT repo, gap, COUNT(*) as c FROM items WHERE snapshotId = ? GROUP BY repo, gap")
-      .all(snapshotId) as { repo: string; gap: string | null; c: number }[]
-    const statusRows = db
-      .prepare(
-        "SELECT repo, advisoryStatus, COUNT(*) as c FROM items WHERE snapshotId = ? GROUP BY repo, advisoryStatus",
-      )
-      .all(snapshotId) as { repo: string; advisoryStatus: string | null; c: number }[]
+      .all(snapshotId) as unknown as ItemRow[]
 
     const dependabotRows = db
       .prepare("SELECT repo, dependabot_json FROM repos WHERE snapshotId = ?")
@@ -73,6 +84,9 @@ export function mountReposRoute(app: Hono, db: DatabaseSync): void {
     const dependabot = new Map(
       dependabotRows.map((r) => [r.repo, JSON.parse(r.dependabot_json) as unknown]),
     )
+
+    const decisionsByKey = new Map<string, Decision>(listDecisions(db).map((d) => [d.key, d]))
+    const now = new Date().toISOString()
 
     const byRepo = new Map<string, RepoSummary>()
     for (const repo of repoNames) {
@@ -83,30 +97,54 @@ export function mountReposRoute(app: Hono, db: DatabaseSync): void {
         advisoryStatus: {},
         dependabotAlerts: dependabot.get(repo) ?? "not enabled",
         soundness: "",
+        decided: 0,
       })
     }
-    for (const row of roleRows) {
+
+    for (const row of itemRows) {
+      const entry = byRepo.get(row.repo)
+      if (!entry) {
+        continue
+      }
       if (row.role !== null) {
-        const entry = byRepo.get(row.repo)
-        if (entry) {
-          entry.role[row.role] = row.c
-        }
+        entry.role[row.role] = (entry.role[row.role] ?? 0) + 1
       }
-    }
-    for (const row of gapRows) {
+
+      const decision = decisionsByKey.get(row.key) ?? null
+      const item: SuppressionItem = {
+        pinned: row.pinned,
+        latest: row.latest,
+        advisoryStatus: row.advisoryStatus,
+        advisories: row.advisories_json
+          ? (JSON.parse(row.advisories_json) as { id: string; affected: boolean }[])
+          : [],
+      }
+
+      let decidedThisItem = false
+
+      // "none"/"unknown" were never actionable in the first place -- a decision can't suppress
+      // its way out of a gap that doesn't exist, so only major/minor/patch consult the verdict.
       if (row.gap !== null) {
-        const entry = byRepo.get(row.repo)
-        if (entry) {
-          entry.gap[row.gap] = row.c
+        const actionable = row.gap === "major" || row.gap === "minor" || row.gap === "patch"
+        const suppressed = actionable && suppressionState(item, decision, now) === "suppressed"
+        if (suppressed) {
+          decidedThisItem = true
+        } else {
+          entry.gap[row.gap] = (entry.gap[row.gap] ?? 0) + 1
         }
       }
-    }
-    for (const row of statusRows) {
+
       if (row.advisoryStatus !== null) {
-        const entry = byRepo.get(row.repo)
-        if (entry) {
-          entry.advisoryStatus[row.advisoryStatus] = row.c
+        const effective = effectiveAdvisoryStatus(item, decision)
+        if (row.advisoryStatus === "affected" && effective !== "affected") {
+          decidedThisItem = true
+        } else if (effective !== null) {
+          entry.advisoryStatus[effective] = (entry.advisoryStatus[effective] ?? 0) + 1
         }
+      }
+
+      if (decidedThisItem) {
+        entry.decided += 1
       }
     }
 
@@ -125,7 +163,7 @@ export function mountReposRoute(app: Hono, db: DatabaseSync): void {
       const behind = major + minor + patch
       entry.soundness =
         `${total} items · ${affected} affected · ${behind} behind ` +
-        `(${major}/${minor}/${patch}) · 0 decided · ${unknown} unknown`
+        `(${major}/${minor}/${patch}) · ${entry.decided} decided · ${unknown} unknown`
       return entry
     })
 
