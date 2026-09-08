@@ -1,0 +1,79 @@
+name: release
+
+# Build and publish the multi-arch container image on a version tag (K4-6, Tooling#478).
+#
+# ghcr.io/rackbops/kenzen, multi-arch (amd64 + arm64), authenticated with the built-in
+# GITHUB_TOKEN (packages: write) -- NO PAT. The package's org visibility is a one-time setting
+# applied AFTER the first publish (it cannot be set before the package exists).
+#
+# Runner: ubuntu-latest, not the disposable pool -- multi-arch buildx needs QEMU emulation and
+# reliable Docker-in-Docker, which GitHub-hosted runners provide out of the box (same reasoning
+# as Rackbops/artifact-console's release.yml, design.md section 3).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "existing tag to build and publish the image for"
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    # Personal infra (publishes to ghcr.io/rackbops/kenzen). Guarded so a fork tagging a `v*`
+    # skips cleanly instead of fail-running a publish it has no rights for.
+    if: github.repository == 'Rackbops/kenzen'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive + verify the image version (tag must match packages/server/package.json)
+        id: meta
+        shell: bash
+        # kenzen#8 review round 1, MEDIUM (inherited unchanged from artifact-console's own
+        # release.yml at the time -- also since fixed there, Rackbops/artifact-console#150,
+        # the identical env: pattern): a raw ${{ }} interpolation of
+        # workflow_dispatch.inputs.tag directly into the run: script is a classic GitHub
+        # Actions script-injection surface -- a crafted tag input (e.g. containing an embedded
+        # quote + shell metacharacters) could break out of the string and run arbitrary
+        # commands with this job's packages:write GITHUB_TOKEN. Routing untrusted input
+        # through env: instead means it only ever reaches the shell as the *value* of $TAG,
+        # never as script text the shell parses.
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          # The source of truth is packages/server/package.json (what /healthz reports), NOT the
+          # tag. version-tag.mjs prints the version and exits non-zero if the tag != v<package
+          # version>, failing the publish rather than shipping a mislabelled image.
+          version="$(node scripts/version-tag.mjs "$TAG")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/rackbops/kenzen:${{ steps.meta.outputs.version }}
+            ghcr.io/rackbops/kenzen:latest

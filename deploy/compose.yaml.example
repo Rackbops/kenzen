@@ -1,0 +1,63 @@
+# kenzen -- a dynamic container app (a built image, not stock nginx), behind the Cloudflare
+# Access gate via a per-app cloudflared token-tunnel sidecar. Managed as a Dockge stack at
+# /opt/stacks/kenzen/ on nucbox (design.md section 7).
+#
+# Copy to `compose.yaml`, copy `.env.example` to `.env` and fill the <PLACEHOLDERS>.
+# Shape and runbooks: https://github.com/Rackbops/rackbops-web-deploy-template/blob/main/servers/node-app/README.md
+# Gate runbook: https://github.com/Rackbops/rackbops-web-deploy-template/blob/main/gate/README.md
+#
+# NO host port: kenzen is reachable ONLY in-network, by the cloudflared sidecar over the compose
+# network (service name `kenzen`). Cloudflare Access is the only door.
+
+services:
+  kenzen:
+    image: ${IMAGE}:${IMAGE_TAG:-latest}
+    container_name: kenzen
+    restart: unless-stopped
+    # Only what this container itself reads -- NOT the .env's other secrets
+    # (CLOUDFLARE_TUNNEL_TOKEN, REGISTRY_TOKEN), which belong to the sidecar/host, not the app.
+    # KENZEN_INGEST_TOKEN IS the app's own secret (design.md section 4.2): the server refuses to
+    # start without it (main.ts's requireIngestToken, K4-4) -- there is no config.toml fallback
+    # for a secret. The image already defaults KENZEN_HOST=0.0.0.0, KENZEN_CONFIG_DIR=/config,
+    # KENZEN_STATE_DIR=/state, so nothing else needs setting here.
+    environment:
+      - KENZEN_HOST=${KENZEN_HOST:-0.0.0.0}
+      - KENZEN_INGEST_TOKEN=${KENZEN_INGEST_TOKEN}
+    volumes:
+      # Named volume: Docker creates it owning the image's dir uid, so the non-root container
+      # user can write kenzen.db (WAL SQLite, design.md section 3/7).
+      #
+      # No `config:/config` mount here (kenzen#8 review round 1, MEDIUM, live-verified): every
+      # field config.ts resolves (host, port, staticDir, stateDir) has a working built-in
+      # default today, so nothing in production actually needs a hand-authored config.toml --
+      # the app-config standard's "generated .env" already covers real deploys (design.md
+      # section 7). config.ts's config.toml support exists and is unit-tested for local/dev use;
+      # if a future field genuinely needs it in production, add the mount then.
+      - state:/state
+    # NO `ports:` -- reachable only in-network via the cloudflared sidecar below.
+
+  cloudflared:
+    # Per-app token tunnel: confines this app's blast radius (its own tunnel + token), vs
+    # joining the box's shared host tunnel. Ingress + Access are configured Cloudflare-side (the
+    # gate runbook, Tooling docs/per-app-cloudflare-access-tunnel.md); this sidecar just runs
+    # the tunnel with the token.
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    restart: unless-stopped
+    depends_on:
+      # Wait for kenzen's HEALTHCHECK before routing, so the tunnel doesn't briefly 502 at
+      # first bring-up.
+      kenzen:
+        condition: service_healthy
+    profiles:
+      - tunnel           # opt-in: `docker compose --profile tunnel up -d` brings up the gate too
+    # kenzen#8 review round 1, LOW, live-verified: `docker compose down --remove-orphans` alone
+    # does NOT stop this sidecar once it's running -- Compose's orphan detection only catches
+    # containers for services no longer DEFINED in the file, not services outside the currently
+    # selected profile set. Always repeat `--profile tunnel` on `down` too, or this container is
+    # left running (and restarting) after everything else stops.
+
+volumes:
+  state:
