@@ -12,9 +12,13 @@ name: push-notify
 # reusable workflow then skips GREEN, so nothing fails and no notification is sent.
 # Explicit passing evaluates in this repo's own context, which resolves repo-level
 # first and falls back to org-level -- correct for private and public repos alike.
-# Diagnosed 2026-09-02 on Rackbops/the-keeper#5; see Rackbops/Tooling#310. The reusable
-# workflow skips green when the secret is genuinely unset, so this file is harmless
-# until DISCORD_PUSH_WEBHOOK is actually set on this repo (Rackbops/Tooling#475).
+# Diagnosed 2026-09-02 on Rackbops/the-keeper#5; see Rackbops/Tooling#310.
+#
+# The job also carries an explicit fork guard (`if: github.repository == ...`), matching
+# artifact-console's current pattern rather than relying only on the reusable workflow's
+# graceful skip-on-empty-secret: a fork of a private repo can still be an org-internal
+# fork with its own secrets configured, so "the secret is unset" is not a guarantee on a
+# fork the way it is on a public repo. Guarded by packages/server/src/ci-hygiene.test.ts.
 on:
   push:
     branches: [main]
@@ -28,6 +32,7 @@ on:
 
 jobs:
   notify:
+    if: github.repository == 'Rackbops/kenzen'
     uses: roshne/addon-ci/.github/workflows/push-notify.yml@main
     with:
       runner: '["self-hosted","disposable"]'
