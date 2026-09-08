@@ -11,6 +11,7 @@ function repoSummary(overrides: Partial<RepoSummary>): RepoSummary {
     gap: { patch: 1 },
     advisoryStatus: { none: 3 },
     dependabotAlerts: "not enabled",
+    decided: 0,
     soundness: "3 items · 0 affected · 1 behind (0/0/1) · 0 decided · 0 unknown",
     ...overrides,
   }

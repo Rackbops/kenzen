@@ -69,6 +69,10 @@ export interface RepoSummary {
   gap: Record<string, number>
   advisoryStatus: Record<string, number>
   dependabotAlerts: unknown
+  /** Items a decision removed from the actionable gap/advisory counts (K4-5) -- the "D decided"
+   * the soundness line reads. Shipped by repos-route.ts; declared here so the estate-wide line
+   * can sum it rather than re-deriving what the server already computed. */
+  decided: number
   soundness: string
 }
 
@@ -82,6 +86,95 @@ export interface ReposResponse extends Versioned {
 export async function fetchRepos(fetchImpl: typeof fetch = fetch): Promise<RepoSummary[]> {
   const data = await fetchJson<ReposResponse>("/api/repos", fetchImpl)
   return data.repos
+}
+
+/** A decision on record, as `decisions-route.ts`'s `decisionJson` actually emits it (K4-5):
+ * `key`/`repo`/`name`/`updatedAt`/`updatedBy` are always present; every other field is
+ * omitted entirely rather than sent as null when unset, so each is optional here. */
+export interface DecisionRecord {
+  key: string
+  repo: string
+  name: string
+  kind?: string
+  source?: string
+  skippedVersion?: string
+  remindAt?: string
+  approvedVersion?: string
+  acknowledgedAdvisories?: string[]
+  updatedAt: string
+  updatedBy: string | null
+}
+
+/** GET /api/decisions -- every decision on record, newest-agnostic (the server returns them
+ * in its own order). Powers the "Decided" section (design.md section 6, section 3). */
+export async function fetchDecisions(fetchImpl: typeof fetch = fetch): Promise<DecisionRecord[]> {
+  const data = await fetchJson<{ apiVersion: 1; decisions: DecisionRecord[] }>(
+    "/api/decisions",
+    fetchImpl,
+  )
+  return data.decisions
+}
+
+/** One snapshot's view of an item, as `item-history-route.ts` emits it -- oldest first. */
+export interface ItemHistoryEntry {
+  snapshotId: number
+  generatedAt: string
+  pinned: string | null
+  latest: string | null
+  gap: string | null
+  advisoryStatus: string | null
+}
+
+/**
+ * GET /api/items/:key/history -- one item across every snapshot it appears in, oldest first.
+ *
+ * `encodeURIComponent` is REQUIRED, not cosmetic: a key is `repo|kind|name|source`, and both
+ * `repo` and `source` routinely contain `/` (`Rackbops/kenzen`, `docker/Dockerfile:12`).
+ * Interpolated raw, those slashes split into extra path segments, so the request never matches
+ * the route at all -- it falls through to the SPA catch-all and comes back as HTML, which
+ * surfaces as a confusing JSON parse error rather than a 404. `item-history-route.ts`'s own
+ * docstring calls this out as the caller's responsibility.
+ *
+ * An unknown key is a 200 with an empty history, not a 404 (the server's deliberate choice),
+ * so callers distinguish "no history" by the empty array.
+ */
+export async function fetchItemHistory(
+  key: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ItemHistoryEntry[]> {
+  const data = await fetchJson<{ apiVersion: 1; key: string; history: ItemHistoryEntry[] }>(
+    `/api/items/${encodeURIComponent(key)}/history`,
+    fetchImpl,
+  )
+  return data.history
+}
+
+/**
+ * PUT /api/decisions/:key with `{clear: true}` -- removes the decision on record (design.md
+ * section 6, section 3's *clear* action). The same `encodeURIComponent` requirement as
+ * `fetchItemHistory` applies, for the same reason.
+ *
+ * Shares `fetchJson`'s transport with `putDecision` rather than doing its own fetch, so a
+ * clear surfaces the server's real error message (a 401 from an unauthenticated write, say)
+ * exactly as the inline actions do, and the apiVersion check applies to writes too.
+ *
+ * Deliberately NOT folded into `DecisionPatch`: that union is exhaustively switched on by
+ * `useOptimisticDecisions.axisOf` to place an item on the gap or advisory axis, and a clear has
+ * no axis -- it removes a decision rather than expressing one. Adding a variant there would
+ * force an answer to a question that does not apply. K4-9 left `clear` out of the union for the
+ * same reason (see `DecisionPatch`'s own comment); this shares the transport without distorting
+ * the type.
+ */
+export async function clearDecision(key: string, fetchImpl: typeof fetch = fetch): Promise<void> {
+  await fetchJson<{ apiVersion: 1; decision: ItemDecision | null }>(
+    `/api/decisions/${encodeURIComponent(key)}`,
+    fetchImpl,
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ clear: true }),
+    },
+  )
 }
 
 /** design.md section 4.3 / packages/server/src/snapshots-route.ts's real, shipped shape (K4-4b). */

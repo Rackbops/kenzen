@@ -36,11 +36,16 @@ test("the Repos nav link is marked active on the /repos route, others are not", 
   expect(screen.getByRole("link", { name: "History" })).not.toHaveClass("rb-link--active")
 })
 
-test("navigating to /history renders the History route's content", () => {
+test("navigating to /history renders the History route's content", async () => {
+  // K4-8b: this route now fetches real data rather than rendering K4-7's fixture, so the
+  // route-level assertion is on its own real empty state.
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([])
   render(
     <MemoryRouter initialEntries={["/history"]}>
       <App />
     </MemoryRouter>,
   )
-  expect(screen.getByText("2026-09-01T00:00:00Z")).toBeInTheDocument()
+  await waitFor(() => expect(screen.getByText("Soundness")).toBeInTheDocument())
+  expect(screen.getByText("No snapshots ingested yet.")).toBeInTheDocument()
 })
