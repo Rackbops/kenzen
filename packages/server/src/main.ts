@@ -69,7 +69,15 @@ async function main(): Promise<void> {
   const here = dirname(fileURLToPath(import.meta.url))
   const defaultStaticDir = resolve(here, "../public")
 
-  const config = resolveConfig(process.env, { readFile: readFileOrNull, defaultStaticDir })
+  // defaultPort is explicit (not relying on @rackbops/node-app-kit's own hardcoded 8686
+  // fallback matching Kenzen's own default by coincidence) -- Rackbops/kenzen#46, following
+  // Rackbops/artifact-console#161's real, live example of that coincidence breaking a different
+  // consumer whose default genuinely differs (Rackbops/rackbops-node-app-kit#3).
+  const config = resolveConfig(process.env, {
+    readFile: readFileOrNull,
+    defaultStaticDir,
+    defaultPort: 8686,
+  })
   log.info("config resolved", {
     source: config.configSource,
     configFile: config.configFile,
