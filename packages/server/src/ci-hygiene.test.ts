@@ -76,4 +76,20 @@ describe("release.yml hygiene", () => {
   it("verifies the tag against packages/server/package.json before publishing", () => {
     expect(release).toMatch(/version-tag\.mjs/)
   })
+
+  it("passes the release tag through env:, never splices it directly into run: script text", () => {
+    // kenzen#8 review round 1, MEDIUM: `tag="${{ github.event.inputs.tag || ... }}"` spliced an
+    // attacker-shaped workflow_dispatch/tag-push value directly into shell script text -- a
+    // classic GH Actions script-injection surface (round 2 confirmed live: a crafted tag breaks
+    // out and runs arbitrary commands under that pattern). Guards the fix -- an env: TAG binding
+    // referenced only as "$TAG" -- against a future "simplification" reintroducing the direct
+    // splice under any variable name. Deliberately does NOT flag `${{ }}` used as a plain YAML
+    // action `with:`/`env:` value (e.g. `ref: ${{ ... }}`, `tags: ${{ ... }}`) -- only a shell
+    // variable ASSIGNED FROM a template expression, which is what makes it script text.
+    expect(release).not.toMatch(/=\s*"\$\{\{/)
+    expect(release).toMatch(
+      /env:\s*\n\s*TAG:\s*\$\{\{\s*github\.event\.inputs\.tag\s*\|\|\s*github\.ref_name\s*\}\}/,
+    )
+    expect(release).toMatch(/version-tag\.mjs\s+"\$TAG"/)
+  })
 })
