@@ -1,10 +1,10 @@
 import { timingSafeEqual } from "node:crypto"
 import type { DatabaseSync } from "node:sqlite"
 import { firstErrorPath, validateInventory, validateReport } from "@kenzen/contract"
+import type { Logger } from "@rackbops/node-app-kit/log"
 import type { Context, Hono } from "hono"
 import type { InventoryDoc, ReportDoc } from "./ingest.js"
 import { ingest } from "./ingest.js"
-import type { Logger } from "./log.js"
 
 export const API_VERSION = 1
 

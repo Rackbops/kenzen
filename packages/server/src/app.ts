@@ -1,13 +1,14 @@
 import type { DatabaseSync } from "node:sqlite"
+import { healthz } from "@rackbops/node-app-kit/healthz"
+import type { Logger } from "@rackbops/node-app-kit/log"
+import { spaHandler } from "@rackbops/node-app-kit/static"
 import { Hono } from "hono"
 import type { VerifyAccessJwt } from "./access-identity.js"
 import { mountDecisionsRoute } from "./decisions-route.js"
 import { mountIngestRoute } from "./ingest-route.js"
 import { mountItemHistoryRoute } from "./item-history-route.js"
-import type { Logger } from "./log.js"
 import { mountReposRoute } from "./repos-route.js"
 import { mountSnapshotsRoute } from "./snapshots-route.js"
-import { spaHandler } from "./static.js"
 
 /**
  * design.md section 4.3: every Kenzen API response carries `apiVersion: 1`; additive-only
@@ -37,9 +38,7 @@ export interface AppOptions {
 export function createApp(options: AppOptions): Hono {
   const app = new Hono()
 
-  app.get("/healthz", (c) =>
-    c.json({ ok: true, version: options.version, apiVersion: API_VERSION }),
-  )
+  app.get("/healthz", healthz({ version: options.version, apiVersion: API_VERSION }))
   mountIngestRoute(app, { db: options.db, ingestToken: options.ingestToken, log: options.log })
   mountReposRoute(app, options.db)
   mountSnapshotsRoute(app, options.db)
