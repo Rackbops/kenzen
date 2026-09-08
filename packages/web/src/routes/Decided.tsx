@@ -1,59 +1,184 @@
-import { Button, Card } from "@rackbops/ui-react"
+import { Button } from "@rackbops/ui-react"
+import { useCallback, useState } from "react"
+import { clearDecision, type DecisionRecord, fetchDecisions } from "../api.js"
+import { DataTable, type DataTableColumn } from "../components/DataTable.js"
+import { Tabstrip } from "../components/Tabstrip.js"
+import { useAsync } from "../useAsync.js"
 
 /**
  * Design.md section 6, section 3 ("Decided"): skipped, snoozed, approved-pending, with the
- * decision and who/when; a *clear* action.
+ * decision and who/when, plus a *clear* action. Replaces K4-7's fixture-shaped shell with the
+ * real `GET /api/decisions` data (K4-8b).
  *
- * TODO(K4-8b): the decisions API (kenzen#7, K4-5, `GET /api/decisions`, design.md section
- * 4.3) merged to main while this PR was in review -- the data this route needs now genuinely
- * exists. Left as fixture-shaped placeholder data deliberately, not because the data is
- * unavailable: the real rendering here (the full "Decided" section on real snapshot data) is
- * K4-8b's job per this issue's own scope, not this shell's. The *clear* action itself is
- * K4-9's job either way -- the Button here is a non-functional placeholder proving the
- * layout, not a wired action yet.
+ * Scope boundary with K4-9 (kenzen#12, in flight in this same package): #12 owns the decision
+ * actions on sections 1-2 (skip/remind/approve/acknowledge, with confirm + optimistic update).
+ * *Clear* here is this issue's own scope line ("the decided table with who/when and *clear*"),
+ * and it is the only write this route makes.
  */
 
-interface Decision {
-  repo: string
-  kind?: string
-  name: string
-  skippedVersion?: string
-  remindAt?: string
-  updatedAt: string
-  updatedBy: string
+/** The four states design.md section 5 gives a decision, in the order the strip shows them. */
+type DecisionState = "skipped" | "snoozed" | "approved" | "acknowledged"
+
+const STATE_LABELS: Record<DecisionState, string> = {
+  skipped: "Skipped",
+  snoozed: "Snoozed",
+  approved: "Approved -- PR pending",
+  acknowledged: "Advisories acknowledged",
 }
 
-const FIXTURE_DECISIONS: Decision[] = [
-  {
-    repo: "Rackbops/Tooling",
-    name: "requests",
-    skippedVersion: "2.32.0",
-    updatedAt: "2026-09-01T00:00:00Z",
-    updatedBy: "roshne",
-  },
-]
+const STATE_ORDER: DecisionState[] = ["skipped", "snoozed", "approved", "acknowledged"]
+
+/**
+ * A decision's state. Deliberately NOT mutually exclusive at the data layer -- the API lets one
+ * row carry several fields at once (a skip AND an acknowledgement) -- so a row appears under
+ * every state it actually holds rather than being forced into one bucket and disappearing from
+ * the others.
+ */
+export function decisionStates(d: DecisionRecord): DecisionState[] {
+  const states: DecisionState[] = []
+  if (d.skippedVersion !== undefined) states.push("skipped")
+  if (d.remindAt !== undefined) states.push("snoozed")
+  if (d.approvedVersion !== undefined) states.push("approved")
+  if (d.acknowledgedAdvisories !== undefined && d.acknowledgedAdvisories.length > 0) {
+    states.push("acknowledged")
+  }
+  return states
+}
+
+/** What the decision says, in one cell, for the state being shown. */
+export function decisionDetail(d: DecisionRecord, state: DecisionState): string {
+  switch (state) {
+    case "skipped":
+      return `until newer than ${d.skippedVersion}`
+    case "snoozed":
+      return `until ${d.remindAt}`
+    case "approved":
+      return `approved ${d.approvedVersion}`
+    case "acknowledged":
+      return (d.acknowledgedAdvisories ?? []).join(", ")
+  }
+}
 
 export function Decided() {
-  if (FIXTURE_DECISIONS.length === 0) {
+  // Bumping this re-runs the fetch after a successful clear, so the table reflects the server
+  // rather than a locally-mutated copy -- this route has one writer and no need for the
+  // optimistic-update machinery K4-9 brings to sections 1-2.
+  const [reloadToken, setReloadToken] = useState(0)
+  const state = useAsync(() => fetchDecisions(), [reloadToken])
+  const reload = useCallback(() => setReloadToken((n) => n + 1), [])
+
+  if (state.status === "loading") {
+    return <p>Loading decisions…</p>
+  }
+  if (state.status === "error") {
+    return <p role="alert">Could not load decisions: {state.error.message}</p>
+  }
+  return <DecidedTables decisions={state.data} onCleared={reload} />
+}
+
+function DecidedTables({
+  decisions,
+  onCleared,
+}: {
+  decisions: DecisionRecord[]
+  onCleared: () => void
+}) {
+  const [selected, setSelected] = useState<DecisionState>("skipped")
+  const [clearing, setClearing] = useState<string | null>(null)
+  const [clearError, setClearError] = useState<string | null>(null)
+
+  const byState = new Map<DecisionState, DecisionRecord[]>(STATE_ORDER.map((s) => [s, []]))
+  for (const d of decisions) {
+    for (const s of decisionStates(d)) {
+      byState.get(s)?.push(d)
+    }
+  }
+
+  if (decisions.length === 0) {
     return <p>No decisions recorded yet.</p>
   }
+
+  async function onClear(d: DecisionRecord) {
+    setClearing(d.key)
+    setClearError(null)
+    try {
+      await clearDecision(d.key)
+      onCleared()
+    } catch (error) {
+      setClearError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setClearing(null)
+    }
+  }
+
+  const rows = byState.get(selected) ?? []
+  const columns: DataTableColumn<DecisionRecord>[] = [
+    {
+      key: "repo",
+      header: "Repo",
+      render: (d) => d.repo,
+      sortValue: (d) => d.repo,
+    },
+    {
+      key: "name",
+      header: "Name",
+      render: (d) => (d.kind ? `${d.name} (${d.kind})` : d.name),
+      sortValue: (d) => d.name,
+    },
+    {
+      key: "detail",
+      header: STATE_LABELS[selected],
+      render: (d) => decisionDetail(d, selected),
+    },
+    {
+      key: "who",
+      header: "Decided by",
+      // updatedBy is nullable on the API (a decision written before an identity was resolvable).
+      render: (d) => d.updatedBy ?? "unknown",
+      sortValue: (d) => d.updatedBy ?? "",
+    },
+    {
+      key: "when",
+      header: "When",
+      render: (d) => d.updatedAt,
+      sortValue: (d) => d.updatedAt,
+    },
+    {
+      key: "clear",
+      header: "",
+      render: (d) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={clearing === d.key}
+          onClick={() => void onClear(d)}
+        >
+          {clearing === d.key ? "Clearing…" : "Clear"}
+        </Button>
+      ),
+    },
+  ]
+
   return (
     <div>
-      {FIXTURE_DECISIONS.map((d) => (
-        <Card key={`${d.repo}|${d.kind ?? ""}|${d.name}`}>
-          <h3>
-            {d.repo} · {d.name}
-          </h3>
-          <p>
-            {d.skippedVersion ? `Skipped until > ${d.skippedVersion}` : `Remind at ${d.remindAt}`}
-            {" -- "}
-            {d.updatedBy}, {d.updatedAt}
-          </p>
-          <Button variant="ghost" size="sm">
-            Clear
-          </Button>
-        </Card>
-      ))}
+      <Tabstrip
+        label="Decision state"
+        selected={selected}
+        onSelect={(id) => setSelected(id as DecisionState)}
+        tabs={STATE_ORDER.map((s) => ({
+          id: s,
+          label: STATE_LABELS[s],
+          badge: (byState.get(s) ?? []).length,
+        }))}
+      />
+      {clearError && <p role="alert">Could not clear the decision: {clearError}</p>}
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(d) => d.key}
+        defaultSortKey="repo"
+        emptyMessage={`No ${STATE_LABELS[selected].toLowerCase()} decisions.`}
+      />
     </div>
   )
 }

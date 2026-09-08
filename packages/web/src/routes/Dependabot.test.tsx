@@ -11,6 +11,7 @@ test("renders 'not enabled' for a repo with no Dependabot alerts", async () => {
       gap: {},
       advisoryStatus: {},
       dependabotAlerts: "not enabled",
+      decided: 0,
       soundness: "0 items · 0 affected · 0 behind (0/0/0) · 0 decided · 0 unknown",
     },
   ])
@@ -27,6 +28,7 @@ test("renders an alert count for a repo with real Dependabot alerts", async () =
       gap: {},
       advisoryStatus: {},
       dependabotAlerts: [{ id: 1 }, { id: 2 }],
+      decided: 0,
       soundness: "0 items · 0 affected · 0 behind (0/0/0) · 0 decided · 0 unknown",
     },
   ])
