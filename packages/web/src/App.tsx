@@ -12,8 +12,8 @@ import { Repos } from "./routes/Repos.js"
  * throughout (never a leading `/`) so this tree stays mountable under a router prefix later
  * without code changes -- design.md section 12: "the UI as a router-mounted React tree with
  * no global shell assumptions, so a port is re-hosting." The standalone top-level shell
- * (BrowserRouter, theme application) is main.tsx's job, not this component's -- that's the
- * one piece design.md section 12 calls out as app-only.
+ * (BrowserRouter, theme application) is boot.tsx's job (called from main.tsx), not this
+ * component's -- that's the one piece design.md section 12 calls out as app-only.
  *
  * `NavLink` here is deliberately react-router's own, not `@rackbops/ui-react`'s -- Tooling
  * docs/non-addon-repo-scaffold.md section 7's own documented trap: the design system's
