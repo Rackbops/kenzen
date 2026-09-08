@@ -1,0 +1,30 @@
+name: tests
+
+# Kenzen CI (Tooling#478 K4-1), on the org disposable self-hosted pool -- private repo,
+# so this is permitted (Tooling#437's rule; a public repo must never attach a
+# self-hosted runner). `pnpm run check` is the same gate as `just check` locally: Biome,
+# then `-r typecheck`, then `-r test`.
+on:
+  pull_request:
+
+# Squash-merge already validates the merge result, so CI runs on PRs only; cancel a
+# superseded run when a new commit lands on the same PR.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: [self-hosted, disposable]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install
+        run: corepack enable && pnpm install --frozen-lockfile
+
+      - name: Check (biome + typecheck + vitest)
+        run: pnpm run check

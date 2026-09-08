@@ -1,0 +1,16 @@
+{
+  "name": "@kenzen/contract",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "JSON Schemas and shared TS types for the inventory/report/decision data model (design.md section 4). Empty scaffold until K4-4.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

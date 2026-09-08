@@ -1,0 +1,16 @@
+packages:
+  - packages/*
+
+# esbuild ships its platform binary via a postinstall script; vitest needs it. Allow that
+# one build (committed so CI's `pnpm install --frozen-lockfile` runs it non-interactively) --
+# same as Rackbops/artifact-console.
+allowBuilds:
+  esbuild: true
+
+# Shared dependency versions referenced by each workspace package as `catalog:`, so tsc
+# and vitest resolve into every package's node_modules/.bin and stay on one version.
+# Matches Rackbops/artifact-console's own pins (Tooling#473 design.md section 3).
+catalog:
+  typescript: ^5.7.0
+  vitest: ^3.0.0
+  "@types/node": ^24.0.0

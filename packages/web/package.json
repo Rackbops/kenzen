@@ -1,0 +1,16 @@
+{
+  "name": "@kenzen/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "React 19 + react-router SPA, built by Vite into packages/server's public/ (design.md section 3). Empty scaffold until K4-7/K4-8.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
