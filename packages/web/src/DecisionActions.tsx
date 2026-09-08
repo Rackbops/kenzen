@@ -1,3 +1,4 @@
+import { effectiveAdvisoryStatus, suppressionState } from "@kenzen/contract/suppression"
 import { Button } from "@rackbops/ui-react"
 import { useState } from "react"
 import type { DecisionPatch, ReportItem } from "./api.js"
@@ -7,22 +8,40 @@ import type { DecisionPatch, ReportItem } from "./api.js"
  * approve / acknowledge -- each with a one-line confirm, on sections 1-2 (NeedsDecision.tsx,
  * Repos.tsx). Shared between both since they render the same ReportItem shape.
  *
- * Only offered when the item is both undecided (`decision === null` -- an already-decided
- * item shows a short summary instead, no re-deciding here; a `clear` action belongs to the
- * Decided page, K4-8b) AND has something to act on (a resolvable `latest`, or advisories to
- * acknowledge) -- an item with `gap: "unknown"`/no `latest` can't be skipped or approved
- * against a version that doesn't exist.
+ * Round 1 review (HIGH, independently found by both reviewers): the original version gated
+ * everything on a single `item.decision !== null` check -- the instant ANY decision existed,
+ * the whole cell froze to one summary, forever, with no buttons. That broke the resurface
+ * loop remind() exists for (a due reminder has `item.decision !== null` AND `needsDecision()
+ * === true`, but got only "Snoozed until ..." with nothing to act on), and broke the two
+ * decision axes' independence (design.md section 5: gap suppression and advisory
+ * acknowledgment are separate axes -- `effectiveAdvisoryStatus` is its own function precisely
+ * because it "can't fit suppressionState's single item-level verdict"). A skipped-but-still-
+ * affected item showed only the skip summary with no Acknowledge button, and the symmetric
+ * case the same way in reverse.
  *
- * No `pending` prop: useOptimisticDecisions' apply() sets the optimistic decision and marks
- * the key pending in the same synchronous call, which React 18 batches into one re-render --
- * so by the time a render would ever reflect pending=true for this item, `item.decision` is
- * already non-null and this component has already switched to DecidedSummary below. A
- * "pending" button/confirm-row state is therefore unreachable, not just unlikely; DecidedSummary
- * omits the "by <who>" attribution until the server's real response replaces the optimistic
- * one, which is the only pending signal that can actually show.
+ * Fixed by rendering the two axes independently, each consulting the same suppression
+ * functions `needsDecision.ts`/`repos-route.ts` already use, so this component can never
+ * disagree with what actually still needs a decision:
+ * - Gap axis (skip/remind/approve share one slot -- design.md section 5: setting any one
+ *   resets the other two, so at most one is ever set): buttons when `suppressionState` isn't
+ *   `"suppressed"` (covers both "never decided" and "resurfaced" -- active or a due remind);
+ *   otherwise the summary for whichever field is set.
+ * - Advisory axis (acknowledge): the button when `effectiveAdvisoryStatus` is still
+ *   `"affected"` (covers "never acknowledged" and "a new, unacknowledged advisory appeared
+ *   since"); otherwise a summary if an acknowledgment is on record, nothing if there was never
+ *   anything to acknowledge.
+ *
+ * `now` is a required prop (not computed here) so both pages' single per-render "now" (see
+ * their own docs for why it isn't memoized) is what every row's suppression check agrees on.
+ *
+ * No `pending` prop, still: useOptimisticDecisions' apply() sets the optimistic decision (and
+ * so, per the logic above, this component's own next render) synchronously with marking the
+ * key pending, batched into one re-render by React -- a "pending, buttons/confirm still shown"
+ * state remains unreachable, not just unlikely.
  */
 
 const REMIND_PRESET_DAYS = [7, 30, 90] as const
+const GAP_ACTIONABLE = new Set(["major", "minor", "patch"])
 
 function remindAtIn(days: number): string {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
@@ -35,18 +54,16 @@ interface PendingAction {
 
 export function DecisionActions({
   item,
+  now,
   onApply,
   error,
 }: {
   item: ReportItem
+  now: string
   onApply: (patch: DecisionPatch) => void
   error: string | undefined
 }) {
   const [confirming, setConfirming] = useState<PendingAction | null>(null)
-
-  if (item.decision !== null) {
-    return <DecidedSummary decision={item.decision} />
-  }
 
   if (confirming) {
     return (
@@ -69,64 +86,85 @@ export function DecisionActions({
     )
   }
 
+  const gapActionable = item.gap !== null && GAP_ACTIONABLE.has(item.gap)
+  const gapVerdict = gapActionable ? suppressionState(item, item.decision, now) : null
+  const showGapButtons = gapVerdict !== null && gapVerdict !== "suppressed"
+  const showGapSummary = gapVerdict === "suppressed" && item.decision !== null
+
+  const advisoryStatus = effectiveAdvisoryStatus(item, item.decision)
+  const showAcknowledgeButton = advisoryStatus === "affected"
+  const showAdvisorySummary =
+    advisoryStatus !== "affected" && item.decision?.acknowledgedAdvisories != null
+
+  if (!showGapButtons && !showGapSummary && !showAcknowledgeButton && !showAdvisorySummary) {
+    return null
+  }
+
   const canSkipOrApprove = item.latest !== null
-  const canAcknowledge = item.advisories.length > 0
 
   return (
     <span>
-      <Button
-        type="button"
-        disabled={!canSkipOrApprove}
-        onClick={() =>
-          setConfirming({
-            patch: { field: "skippedVersion", value: item.latest as string },
-            label: `Skip ${item.latest}`,
-          })
-        }
-      >
-        Skip
-      </Button>{" "}
-      {REMIND_PRESET_DAYS.map((days) => (
+      {showGapSummary && item.decision && <GapSummary decision={item.decision} />}
+      {showGapButtons && (
+        <>
+          <Button
+            type="button"
+            disabled={!canSkipOrApprove}
+            onClick={() =>
+              setConfirming({
+                patch: { field: "skippedVersion", value: item.latest as string },
+                label: `Skip ${item.latest}`,
+              })
+            }
+          >
+            Skip
+          </Button>{" "}
+          {REMIND_PRESET_DAYS.map((days) => (
+            <Button
+              key={days}
+              type="button"
+              onClick={() =>
+                setConfirming({
+                  patch: { field: "remindAt", value: remindAtIn(days) },
+                  label: `Remind in ${days} days`,
+                })
+              }
+            >
+              {days}d
+            </Button>
+          ))}{" "}
+          <Button
+            type="button"
+            disabled={!canSkipOrApprove}
+            onClick={() =>
+              setConfirming({
+                patch: { field: "approvedVersion", value: item.latest as string },
+                label: `Approve ${item.latest}`,
+              })
+            }
+          >
+            Approve
+          </Button>
+        </>
+      )}
+      {(showGapButtons || showGapSummary) && (showAcknowledgeButton || showAdvisorySummary) && " "}
+      {showAdvisorySummary && item.decision && <AdvisorySummary decision={item.decision} />}
+      {showAcknowledgeButton && (
         <Button
-          key={days}
           type="button"
           onClick={() =>
             setConfirming({
-              patch: { field: "remindAt", value: remindAtIn(days) },
-              label: `Remind in ${days} days`,
+              patch: {
+                field: "acknowledgedAdvisories",
+                value: item.advisories.map((a) => a.id),
+              },
+              label: `Acknowledge ${item.advisories.length} advisor${item.advisories.length === 1 ? "y" : "ies"}`,
             })
           }
         >
-          {days}d
+          Acknowledge
         </Button>
-      ))}{" "}
-      <Button
-        type="button"
-        disabled={!canSkipOrApprove}
-        onClick={() =>
-          setConfirming({
-            patch: { field: "approvedVersion", value: item.latest as string },
-            label: `Approve ${item.latest}`,
-          })
-        }
-      >
-        Approve
-      </Button>{" "}
-      <Button
-        type="button"
-        disabled={!canAcknowledge}
-        onClick={() =>
-          setConfirming({
-            patch: {
-              field: "acknowledgedAdvisories",
-              value: item.advisories.map((a) => a.id),
-            },
-            label: `Acknowledge ${item.advisories.length} advisor${item.advisories.length === 1 ? "y" : "ies"}`,
-          })
-        }
-      >
-        Acknowledge
-      </Button>
+      )}
       {error && <ErrorLine message={error} />}
     </span>
   )
@@ -141,21 +179,28 @@ function ErrorLine({ message }: { message: string }) {
   )
 }
 
-function DecidedSummary({ decision }: { decision: NonNullable<ReportItem["decision"]> }) {
-  const [what] = [
+function GapSummary({ decision }: { decision: NonNullable<ReportItem["decision"]> }) {
+  const what =
     decision.skippedVersion !== null
       ? `Skipped ${decision.skippedVersion}`
       : decision.remindAt !== null
         ? `Snoozed until ${decision.remindAt}`
         : decision.approvedVersion !== null
           ? `Approved ${decision.approvedVersion}`
-          : decision.acknowledgedAdvisories !== null
-            ? `Acknowledged ${decision.acknowledgedAdvisories.length} advisor${decision.acknowledgedAdvisories.length === 1 ? "y" : "ies"}`
-            : "Decided",
-  ]
+          : "Decided"
   return (
     <span className="rb-muted">
       {what}
+      {decision.updatedBy ? ` by ${decision.updatedBy}` : ""}
+    </span>
+  )
+}
+
+function AdvisorySummary({ decision }: { decision: NonNullable<ReportItem["decision"]> }) {
+  const count = decision.acknowledgedAdvisories?.length ?? 0
+  return (
+    <span className="rb-muted">
+      Acknowledged {count} advisor{count === 1 ? "y" : "ies"}
       {decision.updatedBy ? ` by ${decision.updatedBy}` : ""}
     </span>
   )

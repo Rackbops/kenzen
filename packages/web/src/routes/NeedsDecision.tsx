@@ -21,6 +21,7 @@ import { useOptimisticDecisions } from "../useOptimisticDecisions.js"
  */
 
 function columns(
+  now: string,
   onApply: (key: string, patch: DecisionPatch) => void,
   errorFor: (key: string) => string | undefined,
 ): DataTableColumn<ReportItem>[] {
@@ -72,6 +73,7 @@ function columns(
       render: (i) => (
         <DecisionActions
           item={i}
+          now={now}
           onApply={(patch) => onApply(i.key, patch)}
           error={errorFor(i.key)}
         />
@@ -110,8 +112,8 @@ function NeedsDecisionTable({ items, snapshotId }: { items: ReportItem[]; snapsh
   )
   const filtered = useMemo(() => applyItemFilters(candidates, filters), [candidates, filters])
   const tableColumns = useMemo(
-    () => columns(decisions.apply, decisions.errorFor),
-    [decisions.apply, decisions.errorFor],
+    () => columns(now, decisions.apply, decisions.errorFor),
+    [now, decisions.apply, decisions.errorFor],
   )
 
   if (candidates.length === 0) {

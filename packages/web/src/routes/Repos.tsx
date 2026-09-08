@@ -13,7 +13,6 @@ import { DataTable, type DataTableColumn } from "../components/DataTable.js"
 import { DecisionActions } from "../DecisionActions.js"
 import { gapPriority } from "../gapPriority.js"
 import { applyItemFilters, type ItemFilterState, ItemFilters } from "../ItemFilters.js"
-import { needsDecision } from "../needsDecision.js"
 import { sourceUrl } from "../sourceLink.js"
 import { useAsync } from "../useAsync.js"
 import { useOptimisticDecisions } from "../useOptimisticDecisions.js"
@@ -100,22 +99,20 @@ function columns(
       key: "actions",
       header: "Actions",
       // Unlike NeedsDecision.tsx (which already only ever holds rows that need one), Repos
-      // shows every item, decided or not, sound or not (design.md section 6.2). Gate on
-      // "needs a decision OR already has one" -- `needsDecision` alone would hide this cell
-      // the instant a decision successfully suppresses the item (a live bug caught here: a
-      // fresh Skip immediately makes needsDecision false again, since the skip is now
-      // holding, which blanked the just-decided row instead of showing what was decided).
-      // DecisionActions itself already renders the summary vs. the four buttons based on
-      // `item.decision`; a fully-sound, never-decided item is the only case with nothing to
-      // show at all.
-      render: (i) =>
-        i.decision !== null || needsDecision(i, now) ? (
-          <DecisionActions
-            item={i}
-            onApply={(patch) => onApply(i.key, patch)}
-            error={errorFor(i.key)}
-          />
-        ) : null,
+      // shows every item, decided or not, sound or not (design.md section 6.2). No gate here
+      // -- always render DecisionActions and trust its own per-axis logic to return null for a
+      // fully-sound, never-decided item. Round 1 review, HIGH: an earlier version duplicated
+      // that same "anything to show" question out here as `item.decision !== null ||
+      // needsDecision(...)`, which was ALSO wrong (see needsDecision.js's own history) -- two
+      // places independently deciding the same thing is exactly how they drifted apart before.
+      render: (i) => (
+        <DecisionActions
+          item={i}
+          now={now}
+          onApply={(patch) => onApply(i.key, patch)}
+          error={errorFor(i.key)}
+        />
+      ),
     },
   ]
 }

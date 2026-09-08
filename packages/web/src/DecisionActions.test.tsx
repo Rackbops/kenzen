@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { expect, test, vi } from "vitest"
-import type { ReportItem } from "./api.js"
+import type { Advisory, ItemDecision, ReportItem } from "./api.js"
 import { DecisionActions } from "./DecisionActions.js"
+
+const NOW = "2026-09-08T00:00:00Z"
 
 function item(overrides: Partial<ReportItem>): ReportItem {
   return {
@@ -25,21 +27,37 @@ function item(overrides: Partial<ReportItem>): ReportItem {
   }
 }
 
-test("an undecided item with a resolvable latest shows all four action triggers", () => {
+function advisory(overrides: Partial<Advisory> = {}): Advisory {
+  return {
+    id: "GHSA-1",
+    summary: "x",
+    severity: "high",
+    url: "https://x",
+    source: "ghsa",
+    affected: true,
+    ...overrides,
+  }
+}
+
+function decision(overrides: Partial<ItemDecision>): ItemDecision {
+  return {
+    skippedVersion: null,
+    remindAt: null,
+    approvedVersion: null,
+    acknowledgedAdvisories: null,
+    updatedAt: NOW,
+    updatedBy: "roshne",
+    ...overrides,
+  }
+}
+
+// --- Gap axis (skip/remind/approve share one slot) ---
+
+test("a gapped, undecided item shows Skip/Remind/Approve, no Acknowledge (advisoryStatus is none)", () => {
   render(
     <DecisionActions
-      item={item({
-        advisories: [
-          {
-            id: "GHSA-1",
-            summary: "x",
-            severity: "high",
-            url: "https://x",
-            source: "ghsa",
-            affected: true,
-          },
-        ],
-      })}
+      item={item({ gap: "minor" })}
+      now={NOW}
       onApply={() => {}}
       error={undefined}
     />,
@@ -49,22 +67,47 @@ test("an undecided item with a resolvable latest shows all four action triggers"
   expect(screen.getByRole("button", { name: "30d" })).toBeEnabled()
   expect(screen.getByRole("button", { name: "90d" })).toBeEnabled()
   expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled()
-  expect(screen.getByRole("button", { name: "Acknowledge" })).toBeEnabled()
+  expect(screen.queryByRole("button", { name: "Acknowledge" })).not.toBeInTheDocument()
 })
 
 test("Skip and Approve are disabled when latest is null -- nothing to skip/approve to", () => {
-  render(<DecisionActions item={item({ latest: null })} onApply={() => {}} error={undefined} />)
+  render(
+    <DecisionActions
+      item={item({ latest: null })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
   expect(screen.getByRole("button", { name: "Skip" })).toBeDisabled()
   expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled()
 })
 
-test("Acknowledge is disabled when the item has no advisories", () => {
-  render(<DecisionActions item={item({ advisories: [] })} onApply={() => {}} error={undefined} />)
-  expect(screen.getByRole("button", { name: "Acknowledge" })).toBeDisabled()
+test("gap none/unknown shows no gap-axis buttons at all", () => {
+  render(
+    <DecisionActions item={item({ gap: "none" })} now={NOW} onApply={() => {}} error={undefined} />,
+  )
+  expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument()
+  render(
+    <DecisionActions
+      item={item({ gap: "unknown" })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.queryAllByRole("button", { name: "Skip" })).toHaveLength(0)
 })
 
 test("clicking Skip reveals a one-line confirm naming the target version, not the buttons", () => {
-  render(<DecisionActions item={item({ latest: "9.9.9" })} onApply={() => {}} error={undefined} />)
+  render(
+    <DecisionActions
+      item={item({ latest: "9.9.9" })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
   fireEvent.click(screen.getByRole("button", { name: "Skip" }))
   expect(screen.getByText(/Skip 9\.9\.9\?/)).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Yes" })).toBeInTheDocument()
@@ -74,7 +117,14 @@ test("clicking Skip reveals a one-line confirm naming the target version, not th
 
 test("confirming Yes calls onApply with the exact patch and returns to the button row", () => {
   const onApply = vi.fn()
-  render(<DecisionActions item={item({ latest: "9.9.9" })} onApply={onApply} error={undefined} />)
+  render(
+    <DecisionActions
+      item={item({ latest: "9.9.9" })}
+      now={NOW}
+      onApply={onApply}
+      error={undefined}
+    />,
+  )
   fireEvent.click(screen.getByRole("button", { name: "Skip" }))
   fireEvent.click(screen.getByRole("button", { name: "Yes" }))
   expect(onApply).toHaveBeenCalledWith({ field: "skippedVersion", value: "9.9.9" })
@@ -82,7 +132,14 @@ test("confirming Yes calls onApply with the exact patch and returns to the butto
 
 test("clicking No cancels back to the button row without calling onApply", () => {
   const onApply = vi.fn()
-  render(<DecisionActions item={item({ latest: "9.9.9" })} onApply={onApply} error={undefined} />)
+  render(
+    <DecisionActions
+      item={item({ latest: "9.9.9" })}
+      now={NOW}
+      onApply={onApply}
+      error={undefined}
+    />,
+  )
   fireEvent.click(screen.getByRole("button", { name: "Skip" }))
   fireEvent.click(screen.getByRole("button", { name: "No" }))
   expect(onApply).not.toHaveBeenCalled()
@@ -92,7 +149,7 @@ test("clicking No cancels back to the button row without calling onApply", () =>
 test("a remind preset computes a future ISO timestamp roughly N days out", () => {
   const onApply = vi.fn()
   const before = Date.now()
-  render(<DecisionActions item={item({})} onApply={onApply} error={undefined} />)
+  render(<DecisionActions item={item({})} now={NOW} onApply={onApply} error={undefined} />)
   fireEvent.click(screen.getByRole("button", { name: "30d" }))
   fireEvent.click(screen.getByRole("button", { name: "Yes" }))
 
@@ -104,30 +161,93 @@ test("a remind preset computes a future ISO timestamp roughly N days out", () =>
   expect(Math.abs(remindAt - expectedMs)).toBeLessThan(5000)
 })
 
+test("a still-current skip shows the gap summary, not buttons", () => {
+  render(
+    <DecisionActions
+      item={item({
+        gap: "minor",
+        latest: "9.0.0",
+        decision: decision({ skippedVersion: "9.0.0" }),
+      })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.getByText("Skipped 9.0.0 by roshne")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument()
+})
+
+test("a skip superseded by a newer latest resurfaces the gap buttons, not the stale summary", () => {
+  // The exact scenario round 1 review found broken: a resurfaced decision must be actionable
+  // again, not frozen on a summary of a decision that no longer holds.
+  render(
+    <DecisionActions
+      item={item({
+        gap: "minor",
+        latest: "10.0.0",
+        decision: decision({ skippedVersion: "9.0.0" }),
+      })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument()
+  expect(screen.queryByText(/Skipped 9\.0\.0/)).not.toBeInTheDocument()
+})
+
+test("a remind not yet due shows the gap summary, not buttons", () => {
+  render(
+    <DecisionActions
+      item={item({ gap: "minor", decision: decision({ remindAt: "2026-12-01T00:00:00Z" }) })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.getByText("Snoozed until 2026-12-01T00:00:00Z by roshne")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument()
+})
+
+test("a remind whose date has passed resurfaces the gap buttons -- the whole point of remind", () => {
+  render(
+    <DecisionActions
+      item={item({ gap: "minor", decision: decision({ remindAt: "2026-01-01T00:00:00Z" }) })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument()
+  expect(screen.queryByText(/Snoozed/)).not.toBeInTheDocument()
+})
+
+// --- Advisory axis (acknowledge), independent of the gap axis ---
+
+test("an affected item with no gap shows only Acknowledge, no gap-axis buttons", () => {
+  render(
+    <DecisionActions
+      item={item({ gap: "none", advisoryStatus: "affected", advisories: [advisory()] })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.getByRole("button", { name: "Acknowledge" })).toBeEnabled()
+  expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument()
+})
+
 test("acknowledging patches with every one of the item's advisory ids", () => {
   const onApply = vi.fn()
   render(
     <DecisionActions
       item={item({
-        advisories: [
-          {
-            id: "GHSA-1",
-            summary: "a",
-            severity: "high",
-            url: "https://x",
-            source: "ghsa",
-            affected: true,
-          },
-          {
-            id: "GHSA-2",
-            summary: "b",
-            severity: "low",
-            url: "https://y",
-            source: "osv",
-            affected: true,
-          },
-        ],
+        gap: "none",
+        advisoryStatus: "affected",
+        advisories: [advisory({ id: "GHSA-1" }), advisory({ id: "GHSA-2" })],
       })}
+      now={NOW}
       onApply={onApply}
       error={undefined}
     />,
@@ -140,40 +260,139 @@ test("acknowledging patches with every one of the item's advisory ids", () => {
   })
 })
 
-test("a decided item shows a summary instead of any action buttons", () => {
+test("a fully acknowledged item shows the advisory summary, not the button", () => {
   render(
     <DecisionActions
       item={item({
-        decision: {
-          skippedVersion: "9.0.0",
-          remindAt: null,
-          approvedVersion: null,
-          acknowledgedAdvisories: null,
-          updatedAt: "2026-09-08T00:00:00Z",
-          updatedBy: "roshne",
-        },
+        gap: "none",
+        advisoryStatus: "affected",
+        advisories: [advisory({ id: "GHSA-1" })],
+        decision: decision({ acknowledgedAdvisories: ["GHSA-1"] }),
       })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.getByText("Acknowledged 1 advisory by roshne")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Acknowledge" })).not.toBeInTheDocument()
+})
+
+test("a new unacknowledged advisory resurfaces Acknowledge even though an older one was acknowledged", () => {
+  render(
+    <DecisionActions
+      item={item({
+        gap: "none",
+        advisoryStatus: "affected",
+        advisories: [advisory({ id: "GHSA-1" }), advisory({ id: "GHSA-2" })],
+        decision: decision({ acknowledgedAdvisories: ["GHSA-1"] }), // GHSA-2 is new, unacknowledged
+      })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.getByRole("button", { name: "Acknowledge" })).toBeInTheDocument()
+})
+
+// --- Both axes open at once, and both independently resolved ---
+
+test("both axes open at once render both independently -- skip buttons AND acknowledge button together", () => {
+  render(
+    <DecisionActions
+      item={item({ gap: "minor", advisoryStatus: "affected", advisories: [advisory()] })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Acknowledge" })).toBeInTheDocument()
+})
+
+test("gap decided but advisory still open shows the gap summary AND the acknowledge button, not just one", () => {
+  // The other half of the exact bug round 1 review found: axes must be independent.
+  render(
+    <DecisionActions
+      item={item({
+        gap: "minor",
+        latest: "9.0.0",
+        advisoryStatus: "affected",
+        advisories: [advisory()],
+        decision: decision({ skippedVersion: "9.0.0" }),
+      })}
+      now={NOW}
       onApply={() => {}}
       error={undefined}
     />,
   )
   expect(screen.getByText("Skipped 9.0.0 by roshne")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Acknowledge" })).toBeInTheDocument()
+})
+
+test("advisory acknowledged but gap still open shows the advisory summary AND the gap buttons", () => {
+  render(
+    <DecisionActions
+      item={item({
+        gap: "minor",
+        advisoryStatus: "affected",
+        advisories: [advisory({ id: "GHSA-1" })],
+        decision: decision({ acknowledgedAdvisories: ["GHSA-1"] }),
+      })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.getByText("Acknowledged 1 advisory by roshne")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument()
+})
+
+// --- Nothing to show at all ---
+
+test("a fully sound, never-decided item renders nothing", () => {
+  const { container } = render(
+    <DecisionActions
+      item={item({ gap: "none", advisoryStatus: "none" })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(container).toBeEmptyDOMElement()
+})
+
+test("a decision fully settled on both axes (no longer affected, gap suppressed) shows both summaries and no buttons", () => {
+  render(
+    <DecisionActions
+      item={item({
+        gap: "minor",
+        latest: "9.0.0",
+        advisoryStatus: "affected",
+        advisories: [advisory({ id: "GHSA-1" })],
+        decision: decision({ skippedVersion: "9.0.0", acknowledgedAdvisories: ["GHSA-1"] }),
+      })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.getByText("Skipped 9.0.0 by roshne")).toBeInTheDocument()
+  expect(screen.getByText("Acknowledged 1 advisory by roshne")).toBeInTheDocument()
   expect(screen.queryByRole("button")).not.toBeInTheDocument()
 })
+
+// --- Misc ---
 
 test("a decided item still pending server confirmation shows the summary with no attribution yet", () => {
   render(
     <DecisionActions
       item={item({
-        decision: {
-          skippedVersion: "9.0.0",
-          remindAt: null,
-          approvedVersion: null,
-          acknowledgedAdvisories: null,
-          updatedAt: "2026-09-08T00:00:00Z",
-          updatedBy: null,
-        },
+        gap: "minor",
+        latest: "9.0.0",
+        decision: decision({ skippedVersion: "9.0.0", updatedBy: null }),
       })}
+      now={NOW}
       onApply={() => {}}
       error={undefined}
     />,
@@ -183,7 +402,12 @@ test("a decided item still pending server confirmation shows the summary with no
 
 test("an error is shown alongside the confirm bar", () => {
   render(
-    <DecisionActions item={item({ latest: "9.9.9" })} onApply={() => {}} error="unauthorized" />,
+    <DecisionActions
+      item={item({ latest: "9.9.9" })}
+      now={NOW}
+      onApply={() => {}}
+      error="unauthorized"
+    />,
   )
   fireEvent.click(screen.getByRole("button", { name: "Skip" }))
   expect(screen.getByRole("alert")).toHaveTextContent("Failed: unauthorized")
