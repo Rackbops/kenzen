@@ -17,8 +17,9 @@ export interface DecisionRow {
   skippedVersion: string | null
   remindAt: string | null
   approvedVersion: string | null
-  /** Internal bookkeeping for `suppressionState` -- not part of the public `GET /api/decisions`
-   * shape (see `decisionJson` in decisions-route.ts, and suppression.ts's own docstring). */
+  /** For `suppressionState`'s approvedVersion branch. IS surfaced on the public
+   * `GET /api/decisions` shape as of K4-9 round 2 (see `decisionJson` in decisions-route.ts)
+   * -- the client needs it to compute the same verdict itself. */
   approvedFromPinned: string | null
   acknowledgedAdvisories: string[] | null
   updatedAt: string

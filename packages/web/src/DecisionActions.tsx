@@ -180,12 +180,21 @@ function ErrorLine({ message }: { message: string }) {
 }
 
 function GapSummary({ decision }: { decision: NonNullable<ReportItem["decision"]> }) {
+  // Round 3 review, HIGH, live-reproduced: strict `!== null` read "Skipped undefined" after a
+  // real Approve or Remind. GET /api/decisions' decisionJson (decisions-route.ts) deliberately
+  // OMITS an unset field rather than sending it as explicit null (unlike toReportItem's shape,
+  // which api.ts's own ItemDecision doc already warns about: "always check `!= null`, never
+  // rely on `in`/`hasOwnProperty`"). useOptimisticDecisions.ts stores that PUT response
+  // straight into `overrides`, so the confirmed decision it renders here can have `undefined`
+  // (a missing key) on the fields the action didn't set -- and `undefined !== null` is `true`,
+  // so the skippedVersion branch always won regardless of which field was actually set. Loose
+  // `!=` treats missing and explicit-null the same, matching every other reader of this type.
   const what =
-    decision.skippedVersion !== null
+    decision.skippedVersion != null
       ? `Skipped ${decision.skippedVersion}`
-      : decision.remindAt !== null
+      : decision.remindAt != null
         ? `Snoozed until ${decision.remindAt}`
-        : decision.approvedVersion !== null
+        : decision.approvedVersion != null
           ? `Approved ${decision.approvedVersion}`
           : "Decided"
   return (

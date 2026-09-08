@@ -242,6 +242,38 @@ test("a still-current approval shows the gap summary, not buttons", () => {
   expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
 })
 
+test("a real PUT response's decision (fields OMITTED when unset, not explicit null) still shows the right summary -- round 3 review, HIGH, live-reproduced: strict !== null read 'Skipped undefined' after a real Approve", () => {
+  // decisions-route.ts's decisionJson (what a real PUT/GET /api/decisions response actually
+  // sends, and what useOptimisticDecisions.ts stores verbatim as the confirmed decision) omits
+  // an unset field entirely rather than sending explicit null -- unlike this file's own
+  // decision() helper, which (like snapshots-route.ts's toReportItem) always populates every
+  // field. A cast is the honest way to build this fixture: it simulates the real wire shape,
+  // which is exactly where the TS type (never undefined) and the JS runtime (sometimes an
+  // absent key) actually diverge.
+  const omissionShapedDecision = {
+    approvedVersion: "6.0.0",
+    approvedFromPinned: "5.0.0",
+    updatedAt: NOW,
+    updatedBy: "roshne",
+  } as unknown as ItemDecision
+
+  render(
+    <DecisionActions
+      item={item({
+        gap: "minor",
+        pinned: "5.0.0",
+        latest: "6.0.0",
+        decision: omissionShapedDecision,
+      })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  expect(screen.getByText("Approved 6.0.0 by roshne")).toBeInTheDocument()
+  expect(screen.queryByText(/Skipped/)).not.toBeInTheDocument()
+})
+
 test("an approval whose pinned has since moved (the PR merged) resurfaces the gap buttons -- K4-9 round 2 coverage gap: approvedFromPinned reaching the client is what this path depends on", () => {
   render(
     <DecisionActions

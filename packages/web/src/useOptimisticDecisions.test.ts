@@ -113,7 +113,13 @@ test("applying one axis while the OTHER axis already has a confirmed decision pr
   expect(result.current.items[0]?.decision?.acknowledgedAdvisories).toEqual(["GHSA-1"])
 })
 
-test("applying a new gap-trio action (skip/remind/approve) optimistically resets the OTHER trio fields instead of layering onto them -- the trio is mutually exclusive per design.md section 5", async () => {
+test("applying a new gap-trio action (skip/remind/approve) optimistically resets the OTHER trio fields instead of layering onto them, while still preserving a non-trio axis -- the trio is mutually exclusive per design.md section 5, acknowledgedAdvisories is not", async () => {
+  // Round 3 review, LOW: the original version of this test asserted only that skippedVersion
+  // became null, which ALSO happens (for the wrong reason -- it ignores `current` entirely)
+  // under the pre-round-2 all-null-base code, so it passed against both the fix and the bug it
+  // was meant to guard against. Asserting acknowledgedAdvisories survives the SAME optimistic
+  // update fixes that: only a merge that genuinely consults `current` -- resetting the trio,
+  // preserving everything else -- can pass both assertions at once.
   let resolvePut: (value: api.ItemDecision | null) => void = () => {}
   vi.spyOn(api, "putDecision").mockReturnValue(
     new Promise<api.ItemDecision | null>((resolve) => {
@@ -121,9 +127,13 @@ test("applying a new gap-trio action (skip/remind/approve) optimistically resets
     }),
   )
 
-  const skipped = { ...decision, skippedVersion: "5.0.0" }
+  const skippedAndAcknowledged = {
+    ...decision,
+    skippedVersion: "5.0.0",
+    acknowledgedAdvisories: ["GHSA-1"],
+  }
   const { result } = renderHook(() =>
-    useOptimisticDecisions([item({ key: "a", decision: skipped })], 1),
+    useOptimisticDecisions([item({ key: "a", decision: skippedAndAcknowledged })], 1),
   )
 
   act(() => {
@@ -134,9 +144,13 @@ test("applying a new gap-trio action (skip/remind/approve) optimistically resets
   // A naive merge (spread the patch onto `current`) would have left the old skippedVersion
   // sitting alongside the new approvedVersion -- the two must never both be set.
   expect(result.current.items[0]?.decision?.skippedVersion).toBeNull()
+  // But the independent advisory axis must survive -- proving the merge actually consulted
+  // `current` rather than ignoring it (the pre-round-2 bug this whole function was rewritten
+  // to fix).
+  expect(result.current.items[0]?.decision?.acknowledgedAdvisories).toEqual(["GHSA-1"])
 
   await act(async () => {
-    resolvePut({ ...skipped, skippedVersion: null, approvedVersion: "6.0.0" })
+    resolvePut({ ...skippedAndAcknowledged, skippedVersion: null, approvedVersion: "6.0.0" })
     await Promise.resolve()
   })
 })
