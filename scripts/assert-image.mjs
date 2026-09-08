@@ -40,7 +40,12 @@ export async function assertImage(baseUrl, fetchImpl = globalThis.fetch) {
 
   // 2. the SPA at / serves real HTML with a recognizable marker. Today that's the K4-2
   //    placeholder (packages/server/public/index.html); the real React shell (K4-7/K4-8) keeps
-  //    the same <title>Kenzen</title>, so this check survives that swap unchanged.
+  //    the same <title>Kenzen</title>, so this check survives that swap unchanged -- PROVIDED
+  //    the real build keeps a static <title> in its source index.html template (kenzen#8 review
+  //    round 1, LOW, forward-looking): this check reads the raw fetched HTML with no JS
+  //    execution, so a client-side-only title (e.g. react-helmet with no static fallback) would
+  //    be invisible here even though the app works fine in a real browser. K4-7/K4-8's own
+  //    acceptance should keep a plain <title>Kenzen</title> in the template.
   const rootRes = await get("/")
   const contentType = rootRes.headers.get("content-type") ?? ""
   if (!contentType.includes("text/html")) {

@@ -50,12 +50,21 @@ jobs:
       - name: Derive + verify the image version (tag must match packages/server/package.json)
         id: meta
         shell: bash
+        # kenzen#8 review round 1, MEDIUM (inherited unchanged from artifact-console's own
+        # release.yml, confirmed same gap there -- fixed here rather than shipped forward):
+        # a raw ${{ }} interpolation of workflow_dispatch.inputs.tag directly into the run:
+        # script is a classic GitHub Actions script-injection surface -- a crafted tag input
+        # (e.g. containing an embedded quote + shell metacharacters) could break out of the
+        # string and run arbitrary commands with this job's packages:write GITHUB_TOKEN.
+        # Routing untrusted input through env: instead means it only ever reaches the shell
+        # as the *value* of $TAG, never as script text the shell parses.
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
-          tag="${{ github.event.inputs.tag || github.ref_name }}"
           # The source of truth is packages/server/package.json (what /healthz reports), NOT the
           # tag. version-tag.mjs prints the version and exits non-zero if the tag != v<package
           # version>, failing the publish rather than shipping a mislabelled image.
-          version="$(node scripts/version-tag.mjs "$tag")"
+          version="$(node scripts/version-tag.mjs "$TAG")"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Build and push

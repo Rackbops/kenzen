@@ -15,14 +15,21 @@ services:
     container_name: kenzen
     restart: unless-stopped
     # Only the app's OWN config here -- NOT the .env's secrets (CLOUDFLARE_TUNNEL_TOKEN,
-    # REGISTRY_TOKEN, KENZEN_INGEST_TOKEN), which this container has no need to see as bare env
-    # vars beyond what it reads itself. The image already defaults KENZEN_HOST=0.0.0.0,
-    # KENZEN_CONFIG_DIR=/config, KENZEN_STATE_DIR=/state, so most deploys need nothing here.
+    # REGISTRY_TOKEN), which this container has no need to see as bare env vars beyond what it
+    # reads itself. The image already defaults KENZEN_HOST=0.0.0.0, KENZEN_CONFIG_DIR=/config,
+    # KENZEN_STATE_DIR=/state, so most deploys need nothing here.
     environment:
       - KENZEN_HOST=${KENZEN_HOST:-0.0.0.0}
     volumes:
       # Named volume: Docker creates it owning the image's dir uid, so the non-root container
       # user can write kenzen.db (WAL SQLite, design.md section 3/7).
+      #
+      # No `config:/config` mount here (kenzen#8 review round 1, MEDIUM, live-verified): every
+      # field config.ts resolves (host, port, staticDir, stateDir) has a working built-in
+      # default today, so nothing in production actually needs a hand-authored config.toml --
+      # the app-config standard's "generated .env" already covers real deploys (design.md
+      # section 7). config.ts's config.toml support exists and is unit-tested for local/dev use;
+      # if a future field genuinely needs it in production, add the mount then.
       - state:/state
     # NO `ports:` -- reachable only in-network via the cloudflared sidecar below.
 
@@ -43,6 +50,11 @@ services:
         condition: service_healthy
     profiles:
       - tunnel           # opt-in: `docker compose --profile tunnel up -d` brings up the gate too
+    # kenzen#8 review round 1, LOW, live-verified: `docker compose down --remove-orphans` alone
+    # does NOT stop this sidecar once it's running -- Compose's orphan detection only catches
+    # containers for services no longer DEFINED in the file, not services outside the currently
+    # selected profile set. Always repeat `--profile tunnel` on `down` too, or this container is
+    # left running (and restarting) after everything else stops.
 
 volumes:
   state:
