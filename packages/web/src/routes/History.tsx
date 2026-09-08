@@ -3,29 +3,31 @@ import { useState } from "react"
 import {
   fetchItemHistory,
   fetchLatestSnapshotItems,
+  fetchRepoSoundnessSeries,
   fetchRepos,
+  fetchSnapshots,
   type ItemHistoryEntry,
   type ReportItem,
+  type RepoSoundnessPoint,
   type RepoSummary,
+  type Soundness,
 } from "../api.js"
+import { Sparkline } from "../components/Sparkline.js"
 import { useAsync } from "../useAsync.js"
 
 /**
  * Design.md section 6, section 5 ("History"): for any item, its pins and gaps across snapshots;
- * and the soundness line (section 6) per repo and for the estate. Replaces K4-7's
- * fixture-shaped shell with the real `GET /api/items/:key/history` and `GET /api/repos` data
- * (K4-8b).
+ * and the soundness line (section 6), and now its trend over time (kenzen#38), per repo and for
+ * the estate. Replaces K4-7's fixture-shaped shell with the real `GET /api/items/:key/history`
+ * and `GET /api/repos` data (K4-8b).
  *
- * The soundness line is rendered from `/api/repos`, which computes it server-side over the
- * LATEST snapshot including the K4-5 "decided" suppression semantics -- this route formats it,
- * it does not recompute it, so the page and the API can never disagree about the counts.
- *
- * Design.md also asks for "the soundness line over time"; that is deliberately NOT built here.
- * Nothing exposes per-snapshot soundness: `/api/repos` covers the latest snapshot only, and
- * `/api/snapshots`'s `summary` is `{"type": "object"}` in the vendored contract schema -- an
- * explicitly unspecified shape this UI must not start depending on. Doing it properly needs a
- * server endpoint, which is more than this child's effort-M scope; per-ITEM history over
- * snapshots (the part the acceptance bullets test) is here in full.
+ * The CURRENT soundness line is rendered from `/api/repos`, which computes it server-side over
+ * the LATEST snapshot including the K4-5 "decided" suppression semantics -- this route formats
+ * it, it does not recompute it, so the page and the API can never disagree about the counts.
+ * The TREND sparkline underneath (kenzen#38) is the same story one level up: `/api/snapshots`
+ * and `/api/repos/:repo/soundness` compute a typed `Soundness` per snapshot server-side (reusing
+ * the exact same suppression-aware arithmetic `/api/repos` already used, `soundness.ts` on the
+ * server), and this route only plots it -- see `Soundness` below for which field.
  */
 
 export function History() {
@@ -40,7 +42,7 @@ export function History() {
   const [latest, repos] = state.data
   return (
     <div>
-      <Soundness repos={repos} />
+      <SoundnessSection repos={repos} />
       <h2>Item history</h2>
       {latest === null ? <p>No snapshots ingested yet.</p> : <ItemHistory items={latest.items} />}
     </div>
@@ -77,7 +79,80 @@ export function estateSoundness(repos: RepoSummary[]): string {
   )
 }
 
-function Soundness({ repos }: { repos: RepoSummary[] }) {
+// A sparkline plots one scalar per snapshot; "behind" (major+minor+patch, an outdated pin) is
+// the single most representative day-to-day trend number for this dashboard, distinct from
+// "affected" (security-specific, rarer, spikier) -- the full breakdown stays visible in the
+// text line right above the sparkline, this is only the at-a-glance shape of its change.
+function behindTotal(s: Soundness): number {
+  return s.behind.major + s.behind.minor + s.behind.patch
+}
+
+function trendLabel(values: number[]): string {
+  const first = values[0] ?? 0
+  const last = values[values.length - 1] ?? 0
+  return `${values.length} snapshots, ${first} to ${last} behind`
+}
+
+const SERIES_LIMIT = 30
+
+interface SoundnessSeries {
+  /** Oldest first. */
+  estate: number[]
+  /** Oldest first; absent key means that repo's series fetch is not in yet or came back empty. */
+  byRepo: Map<string, number[]>
+}
+
+/** `fetchSnapshots` returns newest-first (its own established order, matching
+ * `fetchLatestSnapshot`'s use of index 0); a trend line reads left-to-right chronologically, so
+ * only the estate series needs reversing here -- `fetchRepoSoundnessSeries` already comes back
+ * oldest-first from the server (repos-route.ts's own choice, matching item-history-route.ts's
+ * convention for a series-shaped response).
+ *
+ * `Promise.allSettled`, not `Promise.all` (kenzen#38 review round 1, MEDIUM): the estate fetch
+ * and every repo's own fetch are independent rendering targets (each Card draws its own
+ * sparkline), so one repo's transient failure -- or the estate fetch's -- must not blank every
+ * OTHER sparkline that already succeeded. A rejected entry degrades to an empty series, which
+ * `Sparkline` already renders as nothing (its own <2-points case), the same as "not fetched
+ * yet" -- there is no separate error UI for this secondary, additive layer, matching the
+ * existing choice that a slow/failed series never blocks the section's own (server-computed,
+ * independently-sourced) text line above it. */
+async function fetchSoundnessSeries(repoNames: string[]): Promise<SoundnessSeries> {
+  const [snapshotsResult, ...repoResults] = await Promise.allSettled([
+    fetchSnapshots(SERIES_LIMIT),
+    ...repoNames.map((name) => fetchRepoSoundnessSeries(name, SERIES_LIMIT)),
+  ])
+  const estate =
+    snapshotsResult.status === "fulfilled"
+      ? snapshotsResult.value
+          .slice()
+          .reverse()
+          // A real response always carries `soundness` (see SnapshotSummary's own docstring);
+          // the fallback is only for a test fixture built before this field existed.
+          .map((s) => (s.soundness ? behindTotal(s.soundness) : 0))
+      : []
+  const byRepo = new Map(
+    repoNames.map((name, i): [string, number[]] => {
+      const result = repoResults[i]
+      const points = result?.status === "fulfilled" ? result.value : ([] as RepoSoundnessPoint[])
+      return [name, points.map((p) => behindTotal(p.soundness))]
+    }),
+  )
+  return { estate, byRepo }
+}
+
+/**
+ * The current soundness line (server-computed, unchanged since K4-8b) plus its trend sparkline
+ * (kenzen#38) for the estate and for each repo. The series fetch is its own `useAsync`,
+ * independent of `History()`'s own `[latest, repos]` fetch and keyed on the actual SET of repo
+ * names (not the `repos` array reference, which is a new object every render) -- a slow or
+ * failed series fetch degrades to no sparkline rather than blanking the whole section, since the
+ * text line above it already carries the current, decision-suppressed numbers on its own.
+ */
+function SoundnessSection({ repos }: { repos: RepoSummary[] }) {
+  const repoNames = repos.map((r) => r.repo)
+  const seriesKey = repoNames.join("|")
+  const seriesState = useAsync(() => fetchSoundnessSeries(repoNames), [seriesKey])
+
   if (repos.length === 0) {
     return (
       <section>
@@ -86,17 +161,25 @@ function Soundness({ repos }: { repos: RepoSummary[] }) {
       </section>
     )
   }
+
+  const series = seriesState.status === "ready" ? seriesState.data : null
+  const repoSeries = (repo: string): number[] => series?.byRepo.get(repo) ?? []
+
   return (
     <section>
       <h2>Soundness</h2>
       <Card>
         <h3>Estate</h3>
         <p>{estateSoundness(repos)}</p>
+        {series && <Sparkline values={series.estate} label={trendLabel(series.estate)} />}
       </Card>
       {repos.map((r) => (
         <Card key={r.repo}>
           <h3>{r.repo}</h3>
           <p>{r.soundness}</p>
+          {series && (
+            <Sparkline values={repoSeries(r.repo)} label={trendLabel(repoSeries(r.repo))} />
+          )}
         </Card>
       ))}
     </section>

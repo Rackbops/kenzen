@@ -97,7 +97,7 @@ describe("GET /api/snapshots", () => {
     expect(await res.json()).toEqual({ apiVersion: 1, snapshots: [] })
   })
 
-  it("returns real snapshotId/generatedAt/inventoryItems/summary for one ingest", async () => {
+  it("returns real snapshotId/generatedAt/inventoryItems/summary/soundness for one ingest", async () => {
     const { app, db } = testApp()
     ingestSnapshot(db, "2026-01-01T00:00:00Z", [{ inv: invItem(), rep: repItem() }])
 
@@ -109,6 +109,7 @@ describe("GET /api/snapshots", () => {
         generatedAt: string
         inventoryItems: number
         summary: unknown
+        soundness: unknown
       }[]
     }
     expect(body.apiVersion).toBe(1)
@@ -118,7 +119,64 @@ describe("GET /api/snapshots", () => {
       generatedAt: "2026-01-01T00:00:00Z",
       inventoryItems: 1,
       summary: { totalItems: 1 },
+      // kenzen#38: the default repItem() fixture is one sound, undecided, unaffected item.
+      soundness: {
+        items: 1,
+        affected: 0,
+        behind: { major: 0, minor: 0, patch: 0 },
+        decided: 0,
+        unknown: 0,
+      },
     })
+  })
+
+  it("kenzen#38 acceptance bullet 1: two ingests with one pin changed show two soundness objects whose behind differs by exactly the changed item", async () => {
+    const { app, db } = testApp()
+    ingestSnapshot(db, "2026-01-01T00:00:00Z", [{ inv: invItem(), rep: repItem({ gap: "none" }) }])
+    ingestSnapshot(db, "2026-01-02T00:00:00Z", [
+      { inv: invItem(), rep: repItem({ gap: "minor", latest: "9.0.0" }) },
+    ])
+
+    const res = await app.request("/api/snapshots")
+    const body = (await res.json()) as {
+      snapshots: { snapshotId: number; soundness: { behind: Record<string, number> } }[]
+    }
+    // Newest first (this route's own established order): snapshot 2 (the changed pin) first.
+    expect(body.snapshots[0]?.snapshotId).toBe(2)
+    expect(body.snapshots[0]?.soundness.behind).toEqual({ major: 0, minor: 1, patch: 0 })
+    expect(body.snapshots[1]?.snapshotId).toBe(1)
+    expect(body.snapshots[1]?.soundness.behind).toEqual({ major: 0, minor: 0, patch: 0 })
+  })
+
+  it("a decision made AFTER both ingests is reflected retroactively across the whole series (lazy-on-read, not frozen at ingest)", async () => {
+    const { app, db } = testApp()
+    ingestSnapshot(db, "2026-01-01T00:00:00Z", [
+      { inv: invItem(), rep: repItem({ gap: "major", latest: "9.0.0" }) },
+    ])
+    ingestSnapshot(db, "2026-01-02T00:00:00Z", [
+      { inv: invItem(), rep: repItem({ gap: "major", latest: "9.0.0" }) },
+    ])
+    putDecision(
+      db,
+      "o/r|npm-dep|foo|package.json:1",
+      { field: "skippedVersion", value: "9.0.0" },
+      "alice",
+      "2026-06-01T00:00:00.000Z",
+    )
+
+    const res = await app.request("/api/snapshots")
+    const body = (await res.json()) as {
+      snapshots: {
+        snapshotId: number
+        soundness: { behind: Record<string, number>; decided: number }
+      }[]
+    }
+    // BOTH snapshots reflect the current decision -- not just the one made after it, and not
+    // frozen at whatever existed when each was originally ingested.
+    for (const snapshot of body.snapshots) {
+      expect(snapshot.soundness.behind).toEqual({ major: 0, minor: 0, patch: 0 })
+      expect(snapshot.soundness.decided).toBe(1)
+    }
   })
 
   it("orders newest first (mutation target: ORDER BY id DESC)", async () => {

@@ -5,6 +5,10 @@
  * of the UI silently rendering `undefined`s.
  */
 
+import type { Soundness } from "@kenzen/contract/soundness"
+
+export type { Soundness }
+
 export const SUPPORTED_API_VERSION = 1
 
 export class ApiVersionError extends Error {
@@ -86,6 +90,38 @@ export interface ReposResponse extends Versioned {
 export async function fetchRepos(fetchImpl: typeof fetch = fetch): Promise<RepoSummary[]> {
   const data = await fetchJson<ReposResponse>("/api/repos", fetchImpl)
   return data.repos
+}
+
+/** One point in a repo's soundness-over-time series, as `repos-route.ts`'s
+ * `GET /api/repos/:repo/soundness` emits it (kenzen#38). */
+export interface RepoSoundnessPoint {
+  snapshotId: number
+  generatedAt: string
+  soundness: Soundness
+}
+
+/** GET /api/repos/:repo/soundness?limit= -- one repo's `Soundness` across its most recent
+ * snapshots, oldest first (the server's own order for a series, the opposite of
+ * `fetchSnapshots`' newest-first) -- design.md section 6's "soundness line over time", per repo.
+ *
+ * `encodeURIComponent` is REQUIRED for the same reason `fetchItemHistory`'s is: a repo name
+ * routinely contains `/` (`Rackbops/kenzen`), which would otherwise split into extra path
+ * segments and never match the route -- `repos-route.ts`'s own docstring calls this out as the
+ * caller's responsibility.
+ *
+ * An unknown repo is a 200 with an empty series (the server's deliberate choice, matching
+ * `fetchItemHistory`'s unknown-key case), not an error. */
+export async function fetchRepoSoundnessSeries(
+  repo: string,
+  limit?: number,
+  fetchImpl: typeof fetch = fetch,
+): Promise<RepoSoundnessPoint[]> {
+  const query = limit === undefined ? "" : `?limit=${limit}`
+  const data = await fetchJson<{ apiVersion: 1; repo: string; series: RepoSoundnessPoint[] }>(
+    `/api/repos/${encodeURIComponent(repo)}/soundness${query}`,
+    fetchImpl,
+  )
+  return data.series
 }
 
 /** A decision on record, as `decisions-route.ts`'s `decisionJson` actually emits it (K4-5):
@@ -177,12 +213,17 @@ export async function clearDecision(key: string, fetchImpl: typeof fetch = fetch
   )
 }
 
-/** design.md section 4.3 / packages/server/src/snapshots-route.ts's real, shipped shape (K4-4b). */
+/** design.md section 4.3 / packages/server/src/snapshots-route.ts's real, shipped shape (K4-4b,
+ * `soundness` added in kenzen#38: the estate-wide `Soundness` for this specific snapshot). A
+ * real response always includes `soundness` -- it is typed optional here only because many
+ * existing test fixtures across this package predate the field and construct a `SnapshotSummary`
+ * without it; a caller reading a REAL response can treat it as always present. */
 export interface SnapshotSummary {
   snapshotId: number
   generatedAt: string
   inventoryItems: number
   summary: unknown
+  soundness?: Soundness
 }
 
 export interface Advisory {
@@ -251,6 +292,20 @@ export async function fetchLatestSnapshot(
     fetchImpl,
   )
   return data.snapshots[0] ?? null
+}
+
+/** GET /api/snapshots?limit= -- up to `limit` most recent snapshots, newest first (the server's
+ * own order) -- the estate soundness series (kenzen#38, design.md section 6's "soundness line
+ * over time"). A caller wanting oldest-first for a left-to-right trend line reverses this
+ * itself; this function returns the server's response as-is, matching `fetchRepoSoundnessSeries`
+ * only in purpose, not in ordering (that route already returns oldest-first server-side). */
+export async function fetchSnapshots(
+  limit?: number,
+  fetchImpl: typeof fetch = fetch,
+): Promise<SnapshotSummary[]> {
+  const path = limit === undefined ? "/api/snapshots" : `/api/snapshots?limit=${limit}`
+  const data = await fetchJson<{ apiVersion: 1; snapshots: SnapshotSummary[] }>(path, fetchImpl)
+  return data.snapshots
 }
 
 /** GET /api/snapshots/:id/items -- every ReportItem in that snapshot, joined with its current

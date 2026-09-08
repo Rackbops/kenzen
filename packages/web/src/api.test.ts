@@ -4,8 +4,10 @@ import {
   fetchJson,
   fetchLatestSnapshot,
   fetchLatestSnapshotItems,
+  fetchRepoSoundnessSeries,
   fetchRepos,
   fetchSnapshotItems,
+  fetchSnapshots,
   putDecision,
   SUPPORTED_API_VERSION,
 } from "./api.js"
@@ -202,4 +204,95 @@ test("fetchLatestSnapshotItems returns null without fetching items when there is
     "/api/snapshots?limit=1": { apiVersion: SUPPORTED_API_VERSION, snapshots: [] },
   })
   await expect(fetchLatestSnapshotItems(fetchImpl)).resolves.toBeNull()
+})
+
+// --- kenzen#38: soundness over time ---------------------------------------------------------
+
+test("fetchSnapshots returns the snapshots array, each carrying its own soundness", async () => {
+  const soundness = {
+    items: 1,
+    affected: 0,
+    behind: { major: 0, minor: 0, patch: 1 },
+    decided: 0,
+    unknown: 0,
+  }
+  const snapshots = [
+    {
+      snapshotId: 2,
+      generatedAt: "2026-09-02T00:00:00Z",
+      inventoryItems: 1,
+      summary: {},
+      soundness,
+    },
+    {
+      snapshotId: 1,
+      generatedAt: "2026-09-01T00:00:00Z",
+      inventoryItems: 1,
+      summary: {},
+      soundness,
+    },
+  ]
+  await expect(
+    fetchSnapshots(undefined, fakeFetch({ apiVersion: SUPPORTED_API_VERSION, snapshots })),
+  ).resolves.toEqual(snapshots)
+})
+
+test("fetchSnapshots passes limit through as a query param, and omits it when absent", async () => {
+  const { fetchImpl, calls } = fakeFetchCapturing({
+    apiVersion: SUPPORTED_API_VERSION,
+    snapshots: [],
+  })
+  await fetchSnapshots(30, fetchImpl)
+  expect(calls[0]?.url).toBe("/api/snapshots?limit=30")
+
+  const { fetchImpl: fetchImpl2, calls: calls2 } = fakeFetchCapturing({
+    apiVersion: SUPPORTED_API_VERSION,
+    snapshots: [],
+  })
+  await fetchSnapshots(undefined, fetchImpl2)
+  expect(calls2[0]?.url).toBe("/api/snapshots")
+})
+
+test("fetchRepoSoundnessSeries returns the series array", async () => {
+  const series = [
+    {
+      snapshotId: 1,
+      generatedAt: "2026-09-01T00:00:00Z",
+      soundness: {
+        items: 1,
+        affected: 0,
+        behind: { major: 0, minor: 0, patch: 0 },
+        decided: 0,
+        unknown: 0,
+      },
+    },
+    {
+      snapshotId: 2,
+      generatedAt: "2026-09-02T00:00:00Z",
+      soundness: {
+        items: 1,
+        affected: 0,
+        behind: { major: 1, minor: 0, patch: 0 },
+        decided: 0,
+        unknown: 0,
+      },
+    },
+  ]
+  await expect(
+    fetchRepoSoundnessSeries(
+      "Rackbops/kenzen",
+      undefined,
+      fakeFetch({ apiVersion: SUPPORTED_API_VERSION, repo: "Rackbops/kenzen", series }),
+    ),
+  ).resolves.toEqual(series)
+})
+
+test("fetchRepoSoundnessSeries encodes a repo name containing '/' into one path segment, with limit", async () => {
+  const { fetchImpl, calls } = fakeFetchCapturing({
+    apiVersion: SUPPORTED_API_VERSION,
+    repo: "Rackbops/kenzen",
+    series: [],
+  })
+  await fetchRepoSoundnessSeries("Rackbops/kenzen", 30, fetchImpl)
+  expect(calls[0]?.url).toBe("/api/repos/Rackbops%2Fkenzen/soundness?limit=30")
 })
