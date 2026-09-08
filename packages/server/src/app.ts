@@ -36,5 +36,18 @@ export function createApp(options: AppOptions): Hono {
   mountReposRoute(app, options.db)
   app.get("*", spaHandler(options.staticDir))
 
+  // Without this, an error escaping a route (e.g. a real DB exception ingest.ts couldn't
+  // classify as a 422, already rolled back there) falls through to Hono's own default
+  // errorHandler -- a plain-text "Internal Server Error", breaking this app's own
+  // "every response carries apiVersion: 1" contract on exactly the one path that most needs
+  // a caller to be able to tell it got an error at all. Found by an adversarial review on
+  // this PR forcing a real UNIQUE-constraint violation through the live server.
+  app.onError((err, c) => {
+    options.log.error("unhandled error", {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return c.json({ apiVersion: API_VERSION, error: "internal error" }, 500)
+  })
+
   return app
 }

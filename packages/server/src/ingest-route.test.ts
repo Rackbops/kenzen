@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url"
 import { Hono } from "hono"
 import { describe, expect, it } from "vitest"
 import { mountIngestRoute } from "./ingest-route.js"
+import type { Logger } from "./log.js"
 import { createLogger } from "./log.js"
 import { openState } from "./state.js"
 
@@ -11,10 +12,10 @@ const migrationsDir = resolve(dirname(fileURLToPath(import.meta.url)), "../migra
 const silent = createLogger({ write: () => {} })
 const TOKEN = "correct-token"
 
-function testApp(): { app: Hono; db: DatabaseSync } {
+function testApp(log: Logger = silent): { app: Hono; db: DatabaseSync } {
   const { db } = openState({ dbFile: ":memory:", migrationsDir, log: silent })
   const app = new Hono()
-  mountIngestRoute(app, { db, ingestToken: TOKEN, log: silent })
+  mountIngestRoute(app, { db, ingestToken: TOKEN, log })
   return { app, db }
 }
 
@@ -170,5 +171,29 @@ describe("POST /api/ingest -- idempotency", () => {
     const firstBody = (await first.json()) as { snapshotId: number }
     const secondBody = (await second.json()) as { snapshotId: number }
     expect(secondBody.snapshotId).toBe(firstBody.snapshotId)
+  })
+})
+
+describe("POST /api/ingest -- duplicate inventory keys", () => {
+  it("logs a warning when the inventory has a duplicate repo|kind|name|source, but still 200s", async () => {
+    const lines: string[] = []
+    const { app } = testApp(createLogger({ write: (l) => lines.push(l) }))
+    const duplicatedInventory = {
+      ...validInventory,
+      items: [...validInventory.items, { ...validInventory.items[0] }],
+    }
+    const res = await post(app, validBody({ inventory: duplicatedInventory }))
+    expect(res.status).toBe(200)
+    const records = lines.map((l) => JSON.parse(l) as Record<string, unknown>)
+    const warning = records.find((r) => r.msg === "ingest: duplicate inventory keys collapsed")
+    expect(warning).toMatchObject({ count: 1 })
+  })
+
+  it("does not log the duplicate-key warning when there are none", async () => {
+    const lines: string[] = []
+    const { app } = testApp(createLogger({ write: (l) => lines.push(l) }))
+    await post(app, validBody())
+    const records = lines.map((l) => JSON.parse(l) as Record<string, unknown>)
+    expect(records.some((r) => r.msg === "ingest: duplicate inventory keys collapsed")).toBe(false)
   })
 })

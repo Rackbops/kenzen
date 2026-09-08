@@ -91,6 +91,11 @@ export function mountIngestRoute(app: Hono, options: MountIngestOptions): void {
       return c.json(errorBody(outcome.error), 422)
     }
 
+    if (outcome.duplicateInventoryKeys > 0) {
+      options.log.warn("ingest: duplicate inventory keys collapsed", {
+        count: outcome.duplicateInventoryKeys,
+      })
+    }
     options.log.info("ingest accepted", { snapshotId: outcome.snapshotId, items: outcome.items })
     return c.json(
       {

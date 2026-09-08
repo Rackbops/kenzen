@@ -68,7 +68,14 @@ export interface ReportDoc {
 }
 
 export type IngestOutcome =
-  | { ok: true; snapshotId: number; items: number; generatedAt: string }
+  | {
+      ok: true
+      snapshotId: number
+      items: number
+      generatedAt: string
+      /** How many raw inventory entries collapsed onto an already-seen key. 0 normally. */
+      duplicateInventoryKeys: number
+    }
   | { ok: false; status: 422; error: string }
 
 function itemKey(repo: string, kind: string, name: string, source: string): string {
@@ -80,6 +87,21 @@ export function ingest(
   inventory: InventoryDoc,
   report: ReportDoc,
 ): IngestOutcome {
+  // A duplicate repo|kind|name|source in the inventory silently collapses to one row here
+  // (last write wins) -- harmless when the duplicate is byte-identical (as Tooling's real
+  // data has had at least once), but the same collapse would silently discard one side of a
+  // genuine conflict with no error and no signal to the caller. Neither schema can express a
+  // uniqueness constraint across the whole document, so this is the one place that can catch
+  // it. Found by an adversarial review on this PR; the route handler logs a warning when
+  // this is nonzero (see ingest-route.ts) rather than rejecting the ingest outright -- a
+  // pre-existing, real-world duplicate must not turn into a hard failure for every future
+  // ingest until Tooling's own scanner is fixed.
+  const inventoryByKey = new Map<string, InventoryItem>()
+  for (const it of inventory.items) {
+    inventoryByKey.set(itemKey(it.repo, it.kind, it.name, it.source), it)
+  }
+  const duplicateInventoryKeys = inventory.items.length - inventoryByKey.size
+
   // Idempotent on generatedAt (design.md section 4.2): a re-post of the same snapshot is a
   // 200 no-op, checked BEFORE any join/validation work, deliberately outside the write
   // transaction below (nothing to roll back for a read-only short-circuit).
@@ -90,12 +112,13 @@ export function ingest(
     const count = db
       .prepare("SELECT COUNT(*) as c FROM items WHERE snapshotId = ?")
       .get(existing.id) as { c: number }
-    return { ok: true, snapshotId: existing.id, items: count.c, generatedAt: report.generatedAt }
-  }
-
-  const inventoryByKey = new Map<string, InventoryItem>()
-  for (const it of inventory.items) {
-    inventoryByKey.set(itemKey(it.repo, it.kind, it.name, it.source), it)
+    return {
+      ok: true,
+      snapshotId: existing.id,
+      items: count.c,
+      generatedAt: report.generatedAt,
+      duplicateInventoryKeys,
+    }
   }
 
   // "a report row with no inventory item is a 422, since the report is derived from the
@@ -172,6 +195,7 @@ export function ingest(
       snapshotId,
       items: inventoryByKey.size,
       generatedAt: report.generatedAt,
+      duplicateInventoryKeys,
     }
   } catch (err) {
     db.exec("ROLLBACK")

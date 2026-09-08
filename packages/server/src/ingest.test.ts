@@ -184,4 +184,36 @@ describe("ingest", () => {
     const snapshotCount = db.prepare("SELECT COUNT(*) as c FROM snapshots").get() as { c: number }
     expect(snapshotCount.c).toBe(1) // still just the first, successful one
   })
+
+  // Found by an adversarial review: a duplicate repo|kind|name|source in the real,
+  // currently-committed Tooling inventory silently collapses to one row (751 raw -> 750
+  // stored). Reproduced here with a synthetic duplicate rather than depending on that real
+  // file's current content, which can change.
+  it("reports how many raw inventory entries collapsed onto a duplicate key", () => {
+    const db = freshDb()
+    const duplicate = { ...invItem } // identical repo|kind|name|source to invItem
+    const outcome = ingest(db, inv([invItem, duplicate]), rep([repItem]))
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) throw new Error("expected ok")
+    expect(outcome.items).toBe(1) // stored once, not twice
+    expect(outcome.duplicateInventoryKeys).toBe(1)
+  })
+
+  it("duplicateInventoryKeys is 0 when every inventory key is unique", () => {
+    const db = freshDb()
+    const outcome = ingest(db, inv([invItem]), rep([repItem]))
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) throw new Error("expected ok")
+    expect(outcome.duplicateInventoryKeys).toBe(0)
+  })
+
+  it("still reports duplicateInventoryKeys on the idempotent-repost short-circuit path", () => {
+    const db = freshDb()
+    const duplicate = { ...invItem }
+    ingest(db, inv([invItem, duplicate]), rep([repItem]))
+    const second = ingest(db, inv([invItem, duplicate]), rep([repItem]))
+    expect(second.ok).toBe(true)
+    if (!second.ok) throw new Error("expected ok")
+    expect(second.duplicateInventoryKeys).toBe(1)
+  })
 })
