@@ -36,7 +36,15 @@ function decisionJson(decision: DecisionRow): Record<string, unknown> {
   if (decision.source !== null) body.source = decision.source
   if (decision.skippedVersion !== null) body.skippedVersion = decision.skippedVersion
   if (decision.remindAt !== null) body.remindAt = decision.remindAt
-  if (decision.approvedVersion !== null) body.approvedVersion = decision.approvedVersion
+  if (decision.approvedVersion !== null) {
+    body.approvedVersion = decision.approvedVersion
+    // K4-9 round 2, HIGH: the client needs this to compute suppressionState's approvedVersion
+    // branch itself ("suppressed until pinned moves or latest passes the approved version") --
+    // omitting it (as "internal bookkeeping" this field was originally, before there was a
+    // client-side suppression consumer) left the approve-axis's resurface-on-pinned-move path
+    // permanently unreachable: the client's verdict could never see the PR-merged case at all.
+    if (decision.approvedFromPinned !== null) body.approvedFromPinned = decision.approvedFromPinned
+  }
   if (decision.acknowledgedAdvisories !== null) {
     body.acknowledgedAdvisories = decision.acknowledgedAdvisories
   }

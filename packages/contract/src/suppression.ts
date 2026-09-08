@@ -28,9 +28,11 @@ export interface Decision {
   skippedVersion?: string | null
   remindAt?: string | null
   approvedVersion?: string | null
-  /** The item's `pinned` string at the moment `approvedVersion` was set -- internal bookkeeping,
-   * not part of the public decision shape (see `suppressionState`'s approvedVersion branch for
-   * why this exists). */
+  /** The item's `pinned` string at the moment `approvedVersion` was set -- see
+   * `suppressionState`'s approvedVersion branch for why this exists. IS surfaced on the public
+   * `GET /api/decisions` shape as of Kenzen K4-9 round 2 (the client needs it to compute the
+   * same verdict itself); not internal-only, despite this interface's own name suggesting a
+   * DB-row shape. */
   approvedFromPinned?: string | null
   acknowledgedAdvisories?: string[] | null
 }

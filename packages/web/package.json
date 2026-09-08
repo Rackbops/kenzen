@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@kenzen/contract": "workspace:*",
     "@rackbops/styles": "^0.2.4",
     "@rackbops/ui-react": "^0.2.4",
     "react": "^19.2.0",

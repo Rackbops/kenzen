@@ -6,6 +6,7 @@ import {
   fetchLatestSnapshotItems,
   fetchRepos,
   fetchSnapshotItems,
+  putDecision,
   SUPPORTED_API_VERSION,
 } from "./api.js"
 
@@ -15,6 +16,23 @@ function fakeFetch(body: unknown, status = 200): typeof fetch {
       status,
       headers: { "content-type": "application/json" },
     })) as unknown as typeof fetch
+}
+
+/** Like fakeFetch, but records the (url, init) of every call for assertions -- and the calls
+ * array is the same object the test holds, so it's readable after the fact. */
+function fakeFetchCapturing(
+  body: unknown,
+  status = 200,
+): { fetchImpl: typeof fetch; calls: { url: string; init: RequestInit | undefined }[] } {
+  const calls: { url: string; init: RequestInit | undefined }[] = []
+  const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), init })
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { "content-type": "application/json" },
+    })
+  }) as unknown as typeof fetch
+  return { fetchImpl, calls }
 }
 
 /** Dispatches on a substring of the requested URL, for a test that needs two different real
@@ -33,6 +51,57 @@ function fakeFetchByUrl(routes: Record<string, unknown>): typeof fetch {
     })
   }) as unknown as typeof fetch
 }
+
+test("fetchJson surfaces the server's own error message on a non-ok response, not just the status", async () => {
+  await expect(
+    fetchJson(
+      "/api/decisions/x",
+      fakeFetch({ apiVersion: SUPPORTED_API_VERSION, error: "unauthorized" }, 401),
+    ),
+  ).rejects.toThrow(/GET \/api\/decisions\/x -> 401: unauthorized/)
+})
+
+test("fetchJson falls back to a bare status when the non-ok body isn't a real error shape", async () => {
+  await expect(fetchJson("/x", fakeFetch({ not: "an error body" }, 500))).rejects.toThrow(
+    /GET \/x -> 500$/,
+  )
+})
+
+test("putDecision PUTs to the encoded key with exactly the one patched field, and returns the decision", async () => {
+  const decision = {
+    skippedVersion: "9.0.0",
+    remindAt: null,
+    approvedVersion: null,
+    acknowledgedAdvisories: null,
+    updatedAt: "2026-09-08T00:00:00Z",
+    updatedBy: "roshne",
+  }
+  const { fetchImpl, calls } = fakeFetchCapturing({ apiVersion: SUPPORTED_API_VERSION, decision })
+
+  const result = await putDecision(
+    "Rackbops/Tooling|pip-dep|requests|requirements.txt:3",
+    { field: "skippedVersion", value: "9.0.0" },
+    fetchImpl,
+  )
+
+  expect(result).toEqual(decision)
+  expect(calls).toHaveLength(1)
+  expect(calls[0]?.url).toBe(
+    "/api/decisions/Rackbops%2FTooling%7Cpip-dep%7Crequests%7Crequirements.txt%3A3",
+  )
+  expect(calls[0]?.init?.method).toBe("PUT")
+  expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ skippedVersion: "9.0.0" })
+})
+
+test("putDecision's error surfaces the server's real reason on an unauthorized write", async () => {
+  await expect(
+    putDecision(
+      "k",
+      { field: "skippedVersion", value: "9.0.0" },
+      fakeFetch({ apiVersion: SUPPORTED_API_VERSION, error: "unauthorized" }, 401),
+    ),
+  ).rejects.toThrow(/unauthorized/)
+})
 
 test("fetchJson returns the body when apiVersion matches", async () => {
   const body = { apiVersion: SUPPORTED_API_VERSION, ok: true }

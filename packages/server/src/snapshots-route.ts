@@ -57,8 +57,15 @@ interface ItemRow {
  * Shapes one item row into a ReportItem (design.md section 4.1) plus its current decision,
  * resolved via `findDecisionForItem` (K4-5b) -- not a plain `key` join, so an item whose
  * `source` moved since it was decided still reports its carried-over decision here, the same
- * as `GET /api/repos`'s "D decided" count. Only the public decision fields are surfaced
- * (`approvedFromPinned` is internal bookkeeping, per `decisions-route.ts`'s own `decisionJson`).
+ * as `GET /api/repos`'s "D decided" count.
+ *
+ * `approvedFromPinned` IS surfaced here (K4-9 round 2, HIGH -- this used to say "internal
+ * bookkeeping, not part of the public shape", true when this comment was written but no
+ * longer: K4-9's client-side `suppressionState` calls (needsDecision.ts, DecisionActions.tsx)
+ * need it to detect "the approved PR merged" the same way `GET /api/repos`'s server-side
+ * "D decided" count already does -- omitting it left that resurface path permanently
+ * unreachable from the browser, the exact "suppressed forever" bug class Tooling#478 K4-5's
+ * own review round 1 already fixed once, reintroduced here via a wire-contract gap).
  */
 function toReportItem(row: ItemRow, decision: DecisionRow | null): Record<string, unknown> {
   const decisionJson =
@@ -68,6 +75,7 @@ function toReportItem(row: ItemRow, decision: DecisionRow | null): Record<string
           skippedVersion: decision.skippedVersion,
           remindAt: decision.remindAt,
           approvedVersion: decision.approvedVersion,
+          approvedFromPinned: decision.approvedFromPinned,
           acknowledgedAdvisories: decision.acknowledgedAdvisories,
           updatedAt: decision.updatedAt,
           updatedBy: decision.updatedBy,

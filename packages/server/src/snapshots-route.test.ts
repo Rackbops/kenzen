@@ -465,10 +465,34 @@ describe("GET /api/snapshots/:id/items", () => {
       skippedVersion: "1.5.0",
       remindAt: null,
       approvedVersion: null,
+      approvedFromPinned: null,
       acknowledgedAdvisories: null,
       updatedAt: "2026-01-02T00:00:00Z",
       updatedBy: "roshne",
     })
+  })
+
+  it("surfaces approvedFromPinned when an approval is on record -- K4-9 round 2, HIGH: the client needs it to compute suppressionState's approvedVersion branch itself", async () => {
+    const { app, db } = testApp()
+    const snapshotId = ingestSnapshot(db, "2026-01-01T00:00:00Z", [
+      { inv: invItem(), rep: repItem() },
+    ])
+    putDecision(
+      db,
+      "o/r|npm-dep|foo|package.json:1",
+      { field: "approvedVersion", value: "2.0.0" },
+      "roshne",
+      "2026-01-02T00:00:00Z",
+    )
+
+    const res = await app.request(`/api/snapshots/${snapshotId}/items`)
+    const body = (await res.json()) as {
+      items: {
+        decision: { approvedVersion: string | null; approvedFromPinned: string | null } | null
+      }[]
+    }
+    expect(body.items[0]?.decision?.approvedVersion).toBe("2.0.0")
+    expect(body.items[0]?.decision?.approvedFromPinned).toBe(invItem().pinned)
   })
 
   it("K4-5b REGRESSION (Tooling#478 review round 1, HIGH): carries a decision over when the item's source moves, matching GET /api/repos", async () => {

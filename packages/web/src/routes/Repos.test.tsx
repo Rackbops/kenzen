@@ -281,3 +281,49 @@ test("a repo with no items still renders its card, with an empty table message",
   await waitFor(() => expect(screen.getByText("Rackbops/no-items")).toBeInTheDocument())
   expect(screen.getByText("No items match these filters.")).toBeInTheDocument()
 })
+
+test("a sound item's row has no decision-action buttons at all", async () => {
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot: SNAPSHOT,
+    items: [item({ key: "s", name: "sound-pkg", gap: "none", advisoryStatus: "none" })],
+  })
+  render(<Repos />)
+  await waitFor(() => expect(screen.getByText("sound-pkg")).toBeInTheDocument())
+  const row = screen.getByText("sound-pkg").closest("tr")
+  expect(row ? within(row).queryByRole("button") : null).toBeNull()
+})
+
+test("end to end: skipping an item on the real Repos page calls putDecision and shows the decided summary", async () => {
+  // Integration test proving Repos.tsx wires DecisionActions/useOptimisticDecisions together
+  // for real, the same way NeedsDecision.test.tsx proves it for that page.
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot: SNAPSHOT,
+    items: [
+      item({ key: "a", name: "behind-pkg", gap: "minor", advisoryStatus: "none", latest: "9.9.9" }),
+    ],
+  })
+  const putDecision = vi.spyOn(api, "putDecision").mockResolvedValue({
+    skippedVersion: "9.9.9",
+    remindAt: null,
+    approvedVersion: null,
+    approvedFromPinned: null,
+    acknowledgedAdvisories: null,
+    updatedAt: "2026-09-08T00:00:00Z",
+    updatedBy: "roshne",
+  })
+
+  render(<Repos />)
+  await waitFor(() => expect(screen.getByText("behind-pkg")).toBeInTheDocument())
+
+  fireEvent.click(screen.getByRole("button", { name: "Skip" }))
+  fireEvent.click(screen.getByRole("button", { name: "Yes" }))
+
+  expect(putDecision).toHaveBeenCalledWith(
+    "a",
+    { field: "skippedVersion", value: "9.9.9" },
+    expect.anything(),
+  )
+  await waitFor(() => expect(screen.getByText("Skipped 9.9.9 by roshne")).toBeInTheDocument())
+})

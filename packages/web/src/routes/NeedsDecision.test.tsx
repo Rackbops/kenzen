@@ -78,6 +78,10 @@ test("includes an affected item and a gapped item, excludes a sound item and a d
           updatedAt: "2026-09-01T00:00:00Z",
           updatedBy: "roshne",
           skippedVersion: "9.0.0",
+          remindAt: null,
+          approvedVersion: null,
+          approvedFromPinned: null,
+          acknowledgedAdvisories: null,
         },
       }),
     ],
@@ -195,4 +199,46 @@ test("the repo filter narrows the rendered rows", async () => {
 
   expect(screen.queryByText("in-tooling")).not.toBeInTheDocument()
   expect(screen.getByText("in-kenzen")).toBeInTheDocument()
+})
+
+test("end to end: skipping an item on the real page calls putDecision and removes the row", async () => {
+  // Integration test, not another unit test for a piece already covered elsewhere
+  // (DecisionActions.test.tsx, useOptimisticDecisions.test.ts) -- proves NeedsDecision.tsx
+  // actually wires them together: a real click through the real rendered page reaches the
+  // real api.putDecision call and the row disappears via needsDecision's own re-filter, not
+  // a mocked shortcut.
+  const snapshot = {
+    snapshotId: 1,
+    generatedAt: "2026-09-08T00:00:00Z",
+    inventoryItems: 1,
+    summary: {},
+  }
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot,
+    items: [
+      item({ key: "a", name: "behind-pkg", advisoryStatus: "none", gap: "minor", latest: "9.9.9" }),
+    ],
+  })
+  const putDecision = vi.spyOn(api, "putDecision").mockResolvedValue({
+    skippedVersion: "9.9.9",
+    remindAt: null,
+    approvedVersion: null,
+    approvedFromPinned: null,
+    acknowledgedAdvisories: null,
+    updatedAt: "2026-09-08T00:00:00Z",
+    updatedBy: "roshne",
+  })
+
+  render(<NeedsDecision />)
+  await waitFor(() => expect(screen.getByText("behind-pkg")).toBeInTheDocument())
+
+  fireEvent.click(screen.getByRole("button", { name: "Skip" }))
+  fireEvent.click(screen.getByRole("button", { name: "Yes" }))
+
+  expect(putDecision).toHaveBeenCalledWith(
+    "a",
+    { field: "skippedVersion", value: "9.9.9" },
+    expect.anything(),
+  )
+  await waitFor(() => expect(screen.getByText("Nothing needs a decision.")).toBeInTheDocument())
 })
