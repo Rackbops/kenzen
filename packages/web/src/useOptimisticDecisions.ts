@@ -22,17 +22,6 @@ import { putDecision } from "./api.js"
  * PUT settles, so a stale response from a superseded call is silently dropped rather than
  * clobbering a newer one.
  *
- * Round 3 review (HIGH, live-reproduced): that sequence number was keyed by item key ALONE,
- * not by axis -- so starting an acknowledge while an approve on the SAME item was still in
- * flight marked the approve call "superseded" too, even though the two axes are independent
- * and both genuinely succeeded (design.md section 5: the gap trio and acknowledgedAdvisories
- * don't conflict). The approve call's own real, successful confirmed response was then
- * silently dropped when it arrived, leaving `updatedBy`/`approvedVersion` stuck on the
- * optimistic placeholder forever -- only reachable once round 1 + round 2 together made both
- * axes concurrently actionable AND correctly visible at once. `sequenceRef` is now keyed by
- * `key:axis` (see `axisOf`) so the trio (mutually exclusive with itself, still correctly
- * guarded) and acknowledgedAdvisories (independent) each get their own counter.
- *
  * Round 2 review (MEDIUM, both reviewers independently found it live): the optimistic preview
  * used to rebuild from an all-null base regardless of what was already decided, so acting on
  * ONE axis (say, Skip) transiently wiped the OTHER axis's already-confirmed value (an
@@ -42,6 +31,17 @@ import { putDecision } from "./api.js"
  * whatever decision the key currently has, replicating decisions.ts's own real merge rule
  * (design.md section 5: the gap trio -- skip/remind/approve -- resets together since only one
  * can hold at a time; acknowledgedAdvisories is untouched by a trio write and vice versa).
+ *
+ * Round 3 review (HIGH, live-reproduced): that sequence number was keyed by item key ALONE,
+ * not by axis -- so starting an acknowledge while an approve on the SAME item was still in
+ * flight marked the approve call "superseded" too, even though the two axes are independent
+ * and both genuinely succeeded (design.md section 5: the gap trio and acknowledgedAdvisories
+ * don't conflict). The approve call's own real, successful confirmed response was then
+ * silently dropped when it arrived, leaving `updatedBy`/`approvedVersion` stuck on the
+ * optimistic placeholder forever -- only reachable once round 1 + round 2 together made both
+ * axes concurrently actionable AND correctly visible at once. `sequenceRef` is now keyed by
+ * item key -> axis (see `axisOf`) so the trio (mutually exclusive with itself, still correctly
+ * guarded) and acknowledgedAdvisories (independent) each get their own counter.
  */
 
 /**
@@ -51,9 +51,26 @@ import { putDecision } from "./api.js"
  * trio write and vice versa. Used to scope the sequence guard in `apply()` below so two calls
  * on DIFFERENT axes never mark each other superseded, while two calls on the SAME axis still
  * correctly do.
+ *
+ * Exhaustive over `DecisionPatch["field"]` (round 4 review note) rather than a `field ===
+ * "acknowledgedAdvisories" ? "advisory" : "gap"` ternary -- a ternary's fallthrough default
+ * would silently classify any FUTURE field as "gap" with no compile error, which is exactly
+ * the silent-miscategorization failure mode round 3's bug already was. The `never` branch
+ * makes adding a field to `DecisionPatch` without updating this function a type error instead.
  */
 function axisOf(field: DecisionPatch["field"]): "gap" | "advisory" {
-  return field === "acknowledgedAdvisories" ? "advisory" : "gap"
+  switch (field) {
+    case "skippedVersion":
+    case "remindAt":
+    case "approvedVersion":
+      return "gap"
+    case "acknowledgedAdvisories":
+      return "advisory"
+    default: {
+      const exhaustive: never = field
+      throw new Error(`axisOf: unhandled DecisionPatch field: ${JSON.stringify(exhaustive)}`)
+    }
+  }
 }
 
 export interface DecisionActionState {
