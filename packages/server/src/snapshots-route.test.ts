@@ -505,6 +505,52 @@ describe("GET /api/snapshots/:id/items", () => {
     expect(body.items[0]?.decision?.skippedVersion).toBe("1.0.0")
   })
 
+  it("K4-5b: two stale decisions sharing repo|kind|name resolve to the newer one by updatedAt (round-2 review gap: only unit-tested before, not at this route)", async () => {
+    const { app, db } = testApp()
+    ingestSnapshot(db, "2026-01-01T00:00:00Z", [
+      {
+        inv: invItem({ source: "f:1" }),
+        rep: repItem({ key: "o/r|npm-dep|foo|f:1", source: "f:1", latest: "5.0.0" }),
+      },
+    ])
+    // Older, now-spent decision (skip 3.0.0, latest 5.0.0 already passed it).
+    putDecision(
+      db,
+      "o/r|npm-dep|foo|f:1",
+      { field: "skippedVersion", value: "3.0.0" },
+      "alice",
+      "2026-01-15T00:00:00.000Z",
+    )
+    ingestSnapshot(db, "2026-02-01T00:00:00Z", [
+      {
+        inv: invItem({ source: "f:5" }),
+        rep: repItem({ key: "o/r|npm-dep|foo|f:5", source: "f:5", latest: "5.0.0" }),
+      },
+    ])
+    // Newer decision, still holds (skip 5.0.0, not yet passed).
+    putDecision(
+      db,
+      "o/r|npm-dep|foo|f:5",
+      { field: "skippedVersion", value: "5.0.0" },
+      "alice",
+      "2026-02-15T00:00:00.000Z",
+    )
+    // Third move -- neither f:1 nor f:5 is the item's key any more.
+    const thirdSnapshotId = ingestSnapshot(db, "2026-03-01T00:00:00Z", [
+      {
+        inv: invItem({ source: "f:9" }),
+        rep: repItem({ key: "o/r|npm-dep|foo|f:9", source: "f:9", latest: "5.0.0" }),
+      },
+    ])
+
+    const res = await app.request(`/api/snapshots/${thirdSnapshotId}/items`)
+    const body = (await res.json()) as {
+      items: { decision: { skippedVersion: string | null } | null }[]
+    }
+    // If the OLDER (spent) decision had won instead, skippedVersion would read "3.0.0" here.
+    expect(body.items[0]?.decision?.skippedVersion).toBe("5.0.0")
+  })
+
   it("K4-5b REGRESSION (Tooling#478 review round 1, CRITICAL): does not cross-contaminate two DISTINCT live items sharing repo|kind|name", async () => {
     // Two simultaneously-live items -- e.g. the same npm package required by two workspace
     // packages -- not one item that moved. Only one occurrence is ever decided.
