@@ -3,6 +3,7 @@ import { useMemo, useState } from "react"
 import { fetchLatestSnapshotItems, type ReportItem } from "../api.js"
 import { advisoryVariant, gapVariant } from "../badgeVariants.js"
 import { DataTable, type DataTableColumn } from "../components/DataTable.js"
+import { gapPriority } from "../gapPriority.js"
 import { applyItemFilters, type ItemFilterState, ItemFilters } from "../ItemFilters.js"
 import { sourceUrl } from "../sourceLink.js"
 import { useAsync } from "../useAsync.js"
@@ -18,12 +19,12 @@ import { useAsync } from "../useAsync.js"
  * child) -- K4-8a renders the table faithfully from what's unambiguous today.
  */
 
-const PRIORITY: Record<string, number> = { major: 1, minor: 2, patch: 3 }
-
+/** Affected trumps any gap severity (design.md: "advisoryStatus = affected ... first, then
+ * gap"); among the rest, `gapPriority` (shared with Repos.tsx's Gap column) orders it. -1 is
+ * enough separation since gapPriority's own range starts at 0. */
 function priority(item: ReportItem): number {
-  if (item.advisoryStatus === "affected") return 0
-  if (item.gap !== null && item.gap in PRIORITY) return PRIORITY[item.gap] as number
-  return 99
+  if (item.advisoryStatus === "affected") return -1
+  return gapPriority(item.gap)
 }
 
 function needsDecision(item: ReportItem): boolean {

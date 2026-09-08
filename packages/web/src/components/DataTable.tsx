@@ -142,14 +142,17 @@ export function DataTable<T>({
         <tr>
           {columns.map((column) => {
             const isSorted = sort?.key === column.key
+            // `aria-sort` claims a table-wide order; grouping only sorts within each group, so
+            // asserting it there would tell a screen-reader user something false (K4-8a review
+            // round 1, LOW).
+            const ariaSort =
+              isSorted && !groupBy
+                ? sort.direction === "asc"
+                  ? "ascending"
+                  : "descending"
+                : undefined
             return (
-              <th
-                key={column.key}
-                scope="col"
-                aria-sort={
-                  isSorted ? (sort.direction === "asc" ? "ascending" : "descending") : undefined
-                }
-              >
+              <th key={column.key} scope="col" aria-sort={ariaSort}>
                 {column.sortValue ? (
                   <button
                     type="button"

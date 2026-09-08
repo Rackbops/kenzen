@@ -65,11 +65,23 @@ test("renders an empty state when there are no repos yet", async () => {
   await waitFor(() => expect(screen.getByText("No repos ingested yet.")).toBeInTheDocument())
 })
 
-test("renders an error state when either fetch fails", async () => {
+test("renders an error state when the repos fetch fails", async () => {
   vi.spyOn(api, "fetchRepos").mockRejectedValue(new Error("boom"))
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
   render(<Repos />)
   await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/boom/))
+})
+
+test("an items-fetch failure still shows the repo list, with an inline error for the item detail", async () => {
+  // K4-8a review round 1, MEDIUM, live-reproduced: the original single Promise.all discarded
+  // repos' already-succeeded data the instant items rejected, blanking the whole page. The
+  // repo list/soundness lines are independently useful even without the item-detail tables.
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockRejectedValue(new Error("items boom"))
+  render(<Repos />)
+  await waitFor(() => expect(screen.getByText("Rackbops/Tooling")).toBeInTheDocument())
+  expect(screen.getByText(/3 items · 0 affected/)).toBeInTheDocument()
+  expect(screen.getByRole("alert")).toHaveTextContent(/items boom/)
 })
 
 test("groups a repo's items by role, in the runtime/infra/ci/build/test order", async () => {
@@ -89,15 +101,20 @@ test("groups a repo's items by role, in the runtime/infra/ci/build/test order", 
   expect(groupLabels).toEqual(["runtime", "test"])
 })
 
-test("a floating-major pin shows latestInMajor with latest annotated alongside", async () => {
+test("a major-style pin (e.g. a ^-prefixed npm dep) shows latestInMajor with latest annotated alongside", async () => {
+  // pinStyle here matches Tooling's real classifier (software_inventory.py's
+  // derive_pin_style): a "^"-prefixed npm-dep, a single-numeric-component Docker tag, or a
+  // bare vN GitHub Action tag is "major", never "floating" -- K4-8a review round 1, HIGH:
+  // the original code checked pinStyle === "floating" here, which real data never sets
+  // alongside a non-null latestInMajor at all, so this display never fired for real data.
   vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
     snapshot: SNAPSHOT,
     items: [
       item({
         key: "f",
-        name: "floating-pkg",
-        pinStyle: "floating",
+        name: "major-pkg",
+        pinStyle: "major",
         pinned: "^2.4.0",
         latestInMajor: "2.9.0",
         latest: "3.1.0",
@@ -106,10 +123,34 @@ test("a floating-major pin shows latestInMajor with latest annotated alongside",
     ],
   })
   render(<Repos />)
-  await waitFor(() => expect(screen.getByText("floating-pkg")).toBeInTheDocument())
-  const row = screen.getByText("floating-pkg").closest("tr")
+  await waitFor(() => expect(screen.getByText("major-pkg")).toBeInTheDocument())
+  const row = screen.getByText("major-pkg").closest("tr")
   expect(row?.textContent).toContain("2.9.0")
   expect(row?.textContent).toContain("latest: 3.1.0")
+})
+
+test("a genuinely floating pin (pinStyle floating) never shows the dual-version annotation, even with a latestInMajor", async () => {
+  // Real data never sets latestInMajor for a "floating"-style pin, but the display logic
+  // should still be exact about which pinStyle it triggers on, defensively.
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot: SNAPSHOT,
+    items: [
+      item({
+        key: "fl",
+        name: "unbounded-pkg",
+        pinStyle: "floating",
+        pinned: "latest",
+        latestInMajor: "2.9.0",
+        latest: "3.1.0",
+        gap: "unknown",
+      }),
+    ],
+  })
+  render(<Repos />)
+  await waitFor(() => expect(screen.getByText("unbounded-pkg")).toBeInTheDocument())
+  const row = screen.getByText("unbounded-pkg").closest("tr")
+  expect(row?.textContent).not.toContain("latest: 3.1.0")
 })
 
 test("an exact pin's pinned/latest cell shows just the two values, no annotation", async () => {
@@ -128,15 +169,15 @@ test("an exact pin's pinned/latest cell shows just the two values, no annotation
   expect(row?.textContent).not.toContain("latest:")
 })
 
-test("a floating pin already on the latest major shows just pinned/latest, no redundant annotation", async () => {
+test("a major-style pin already on the latest major shows just pinned/latest, no redundant annotation", async () => {
   vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
     snapshot: SNAPSHOT,
     items: [
       item({
         key: "fs",
-        name: "floating-but-current-pkg",
-        pinStyle: "floating",
+        name: "major-but-current-pkg",
+        pinStyle: "major",
         pinned: "^2.4.0",
         latestInMajor: "2.9.0",
         latest: "2.9.0",
@@ -145,8 +186,8 @@ test("a floating pin already on the latest major shows just pinned/latest, no re
     ],
   })
   render(<Repos />)
-  await waitFor(() => expect(screen.getByText("floating-but-current-pkg")).toBeInTheDocument())
-  const row = screen.getByText("floating-but-current-pkg").closest("tr")
+  await waitFor(() => expect(screen.getByText("major-but-current-pkg")).toBeInTheDocument())
+  const row = screen.getByText("major-but-current-pkg").closest("tr")
   expect(row?.textContent).toContain("2.9.0")
   expect(row?.textContent).not.toContain("latest:")
 })
@@ -168,6 +209,33 @@ test("the role filter narrows every repo's table -- role=runtime hides a build/c
 
   expect(screen.getByText("runtime-image")).toBeInTheDocument()
   expect(screen.queryByText("build-stage-image")).not.toBeInTheDocument()
+})
+
+test("clicking the Gap header sorts by severity, not alphabetically", async () => {
+  // K4-8a review round 1, LOW: sortValue used to be the raw gap string, so "none" (no gap)
+  // sorted between "minor" and "patch" -- lexicographic, not meaningful.
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot: SNAPSHOT,
+    items: [
+      item({ key: "n", name: "sound-pkg", gap: "none" }),
+      item({ key: "p", name: "patch-behind-pkg", gap: "patch" }),
+      item({ key: "j", name: "major-behind-pkg", gap: "major" }),
+    ],
+  })
+  render(<Repos />)
+  await waitFor(() => expect(screen.getByText("major-behind-pkg")).toBeInTheDocument())
+
+  fireEvent.click(screen.getByRole("button", { name: /Gap/ }))
+
+  const names = within(screen.getByRole("table"))
+    .getAllByRole("row")
+    .slice(1) // header
+    .map((r) => r.textContent)
+    .filter((t) => t && /-pkg/.test(t))
+  expect(names[0]).toContain("major-behind-pkg")
+  expect(names[1]).toContain("patch-behind-pkg")
+  expect(names[2]).toContain("sound-pkg")
 })
 
 test("a repo with no items still renders its card, with an empty table message", async () => {

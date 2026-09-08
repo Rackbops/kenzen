@@ -115,6 +115,21 @@ test("sorting within a grouped table sorts each group independently, not across 
   expect(dataRowTexts).toEqual(["build", "Charlie1", "runtime", "Alpha5", "Bravo2"])
 })
 
+test("aria-sort is set on a sorted header when not grouped", () => {
+  render(<DataTable columns={COLUMNS} rows={ROWS} rowKey={(r) => r.id} />)
+  fireEvent.click(screen.getByRole("button", { name: /Name/ }))
+  expect(screen.getByRole("columnheader", { name: /Name/ })).toHaveAttribute(
+    "aria-sort",
+    "ascending",
+  )
+})
+
+test("aria-sort is omitted on a sorted header when grouped -- sorting is per-group, not table-wide", () => {
+  render(<DataTable columns={COLUMNS} rows={ROWS} rowKey={(r) => r.id} groupBy={(r) => r.group} />)
+  fireEvent.click(screen.getByRole("button", { name: /Name/ }))
+  expect(screen.getByRole("columnheader", { name: /Name/ })).not.toHaveAttribute("aria-sort")
+})
+
 test("sticky wraps the table in rb-table-scroll", () => {
   const { container } = render(
     <DataTable columns={COLUMNS} rows={ROWS} rowKey={(r) => r.id} sticky />,
