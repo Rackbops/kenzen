@@ -1,5 +1,7 @@
 import type { DatabaseSync } from "node:sqlite"
 import type { Context, Hono } from "hono"
+import type { DecisionRow } from "./decisions.js"
+import { countByRepoKindName, findDecisionForItem, listDecisions } from "./decisions.js"
 
 /** design.md section 4.3: every response carries apiVersion: 1. */
 export const API_VERSION = 1
@@ -49,35 +51,26 @@ interface ItemRow {
   advisories_json: string | null
   assumed: string | null
   note: string | null
-  d_skippedVersion: string | null
-  d_remindAt: string | null
-  d_approvedVersion: string | null
-  d_acknowledged_json: string | null
-  d_updatedAt: string | null
-  d_updatedBy: string | null
 }
 
 /**
- * Shapes one joined row into a ReportItem (design.md section 4.1) plus its current decision.
- * `decision` is `null`, not an object of nulls, when the LEFT JOIN found no `decisions` row for
- * this key -- distinguished by `d_updatedAt`, the one decision column that is always NOT NULL
- * when a row exists (migrations/0001_init.sql). The `decisions` table is empty until K4-5 ships
- * (kenzen#16's own scope note), so every item's decision is null for now -- a correct reflection
- * of current state, not a placeholder.
+ * Shapes one item row into a ReportItem (design.md section 4.1) plus its current decision,
+ * resolved via `findDecisionForItem` (K4-5b) -- not a plain `key` join, so an item whose
+ * `source` moved since it was decided still reports its carried-over decision here, the same
+ * as `GET /api/repos`'s "D decided" count. Only the public decision fields are surfaced
+ * (`approvedFromPinned` is internal bookkeeping, per `decisions-route.ts`'s own `decisionJson`).
  */
-function toReportItem(row: ItemRow): Record<string, unknown> {
-  const decision =
-    row.d_updatedAt === null
+function toReportItem(row: ItemRow, decision: DecisionRow | null): Record<string, unknown> {
+  const decisionJson =
+    decision === null
       ? null
       : {
-          skippedVersion: row.d_skippedVersion,
-          remindAt: row.d_remindAt,
-          approvedVersion: row.d_approvedVersion,
-          acknowledgedAdvisories: row.d_acknowledged_json
-            ? (JSON.parse(row.d_acknowledged_json) as unknown)
-            : null,
-          updatedAt: row.d_updatedAt,
-          updatedBy: row.d_updatedBy,
+          skippedVersion: decision.skippedVersion,
+          remindAt: decision.remindAt,
+          approvedVersion: decision.approvedVersion,
+          acknowledgedAdvisories: decision.acknowledgedAdvisories,
+          updatedAt: decision.updatedAt,
+          updatedBy: decision.updatedBy,
         }
   return {
     key: row.key,
@@ -95,7 +88,7 @@ function toReportItem(row: ItemRow): Record<string, unknown> {
     advisories: row.advisories_json ? (JSON.parse(row.advisories_json) as unknown) : [],
     assumed: row.assumed,
     note: row.note,
-    decision,
+    decision: decisionJson,
   }
 }
 
@@ -201,18 +194,27 @@ function mountSnapshotItemsRoute(app: Hono, db: DatabaseSync): void {
       .prepare(
         `SELECT i.key, i.repo, i.kind, i.name, i.pinned, i.pinStyle, i.role, i.source,
                 i.latest, i.latestInMajor, i.gap, i.advisoryStatus, i.advisories_json,
-                i.assumed, i.note,
-                d.skippedVersion as d_skippedVersion, d.remindAt as d_remindAt,
-                d.approvedVersion as d_approvedVersion, d.acknowledged_json as d_acknowledged_json,
-                d.updatedAt as d_updatedAt, d.updatedBy as d_updatedBy
+                i.assumed, i.note
          FROM items i
-         LEFT JOIN decisions d ON d.key = i.key
          WHERE ${clauses.join(" AND ")}
          ORDER BY i.key ASC`,
       )
       .all(...params) as unknown as ItemRow[]
 
-    return c.json({ apiVersion: API_VERSION, snapshotId, items: rows.map(toReportItem) })
+    // Ambiguity for findDecisionForItem's re-matching gate is computed from the FULL,
+    // unfiltered snapshot -- not just this query's (possibly repo/kind/role/status-narrowed)
+    // result set -- since whether a repo|kind|name is ambiguous is a fact about the snapshot,
+    // not about which filter a caller happened to apply.
+    const allItemsInSnapshot = db
+      .prepare("SELECT key, repo, kind, name FROM items WHERE snapshotId = ?")
+      .all(snapshotId) as unknown as { key: string; repo: string; kind: string; name: string }[]
+    const occurrenceCounts = countByRepoKindName(allItemsInSnapshot)
+    const decisions = listDecisions(db)
+
+    const items = rows.map((row) =>
+      toReportItem(row, findDecisionForItem(decisions, row, occurrenceCounts)),
+    )
+    return c.json({ apiVersion: API_VERSION, snapshotId, items })
   })
 }
 
