@@ -25,6 +25,7 @@ const pushNotify = code(readFileSync(`${repoRoot}.github/workflows/push-notify.y
 const testWorkflow = code(readFileSync(`${repoRoot}.github/workflows/test.yml`, "utf-8"))
 const imageRatchet = code(readFileSync(`${repoRoot}.github/workflows/image-ratchet.yml`, "utf-8"))
 const release = code(readFileSync(`${repoRoot}.github/workflows/release.yml`, "utf-8"))
+const dockerfile = code(readFileSync(`${repoRoot}Dockerfile`, "utf-8"))
 
 describe("push-notify.yml hygiene", () => {
   it("guards against running on a fork", () => {
@@ -65,6 +66,18 @@ describe("image-ratchet.yml hygiene", () => {
     // KENZEN_INGEST_TOKEN=...` flag left the rest of this fast local suite green; only the real,
     // self-hosted-Docker ratchet job would have caught a silent revert without this guard.
     expect(imageRatchet).toMatch(/docker run .*-e\s+KENZEN_INGEST_TOKEN=\S+/)
+  })
+})
+
+describe("Dockerfile hygiene", () => {
+  it("pins the build stage to $BUILDPLATFORM so the multi-arch release doesn't run the web build under QEMU", () => {
+    // kenzen#28 (K4-6b): the deploy bundle is pure JS -- no native modules -- so the build
+    // stage (pnpm -r build, esbuild/Vite for the K4-7 web build) only needs to run once, on
+    // the builder's own platform. Without this pin, buildx's linux/arm64 pass runs the whole
+    // build stage under QEMU emulation, which took release.yml's v0.1.0-alpha.2 run from 4
+    // minutes to over 45. Only the `build` stage is pinned -- `runtime` stays per-target since
+    // it's just COPY + adduser, no compilation.
+    expect(dockerfile).toMatch(/^FROM --platform=\$BUILDPLATFORM node:24-alpine AS build$/m)
   })
 })
 

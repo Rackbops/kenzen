@@ -1,7 +1,14 @@
 # syntax=docker/dockerfile:1
 
 # --- build: install the workspace, build server + web, bundle a production deploy dir ---
-FROM node:24-alpine AS build
+# --platform=$BUILDPLATFORM (kenzen#28, K4-6b): the deploy bundle is pure JS (hono,
+# @hono/node-server, jose, smol-toml, node:sqlite -- no native modules), so it is
+# architecture-independent and only needs building once. Without this pin, buildx's
+# linux/arm64 pass runs esbuild/Vite (the K4-7 web build) under QEMU emulation, which took
+# release.yml's v0.1.0-alpha.2 run from 4 minutes to over 45. Pinning the build stage to the
+# builder's own (native) platform keeps `pnpm -r build` off QEMU entirely; only the runtime
+# stage (a plain COPY + adduser, no compilation) still runs per target.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /repo
 RUN corepack enable
 COPY . .
