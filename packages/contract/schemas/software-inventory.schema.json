@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kenzen.internal/schemas/software-inventory.schema.json",
+  "title": "Tooling software-inventory.json",
+  "description": "Authored here (Tooling#478 K4-4) from the real committed file (Tooling#424, software_inventory.py's Item schema). Moves to Rackbops/Tooling as the source of truth in Tooling#477 and is vendored back byte-identically, listed in shared-helpers-manifest.json. draft-07 (not 2020-12/$defs) to match Rackbops/artifact-console's packages/contract/schema.json convention -- ajv's default export only ships the draft-07 meta-schema.",
+  "type": "object",
+  "required": ["repos", "readOnly", "items"],
+  "properties": {
+    "_comment": { "type": "string" },
+    "repos": { "type": "array", "items": { "type": "string" } },
+    "readOnly": { "type": "array", "items": { "type": "string" } },
+    "items": { "type": "array", "items": { "$ref": "#/definitions/item" } }
+  },
+  "definitions": {
+    "item": {
+      "type": "object",
+      "required": ["repo", "kind", "name", "pinned", "pinStyle", "role", "source", "resolver"],
+      "properties": {
+        "repo": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": [
+            "dockerfile-base",
+            "compose-image",
+            "github-action",
+            "npm-dep",
+            "pip-dep",
+            "runtime-pin"
+          ]
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "pinned": { "type": "string" },
+        "pinStyle": { "enum": ["exact", "major", "floating"] },
+        "role": { "enum": ["runtime", "test", "build", "ci", "infra"] },
+        "source": { "type": "string", "minLength": 1 },
+        "resolver": {
+          "enum": ["dockerhub", "ghcr", "npm", "pypi", "gh-release", "gh-tag", "none"]
+        }
+      }
+    }
+  }
+}
