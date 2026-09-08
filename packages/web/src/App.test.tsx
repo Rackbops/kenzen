@@ -5,6 +5,7 @@ import { App } from "./App.js"
 import * as api from "./api.js"
 
 test("renders the nav for all five sections, and the index route shows Needs a decision", async () => {
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
   render(
     <MemoryRouter initialEntries={["/"]}>
       <App />
@@ -16,12 +17,15 @@ test("renders the nav for all five sections, and the index route shows Needs a d
   // The index route redirects to needs-decision (K4-7 review round 1, MEDIUM): landing on /
   // must mark the same nav item active as landing on /needs-decision directly, not leave
   // every link unmarked.
-  expect(screen.getByText(/Rackbops\/Tooling · pip-dep requests/)).toBeInTheDocument()
+  await waitFor(() =>
+    expect(screen.getByText("No data has been ingested yet.")).toBeInTheDocument(),
+  )
   expect(screen.getByRole("link", { name: "Needs a decision" })).toHaveClass("rb-link--active")
 })
 
 test("the Repos nav link is marked active on the /repos route, others are not", async () => {
   vi.spyOn(api, "fetchRepos").mockResolvedValue([])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
   render(
     <MemoryRouter initialEntries={["/repos"]}>
       <App />

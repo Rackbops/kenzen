@@ -1,0 +1,45 @@
+/*
+ * Layered on top of the existing `.rb-table`/`th`/`td`/`.rb-num` contract already shipped by
+ * every `@rackbops/styles` theme (see arcane-obsidian/components/table.css). These three
+ * classes don't exist there yet -- Kenzen-local until K4-10 upstreams DataTable itself.
+ * Unprefixed by theme selector deliberately: every token used (--rb-*) already resolves to
+ * the active theme's value wherever this renders, same as the rest of this app's CSS.
+ */
+
+.rb-table__group-row td {
+  padding-top: var(--rb-space-3);
+  padding-bottom: var(--rb-space-1);
+  color: var(--rb-text-faint);
+  font-size: var(--rb-text-sm);
+  font-weight: var(--rb-font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: none;
+}
+
+.rb-table__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rb-space-1);
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.rb-table__sort:hover {
+  color: var(--rb-text);
+}
+
+.rb-table-scroll {
+  max-height: 70vh;
+  overflow: auto;
+}
+.rb-table-scroll thead th {
+  position: sticky;
+  top: 0;
+  background: var(--rb-surface);
+  z-index: 1;
+}

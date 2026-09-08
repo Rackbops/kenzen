@@ -63,3 +63,100 @@ export async function fetchRepos(fetchImpl: typeof fetch = fetch): Promise<RepoS
   const data = await fetchJson<ReposResponse>("/api/repos", fetchImpl)
   return data.repos
 }
+
+/** design.md section 4.3 / packages/server/src/snapshots-route.ts's real, shipped shape (K4-4b). */
+export interface SnapshotSummary {
+  snapshotId: number
+  generatedAt: string
+  inventoryItems: number
+  summary: unknown
+}
+
+export interface Advisory {
+  id: string
+  summary: string
+  severity: string
+  url: string
+  source: "osv" | "ghsa"
+  affected: boolean
+}
+
+/** The decision currently on record for an item, or null when none exists yet -- see
+ * decisions-route.ts's decisionJson: absent optional fields are simply not present on the
+ * real response, so every field here is optional except the two always-set ones. */
+export interface ItemDecision {
+  skippedVersion?: string
+  remindAt?: string
+  approvedVersion?: string
+  acknowledgedAdvisories?: string[]
+  updatedAt: string
+  updatedBy: string | null
+}
+
+/** design.md section 4.1's ReportItem, as `snapshots-route.ts`'s `toReportItem` actually
+ * shapes it -- every field nullable except `key`/`repo`/`kind`/`name`, matching an inventory
+ * item that has no matching report row (design.md section 4.2: "stored ... with
+ * latest/gap/advisoryStatus null"). K4-8a (this package) reads these as given; deciding
+ * whether an existing `decision` still suppresses this item is deliberately NOT done here --
+ * that suppression-aware display and the interactive decision actions themselves are K4-9's
+ * scope (design.md section 5's decision-effect table), so "needs a decision" in this child
+ * means the simpler, unambiguous "no decision recorded at all yet".
+ */
+export interface ReportItem {
+  key: string
+  repo: string
+  kind: string
+  name: string
+  pinned: string | null
+  pinStyle: "exact" | "major" | "floating" | null
+  role: "runtime" | "test" | "build" | "ci" | "infra" | null
+  source: string | null
+  latest: string | null
+  latestInMajor: string | null
+  gap: "none" | "patch" | "minor" | "major" | "unknown" | null
+  advisoryStatus: "affected" | "historical-only" | "none" | "unknown" | null
+  advisories: Advisory[]
+  assumed: string | null
+  note: string | null
+  decision: ItemDecision | null
+}
+
+/** GET /api/snapshots?limit=1 -- the newest snapshot, or null when nothing has been ingested
+ * yet (an empty `snapshots` array, per snapshots-route.ts). */
+export async function fetchLatestSnapshot(
+  fetchImpl: typeof fetch = fetch,
+): Promise<SnapshotSummary | null> {
+  const data = await fetchJson<{ apiVersion: 1; snapshots: SnapshotSummary[] }>(
+    "/api/snapshots?limit=1",
+    fetchImpl,
+  )
+  return data.snapshots[0] ?? null
+}
+
+/** GET /api/snapshots/:id/items -- every ReportItem in that snapshot, joined with its current
+ * decision. No filter query params: this UI fetches the full set once per page load and
+ * filters/groups it client-side (see the route components), rather than round-tripping per
+ * filter change. */
+export async function fetchSnapshotItems(
+  snapshotId: number,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ReportItem[]> {
+  const data = await fetchJson<{ apiVersion: 1; snapshotId: number; items: ReportItem[] }>(
+    `/api/snapshots/${snapshotId}/items`,
+    fetchImpl,
+  )
+  return data.items
+}
+
+/** Composes fetchLatestSnapshot + fetchSnapshotItems -- the one call NeedsDecision and Repos
+ * both make. Null when nothing has been ingested yet (no snapshot to show items for). */
+export async function fetchLatestSnapshotItems(
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ snapshot: SnapshotSummary; items: ReportItem[] } | null> {
+  const snapshot = await fetchLatestSnapshot(fetchImpl)
+  if (!snapshot) {
+    return null
+  }
+  const items = await fetchSnapshotItems(snapshot.snapshotId, fetchImpl)
+  return { snapshot, items }
+}
