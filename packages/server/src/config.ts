@@ -2,13 +2,13 @@ import { parse as parseToml } from "smol-toml"
 
 /**
  * Config resolution, precedence `KENZEN_*` env > `/config/config.toml` > defaults -- the same
- * shape as `Rackbops/artifact-console`'s `packages/host/src/config.ts` (design.md section 3),
- * simplified for K4-2's scope (no `stateDir`/`dbFile`/`pluginsDir` yet -- those land with
- * K4-3/K4-4). Pure: the environment and the file reader are injected, so it unit-tests without
- * touching the real filesystem. The caller logs which source was used (`configSource`) -- the
- * app-config standard's "log which config path was loaded on every start."
+ * shape as `Rackbops/artifact-console`'s `packages/host/src/config.ts` (design.md section 3).
+ * `pluginsDir` doesn't apply here (no plugin system). Pure: the environment and the file reader
+ * are injected, so it unit-tests without touching the real filesystem. The caller logs which
+ * source was used (`configSource`) -- the app-config standard's "log which config path was
+ * loaded on every start."
  *
- * K4-2 has no field that lacks a working built-in default (host/port/staticDir all do), so the
+ * No field here lacks a working built-in default (host/port/staticDir/stateDir all do), so the
  * standard's "refuses to start only when config is absent everywhere" has no live trigger yet --
  * same as artifact-console's own current config.ts, for the same reason. It becomes concrete
  * once a genuinely required field exists (e.g. K4-4's ingest token).
@@ -20,6 +20,8 @@ export interface ServerConfig {
   configDir: string
   configFile: string
   staticDir: string
+  stateDir: string
+  dbFile: string
 }
 
 export interface ResolvedConfig extends ServerConfig {
@@ -35,6 +37,7 @@ export interface ResolveOptions {
 }
 
 const DEFAULT_CONFIG_DIR = "/config"
+const DEFAULT_STATE_DIR = "/state"
 const DEFAULT_HOST = "127.0.0.1"
 const DEFAULT_PORT = 8686
 
@@ -86,7 +89,18 @@ export function resolveConfig(
   }
   const staticDir = staticDirRaw ?? options.defaultStaticDir
 
-  return { host, port, configDir, configFile, staticDir, configSource }
+  const stateDirEnv = nonEmpty(env.KENZEN_STATE_DIR)
+  const stateDirRaw = stateDirEnv ?? asString(fileConfig.state_dir)
+  if (stateDirRaw !== undefined) {
+    requireAbsolute(
+      stateDirRaw,
+      stateDirEnv !== undefined ? "KENZEN_STATE_DIR" : `${configFile} [state_dir]`,
+    )
+  }
+  const stateDir = stateDirRaw ?? DEFAULT_STATE_DIR
+  const dbFile = `${stateDir.replace(/[\\/]+$/, "")}/kenzen.db`
+
+  return { host, port, configDir, configFile, staticDir, stateDir, dbFile, configSource }
 }
 
 function parseConfigFile(text: string, configFile: string): Record<string, unknown> {
