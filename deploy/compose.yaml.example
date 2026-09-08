@@ -14,12 +14,15 @@ services:
     image: ${IMAGE}:${IMAGE_TAG:-latest}
     container_name: kenzen
     restart: unless-stopped
-    # Only the app's OWN config here -- NOT the .env's secrets (CLOUDFLARE_TUNNEL_TOKEN,
-    # REGISTRY_TOKEN), which this container has no need to see as bare env vars beyond what it
-    # reads itself. The image already defaults KENZEN_HOST=0.0.0.0, KENZEN_CONFIG_DIR=/config,
-    # KENZEN_STATE_DIR=/state, so most deploys need nothing here.
+    # Only what this container itself reads -- NOT the .env's other secrets
+    # (CLOUDFLARE_TUNNEL_TOKEN, REGISTRY_TOKEN), which belong to the sidecar/host, not the app.
+    # KENZEN_INGEST_TOKEN IS the app's own secret (design.md section 4.2): the server refuses to
+    # start without it (main.ts's requireIngestToken, K4-4) -- there is no config.toml fallback
+    # for a secret. The image already defaults KENZEN_HOST=0.0.0.0, KENZEN_CONFIG_DIR=/config,
+    # KENZEN_STATE_DIR=/state, so nothing else needs setting here.
     environment:
       - KENZEN_HOST=${KENZEN_HOST:-0.0.0.0}
+      - KENZEN_INGEST_TOKEN=${KENZEN_INGEST_TOKEN}
     volumes:
       # Named volume: Docker creates it owning the image's dir uid, so the non-root container
       # user can write kenzen.db (WAL SQLite, design.md section 3/7).

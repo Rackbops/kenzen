@@ -31,7 +31,12 @@ jobs:
       - name: Boot it with an empty config (no volumes -> defaults, ephemeral /state)
         run: |
           docker rm -f kenzen-ratchet >/dev/null 2>&1 || true
-          docker run -d --name kenzen-ratchet -p 127.0.0.1:8686:8686 kenzen:ci
+          # K4-4 made KENZEN_INGEST_TOKEN a genuinely required secret (main.ts's
+          # requireIngestToken) -- an "empty config" boot now needs at least this one env var,
+          # the same as any real deploy would. A throwaway, non-secret value: nothing here
+          # exercises the ingest endpoint itself, only that the server starts.
+          docker run -d --name kenzen-ratchet -e KENZEN_INGEST_TOKEN=ratchet-throwaway-token \
+            -p 127.0.0.1:8686:8686 kenzen:ci
           for _ in $(seq 1 30); do
             curl -fsS http://127.0.0.1:8686/healthz >/dev/null 2>&1 && ok=1 && break
             sleep 1
