@@ -1,0 +1,11 @@
+# Keep the build context small and clean — the build stage reinstalls and rebuilds from source.
+**/node_modules
+.git
+.github
+docs
+**/dist
+**/*.tsbuildinfo
+**/*.log
+.claude
+# Operator secrets never enter the image context.
+deploy/.env*

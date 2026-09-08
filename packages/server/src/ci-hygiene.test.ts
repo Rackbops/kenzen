@@ -23,6 +23,8 @@ function code(yaml: string): string {
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url))
 const pushNotify = code(readFileSync(`${repoRoot}.github/workflows/push-notify.yml`, "utf-8"))
 const testWorkflow = code(readFileSync(`${repoRoot}.github/workflows/test.yml`, "utf-8"))
+const imageRatchet = code(readFileSync(`${repoRoot}.github/workflows/image-ratchet.yml`, "utf-8"))
+const release = code(readFileSync(`${repoRoot}.github/workflows/release.yml`, "utf-8"))
 
 describe("push-notify.yml hygiene", () => {
   it("guards against running on a fork", () => {
@@ -44,5 +46,34 @@ describe("push-notify.yml hygiene", () => {
 describe("test.yml hygiene", () => {
   it("runs on the org disposable pool, never GitHub-hosted minutes", () => {
     expect(testWorkflow).toMatch(/runs-on:\s*\[self-hosted,\s*disposable\]/)
+  })
+})
+
+describe("image-ratchet.yml hygiene", () => {
+  it("runs on the docker DinD slot, not the plain disposable lint pool", () => {
+    expect(imageRatchet).toMatch(/runs-on:\s*\[self-hosted,\s*docker\]/)
+  })
+
+  it("tears down the ratchet container even when a step fails", () => {
+    expect(imageRatchet).toMatch(/name:\s*Teardown[\s\S]*?if:\s*always\(\)/)
+  })
+})
+
+describe("release.yml hygiene", () => {
+  it("guards against publishing from a fork", () => {
+    expect(release).toMatch(/if:\s*github\.repository\s*==\s*['"]Rackbops\/kenzen['"]/)
+  })
+
+  it("authenticates to GHCR with the built-in GITHUB_TOKEN, never a PAT", () => {
+    expect(release).toMatch(/password:\s*\$\{\{\s*secrets\.GITHUB_TOKEN\s*\}\}/)
+    expect(release).not.toMatch(/secrets\.[A-Z_]*PAT[A-Z_]*/)
+  })
+
+  it("never uses secrets: inherit", () => {
+    expect(release).not.toMatch(/secrets:\s*inherit/)
+  })
+
+  it("verifies the tag against packages/server/package.json before publishing", () => {
+    expect(release).toMatch(/version-tag\.mjs/)
   })
 })

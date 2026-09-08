@@ -1,0 +1,50 @@
+name: image-ratchet
+
+# K4-6 (Tooling#478): build the REAL image, boot it with an empty config, and assert it serves
+# /healthz and the SPA. The Kenzen heir of artifact-console 2.0's own image-ratchet.yml (design.md
+# section 3) -- simplified since Kenzen has no plugin host yet, so there is no import-map ABI to
+# pin. Runs on the self-hosted `docker` DinD pool (Rackbops/Tooling#393; private repo, so
+# permitted per Tooling#437) -- the plain `disposable` lint pool can't build images. The
+# assertion logic itself is unit-tested against fixture servers on the test lane
+# (packages/server/src/image-assert.test.ts); this workflow is the real-image half. Blocks merge
+# from here on.
+on:
+  pull_request:
+
+concurrency:
+  group: image-ratchet-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ratchet:
+    runs-on: [self-hosted, docker]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Build the real image
+        run: docker build -t kenzen:ci .
+
+      - name: Boot it with an empty config (no volumes -> defaults, ephemeral /state)
+        run: |
+          docker rm -f kenzen-ratchet >/dev/null 2>&1 || true
+          docker run -d --name kenzen-ratchet -p 127.0.0.1:8686:8686 kenzen:ci
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8686/healthz >/dev/null 2>&1 && ok=1 && break
+            sleep 1
+          done
+          if [ -z "${ok:-}" ]; then echo "healthz never came up"; docker logs kenzen-ratchet; exit 1; fi
+
+      - name: Assert the image serves healthz + the SPA
+        run: node scripts/assert-image.mjs http://127.0.0.1:8686
+
+      - name: Container logs
+        if: always()
+        run: docker logs kenzen-ratchet || true
+
+      - name: Teardown
+        if: always()
+        run: docker rm -f kenzen-ratchet || true

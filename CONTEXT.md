@@ -48,8 +48,18 @@ permitted since this repo is private (Tooling#437's rule; a public repo must nev
 self-hosted runner). `push-notify.yml` delegates to `roshne/addon-ci`, carries an explicit
 fork guard, and passes `DISCORD_PUSH_WEBHOOK` explicitly rather than via `secrets: inherit`.
 Both properties -- plus the disposable-pool runner input -- are guarded by
-`packages/server/src/ci-hygiene.test.ts`, which reads the two workflow files as text rather
-than taking on a YAML-parser dependency for a handful of regex checks.
+`packages/server/src/ci-hygiene.test.ts`, which reads the workflow files as text rather than
+taking on a YAML-parser dependency for a handful of regex checks.
 
-No `build`/`release`/`image-ratchet` lane yet -- those land with K4-6 (design.md section 3,
-mirroring `Rackbops/artifact-console`'s `release.yml`/`image-ratchet.yml`).
+**`image-ratchet.yml`** (K4-6, Tooling#478) builds the real image on the **`docker`** DinD slot
+(a pull-request check, blocks merge), boots it with an empty config, and asserts `/healthz`
+(`{ok, version, apiVersion:1}`) and the SPA (`scripts/assert-image.mjs`, simplified from
+`Rackbops/artifact-console`'s own copy -- no import-map/plugin ABI to pin here yet). The
+assertion logic is separately unit-tested against fixture servers in
+`packages/server/src/image-assert.test.ts`, so it also runs on the plain test lane with no
+Docker. **`release.yml`** publishes multi-arch (amd64/arm64) to `ghcr.io/rackbops/kenzen` on a
+`v*` tag, on `ubuntu-latest` (not the disposable pool -- buildx/QEMU needs GitHub-hosted
+Docker), version-pinned to `packages/server/package.json` by `scripts/version-tag.mjs`
+(`packages/server/src/version-tag.test.ts` unit-tests the pin). Both workflows' fork-guard,
+DinD runner label, and no-PAT/no-`secrets: inherit` properties are guarded by
+`ci-hygiene.test.ts` alongside the two lanes above.
