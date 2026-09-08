@@ -51,13 +51,14 @@ jobs:
         id: meta
         shell: bash
         # kenzen#8 review round 1, MEDIUM (inherited unchanged from artifact-console's own
-        # release.yml, confirmed same gap there -- fixed here rather than shipped forward):
-        # a raw ${{ }} interpolation of workflow_dispatch.inputs.tag directly into the run:
-        # script is a classic GitHub Actions script-injection surface -- a crafted tag input
-        # (e.g. containing an embedded quote + shell metacharacters) could break out of the
-        # string and run arbitrary commands with this job's packages:write GITHUB_TOKEN.
-        # Routing untrusted input through env: instead means it only ever reaches the shell
-        # as the *value* of $TAG, never as script text the shell parses.
+        # release.yml at the time -- also since fixed there, Rackbops/artifact-console#150,
+        # the identical env: pattern): a raw ${{ }} interpolation of
+        # workflow_dispatch.inputs.tag directly into the run: script is a classic GitHub
+        # Actions script-injection surface -- a crafted tag input (e.g. containing an embedded
+        # quote + shell metacharacters) could break out of the string and run arbitrary
+        # commands with this job's packages:write GITHUB_TOKEN. Routing untrusted input
+        # through env: instead means it only ever reaches the shell as the *value* of $TAG,
+        # never as script text the shell parses.
         env:
           TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |

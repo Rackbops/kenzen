@@ -64,5 +64,9 @@ Docker), version-pinned to `packages/server/package.json` by `scripts/version-ta
 each workflow's own applicable properties, not a uniform set across all four: `image-ratchet.yml`
 has no secrets and no fork-guard to check (self-hosted with no fork-guard is this repo's existing
 `test.yml` convention already), so only its DinD runner label is asserted; `release.yml` runs on
-`ubuntu-latest`, not the DinD label, so only its fork-guard, GITHUB_TOKEN-not-a-PAT, and
-no-`secrets: inherit` properties are asserted.
+`ubuntu-latest`, not the DinD label, so only its fork-guard, GITHUB_TOKEN-not-a-PAT,
+no-`secrets: inherit`, and (kenzen#8 review round 2) that its release-tag value flows through an
+`env:` binding rather than being spliced directly into `run:` script text -- a script-injection
+surface found and fixed in round 1, verified live, and separately guarded here against
+regressing under a future edit -- are asserted, alongside confirming `version-tag.mjs` is
+actually invoked before publishing.
