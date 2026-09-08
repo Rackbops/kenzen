@@ -185,4 +185,67 @@ describe("resolveConfig", () => {
       ),
     ).toThrow(/failed to parse \/config\/config\.toml/)
   })
+
+  it("leaves Access verification unconfigured when neither KENZEN_ACCESS_* var is set", () => {
+    const cfg = resolveConfig(
+      {},
+      opts(() => null),
+    )
+    expect(cfg.accessTeamDomain).toBeUndefined()
+    expect(cfg.accessAud).toBeUndefined()
+  })
+
+  it("reads KENZEN_ACCESS_TEAM_DOMAIN/KENZEN_ACCESS_AUD when both are set", () => {
+    const cfg = resolveConfig(
+      { KENZEN_ACCESS_TEAM_DOMAIN: "team.cloudflareaccess.com", KENZEN_ACCESS_AUD: "aud-123" },
+      opts(() => null),
+    )
+    expect(cfg.accessTeamDomain).toBe("team.cloudflareaccess.com")
+    expect(cfg.accessAud).toBe("aud-123")
+  })
+
+  it("throws when only one of KENZEN_ACCESS_TEAM_DOMAIN/KENZEN_ACCESS_AUD is set (fail loud, not half-verified)", () => {
+    expect(() =>
+      resolveConfig(
+        { KENZEN_ACCESS_TEAM_DOMAIN: "team.cloudflareaccess.com" },
+        opts(() => null),
+      ),
+    ).toThrow(/KENZEN_ACCESS_TEAM_DOMAIN and KENZEN_ACCESS_AUD must be set together/)
+    expect(() =>
+      resolveConfig(
+        { KENZEN_ACCESS_AUD: "aud-123" },
+        opts(() => null),
+      ),
+    ).toThrow(/KENZEN_ACCESS_TEAM_DOMAIN and KENZEN_ACCESS_AUD must be set together/)
+  })
+
+  it("treats a blank KENZEN_ACCESS_AUD as unset, not as 'only one set'", () => {
+    const cfg = resolveConfig(
+      { KENZEN_ACCESS_TEAM_DOMAIN: "", KENZEN_ACCESS_AUD: "" },
+      opts(() => null),
+    )
+    expect(cfg.accessTeamDomain).toBeUndefined()
+    expect(cfg.accessAud).toBeUndefined()
+  })
+
+  it("reads KENZEN_DEV_IDENTITY, treating a blank value as unset", () => {
+    expect(
+      resolveConfig(
+        { KENZEN_DEV_IDENTITY: "alice" },
+        opts(() => null),
+      ).devIdentity,
+    ).toBe("alice")
+    expect(
+      resolveConfig(
+        { KENZEN_DEV_IDENTITY: "" },
+        opts(() => null),
+      ).devIdentity,
+    ).toBeUndefined()
+    expect(
+      resolveConfig(
+        {},
+        opts(() => null),
+      ).devIdentity,
+    ).toBeUndefined()
+  })
 })

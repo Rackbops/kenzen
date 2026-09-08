@@ -22,6 +22,15 @@ export interface ServerConfig {
   staticDir: string
   stateDir: string
   dbFile: string
+  /** Cloudflare Access team hostname (e.g. `rackbops.cloudflareaccess.com`), bare -- no
+   * scheme/port/path. Both undefined or both set; JWT verification for `PUT /api/decisions/*`
+   * (design.md section 11) is unconfigured (never attempted) when either is missing. */
+  accessTeamDomain: string | undefined
+  accessAud: string | undefined
+  /** Local-dev stand-in for `updatedBy` when no Access JWT is present. Refused whenever a JWT
+   * IS present (K4-5) -- never a way to bypass real verification, only to work without Access
+   * in front at all. */
+  devIdentity: string | undefined
 }
 
 export interface ResolvedConfig extends ServerConfig {
@@ -100,7 +109,33 @@ export function resolveConfig(
   const stateDir = stateDirRaw ?? DEFAULT_STATE_DIR
   const dbFile = `${stateDir.replace(/[\\/]+$/, "")}/kenzen.db`
 
-  return { host, port, configDir, configFile, staticDir, stateDir, dbFile, configSource }
+  // Both-or-neither, and loud about it: a team domain with no audience (or vice versa) can
+  // never produce a working verifier, and silently treating that as "Access unconfigured"
+  // would look identical to a deliberately Access-less dev setup while actually being a typo
+  // that quietly drops write-endpoint identity verification. Same standard as the rest of
+  // this function -- fail loud beats failing silently wrong.
+  const accessTeamDomain = nonEmpty(env.KENZEN_ACCESS_TEAM_DOMAIN)
+  const accessAud = nonEmpty(env.KENZEN_ACCESS_AUD)
+  if ((accessTeamDomain === undefined) !== (accessAud === undefined)) {
+    throw new Error(
+      "KENZEN_ACCESS_TEAM_DOMAIN and KENZEN_ACCESS_AUD must be set together -- only one is set",
+    )
+  }
+  const devIdentity = nonEmpty(env.KENZEN_DEV_IDENTITY)
+
+  return {
+    host,
+    port,
+    configDir,
+    configFile,
+    staticDir,
+    stateDir,
+    dbFile,
+    configSource,
+    accessTeamDomain,
+    accessAud,
+    devIdentity,
+  }
 }
 
 function parseConfigFile(text: string, configFile: string): Record<string, unknown> {

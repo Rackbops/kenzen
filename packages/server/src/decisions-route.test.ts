@@ -1,0 +1,306 @@
+import { dirname, resolve } from "node:path"
+import type { DatabaseSync } from "node:sqlite"
+import { fileURLToPath } from "node:url"
+import { Hono } from "hono"
+import { describe, expect, it, vi } from "vitest"
+import type { AccessIdentity, VerifyAccessJwt } from "./access-identity.js"
+import { mountDecisionsRoute } from "./decisions-route.js"
+import type { InventoryDoc, ReportDoc } from "./ingest.js"
+import { ingest } from "./ingest.js"
+import { createLogger } from "./log.js"
+import { openState } from "./state.js"
+
+const migrationsDir = resolve(dirname(fileURLToPath(import.meta.url)), "../migrations")
+const silent = createLogger({ write: () => {} })
+
+// A key with the real repo|kind|name|source shape -- deliberately containing "/" and ":" so
+// the route's encodeURIComponent/decodeURIComponent round-trip is genuinely exercised, not
+// just a key that happens to already be URL-safe.
+const KEY = "Rackbops/kenzen|npm-dep|hono|package.json:12"
+
+function testApp(options: { verifyAccessJwt?: VerifyAccessJwt; devIdentity?: string } = {}): {
+  app: Hono
+  db: DatabaseSync
+} {
+  const { db } = openState({ dbFile: ":memory:", migrationsDir, log: silent })
+  const app = new Hono()
+  mountDecisionsRoute(app, { db, log: silent, ...options })
+  return { app, db }
+}
+
+function seedItem(db: DatabaseSync): void {
+  const inv: InventoryDoc = {
+    repos: ["Rackbops/kenzen"],
+    readOnly: [],
+    items: [
+      {
+        repo: "Rackbops/kenzen",
+        kind: "npm-dep",
+        name: "hono",
+        pinned: "4.0.0",
+        pinStyle: "exact",
+        role: "runtime",
+        source: "package.json:12",
+        resolver: "npm",
+      },
+    ],
+  }
+  const rep: ReportDoc = {
+    generatedAt: "2026-01-01T00:00:00Z",
+    inventoryItems: 1,
+    items: [
+      {
+        key: KEY,
+        repo: "Rackbops/kenzen",
+        kind: "npm-dep",
+        name: "hono",
+        pinned: "4.0.0",
+        pinStyle: "exact",
+        role: "runtime",
+        source: "package.json:12",
+        latest: "4.1.0",
+        latestInMajor: "4.1.0",
+        gap: "minor",
+        advisoryStatus: "none",
+        advisories: [],
+        assumed: null,
+        note: "",
+      },
+    ],
+    repos: {},
+    summary: {},
+  }
+  ingest(db, inv, rep)
+}
+
+function putUrl(key: string): string {
+  return `/api/decisions/${encodeURIComponent(key)}`
+}
+
+describe("GET /api/decisions", () => {
+  it("is empty before any decision is made", async () => {
+    const { app } = testApp({ devIdentity: "dev" })
+    const res = await app.request("/api/decisions")
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ apiVersion: 1, decisions: [] })
+  })
+})
+
+describe("PUT /api/decisions/:key -- identity resolution", () => {
+  it("401s with no JWT and no devIdentity configured", async () => {
+    const { app, db } = testApp()
+    seedItem(db)
+    const res = await app.request(putUrl(KEY), {
+      method: "PUT",
+      body: JSON.stringify({ skippedVersion: "5.0.0" }),
+    })
+    expect(res.status).toBe(401)
+  })
+
+  it("uses devIdentity as updatedBy when no JWT is present", async () => {
+    const { app, db } = testApp({ devIdentity: "local-dev" })
+    seedItem(db)
+    const res = await app.request(putUrl(KEY), {
+      method: "PUT",
+      body: JSON.stringify({ skippedVersion: "5.0.0" }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { decision: { updatedBy: string } }
+    expect(body.decision.updatedBy).toBe("local-dev")
+  })
+
+  it("401s a JWT-bearing request when this instance has no verifier configured (never trusts an unverified JWT)", async () => {
+    const { app, db } = testApp({ devIdentity: "local-dev" })
+    seedItem(db)
+    const res = await app.request(putUrl(KEY), {
+      method: "PUT",
+      headers: { "Cf-Access-Jwt-Assertion": "whatever" },
+      body: JSON.stringify({ skippedVersion: "5.0.0" }),
+    })
+    expect(res.status).toBe(401)
+  })
+
+  it("verifies the JWT and uses its email as updatedBy, taking precedence over devIdentity", async () => {
+    const verifyAccessJwt = vi.fn(
+      async (): Promise<AccessIdentity | null> => ({
+        sub: "user-sub",
+        email: "user@example.com",
+        claims: {},
+      }),
+    )
+    const { app, db } = testApp({ verifyAccessJwt, devIdentity: "local-dev" })
+    seedItem(db)
+    const res = await app.request(putUrl(KEY), {
+      method: "PUT",
+      headers: { "Cf-Access-Jwt-Assertion": "a.b.c" },
+      body: JSON.stringify({ skippedVersion: "5.0.0" }),
+    })
+    expect(verifyAccessJwt).toHaveBeenCalledWith("a.b.c")
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { decision: { updatedBy: string } }
+    expect(body.decision.updatedBy).toBe("user@example.com")
+  })
+
+  it("401s when the JWT is present but fails verification, even though devIdentity is set (devIdentity is refused when a JWT is present)", async () => {
+    const verifyAccessJwt = vi.fn(async (): Promise<AccessIdentity | null> => null)
+    const { app, db } = testApp({ verifyAccessJwt, devIdentity: "local-dev" })
+    seedItem(db)
+    const res = await app.request(putUrl(KEY), {
+      method: "PUT",
+      headers: { "Cf-Access-Jwt-Assertion": "bad" },
+      body: JSON.stringify({ skippedVersion: "5.0.0" }),
+    })
+    expect(res.status).toBe(401)
+  })
+
+  it("falls back to sub when the verified identity has no email", async () => {
+    const verifyAccessJwt = vi.fn(
+      async (): Promise<AccessIdentity | null> => ({
+        sub: "service-token-abc",
+        email: undefined,
+        claims: {},
+      }),
+    )
+    const { app, db } = testApp({ verifyAccessJwt })
+    seedItem(db)
+    const res = await app.request(putUrl(KEY), {
+      method: "PUT",
+      headers: { "Cf-Access-Jwt-Assertion": "a.b.c" },
+      body: JSON.stringify({ skippedVersion: "5.0.0" }),
+    })
+    const body = (await res.json()) as { decision: { updatedBy: string } }
+    expect(body.decision.updatedBy).toBe("service-token-abc")
+  })
+
+  it("falls back to sub when the verified identity has a literal empty-string email, not just an absent one (Tooling#478 K4-5 review round 1, LOW)", async () => {
+    const verifyAccessJwt = vi.fn(
+      async (): Promise<AccessIdentity | null> => ({
+        sub: "service-token-abc",
+        email: "",
+        claims: {},
+      }),
+    )
+    const { app, db } = testApp({ verifyAccessJwt })
+    seedItem(db)
+    const res = await app.request(putUrl(KEY), {
+      method: "PUT",
+      headers: { "Cf-Access-Jwt-Assertion": "a.b.c" },
+      body: JSON.stringify({ skippedVersion: "5.0.0" }),
+    })
+    const body = (await res.json()) as { decision: { updatedBy: string } }
+    // `??` would have recorded "" here since it only falls back on null/undefined -- `||`
+    // (the actual fix) treats an empty string the same as an absent claim.
+    expect(body.decision.updatedBy).toBe("service-token-abc")
+  })
+})
+
+describe("PUT /api/decisions/:key -- round trip and key encoding", () => {
+  it("round-trips a skip, remind, approve and acknowledge, each appearing in GET /api/decisions", async () => {
+    const { app, db } = testApp({ devIdentity: "alice" })
+    seedItem(db)
+
+    const skip = await app.request(putUrl(KEY), {
+      method: "PUT",
+      body: JSON.stringify({ skippedVersion: "5.0.0" }),
+    })
+    expect(skip.status).toBe(200)
+
+    const getAfterSkip = await app.request("/api/decisions")
+    const afterSkip = (await getAfterSkip.json()) as { decisions: Record<string, unknown>[] }
+    expect(afterSkip.decisions).toHaveLength(1)
+    expect(afterSkip.decisions[0]).toMatchObject({ key: KEY, skippedVersion: "5.0.0" })
+
+    const remind = await app.request(putUrl(KEY), {
+      method: "PUT",
+      body: JSON.stringify({ remindAt: "2099-01-01T00:00:00.000Z" }),
+    })
+    expect(remind.status).toBe(200)
+    const afterRemind = (await (await app.request("/api/decisions")).json()) as {
+      decisions: Record<string, unknown>[]
+    }
+    expect(afterRemind.decisions[0]).toMatchObject({ remindAt: "2099-01-01T00:00:00.000Z" })
+    expect(afterRemind.decisions[0]).not.toHaveProperty("skippedVersion")
+
+    const approve = await app.request(putUrl(KEY), {
+      method: "PUT",
+      body: JSON.stringify({ approvedVersion: "4.1.0" }),
+    })
+    expect(approve.status).toBe(200)
+
+    const acknowledge = await app.request(putUrl(KEY), {
+      method: "PUT",
+      body: JSON.stringify({ acknowledgedAdvisories: [] }),
+    })
+    expect(acknowledge.status).toBe(200)
+
+    const clear = await app.request(putUrl(KEY), {
+      method: "PUT",
+      body: JSON.stringify({ clear: true }),
+    })
+    expect(clear.status).toBe(200)
+    const afterClear = (await (await app.request("/api/decisions")).json()) as {
+      decisions: unknown[]
+    }
+    expect(afterClear.decisions).toEqual([])
+  })
+
+  it("round-trips a real key containing '/' and ':' via encodeURIComponent/decodeURIComponent", async () => {
+    const { app, db } = testApp({ devIdentity: "alice" })
+    seedItem(db)
+    expect(KEY).toContain("/")
+    expect(KEY).toContain(":")
+
+    const res = await app.request(putUrl(KEY), {
+      method: "PUT",
+      body: JSON.stringify({ skippedVersion: "5.0.0" }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { decision: { key: string } }
+    expect(body.decision.key).toBe(KEY)
+  })
+})
+
+describe("PUT /api/decisions/:key -- body validation", () => {
+  async function put(app: Hono, body: unknown) {
+    return app.request(putUrl(KEY), { method: "PUT", body: JSON.stringify(body) })
+  }
+
+  it("422s an empty body", async () => {
+    const { app, db } = testApp({ devIdentity: "alice" })
+    seedItem(db)
+    expect((await put(app, {})).status).toBe(422)
+  })
+
+  it("422s a body with more than one recognized field", async () => {
+    const { app, db } = testApp({ devIdentity: "alice" })
+    seedItem(db)
+    expect(
+      (await put(app, { skippedVersion: "5.0.0", remindAt: "2099-01-01T00:00:00.000Z" })).status,
+    ).toBe(422)
+  })
+
+  it("422s clear: false", async () => {
+    const { app, db } = testApp({ devIdentity: "alice" })
+    seedItem(db)
+    expect((await put(app, { clear: false })).status).toBe(422)
+  })
+
+  it("422s a non-string skippedVersion", async () => {
+    const { app, db } = testApp({ devIdentity: "alice" })
+    seedItem(db)
+    expect((await put(app, { skippedVersion: 5 })).status).toBe(422)
+  })
+
+  it("propagates a decisions.ts validation failure (unrecognized version string) as 422", async () => {
+    const { app, db } = testApp({ devIdentity: "alice" })
+    seedItem(db)
+    expect((await put(app, { skippedVersion: "not-a-version" })).status).toBe(422)
+  })
+
+  it("422s invalid JSON", async () => {
+    const { app, db } = testApp({ devIdentity: "alice" })
+    seedItem(db)
+    const res = await app.request(putUrl(KEY), { method: "PUT", body: "{not json" })
+    expect(res.status).toBe(422)
+  })
+})
