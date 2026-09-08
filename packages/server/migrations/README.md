@@ -17,3 +17,7 @@ Copied verbatim from `Rackbops/artifact-console`'s `packages/host/migrations/REA
   failure rolls the whole file back. Do **not** put `BEGIN`/`COMMIT` in a file.
 - These files ship in the image as a sibling of `dist/` — the Dockerfile (K4-6) must copy them, or
   boot fails with `ENOENT`.
+- **Numbers start at `0001`, not `0000`.** `migrate.ts` rejects a `0000_*.sql` file outright
+  (an adversarial review on Tooling#478 K4-3 found that `0000` would otherwise be silently and
+  permanently skipped forever, since a fresh database's schema version already starts at 0 --
+  a trap this repo's `migrate.ts` closes but artifact-console's own copy does not yet).

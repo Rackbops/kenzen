@@ -26,6 +26,14 @@ export function migrate(db: DatabaseSync, migrationsDir: string): number {
       throw new Error(`invalid migration filename: ${file} (expected NNNN_name.sql)`)
     }
     const version = Number.parseInt(file.slice(0, 4), 10)
+    // version 0 can never apply: currentVersion() defaults to 0 for a fresh database, and the
+    // skip check below is `version <= currentVersion(db)` -- 0000_*.sql would be silently and
+    // permanently skipped on every boot, forever, with no error. An adversarial review on this
+    // PR (Tooling#478 K4-3) found this dormant trap (inherited from artifact-console's own
+    // migrate.ts, which has the identical boundary condition); numbering starts at 1.
+    if (version < 1) {
+      throw new Error(`invalid migration filename: ${file} (numbers start at 0001, not 0000)`)
+    }
     if (seen.has(version)) {
       throw new Error(`duplicate migration number ${file.slice(0, 4)}: ${file}`)
     }

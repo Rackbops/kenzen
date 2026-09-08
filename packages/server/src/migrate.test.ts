@@ -77,6 +77,16 @@ describe("migrate", () => {
     expect(() => migrate(db, dir)).toThrow(/invalid migration filename/)
   })
 
+  // A version-0 file would be silently and permanently skipped otherwise: currentVersion()
+  // defaults to 0 for a fresh database, so `version <= currentVersion(db)` is true forever.
+  // Caught by an adversarial review (Tooling#478 K4-3) as a dormant trap inherited from
+  // artifact-console's own migrate.ts.
+  it("a migration numbered 0000 is a hard error, not a silently-forever-skipped migration", () => {
+    const db = new DatabaseSync(":memory:")
+    const dir = migrationsDir({ "0000_zero.sql": "CREATE TABLE a(x);" })
+    expect(() => migrate(db, dir)).toThrow(/invalid migration filename.*numbers start at 0001/)
+  })
+
   // Backs kenzen#5's acceptance bullet: "a duplicate migration number is a hard boot error."
   it("a duplicate migration number is a hard error, not a silent skip", () => {
     const db = new DatabaseSync(":memory:")
