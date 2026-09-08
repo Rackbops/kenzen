@@ -1,6 +1,6 @@
 import { cx } from "@rackbops/ui-react"
 import type { ReactNode } from "react"
-import { Route, NavLink as RouterNavLink, Routes } from "react-router"
+import { Navigate, Route, NavLink as RouterNavLink, Routes } from "react-router"
 import { Decided } from "./routes/Decided.js"
 import { Dependabot } from "./routes/Dependabot.js"
 import { History } from "./routes/History.js"
@@ -35,7 +35,13 @@ export function App() {
       </nav>
       <main>
         <Routes>
-          <Route index element={<NeedsDecision />} />
+          {/* K4-7 review round 1, MEDIUM, live-verified: rendering <NeedsDecision/> directly
+              at the index route (instead of redirecting to its own path) meant landing on /
+              -- the app's natural URL -- showed real content with no nav item marked active,
+              since the only NavLink points at "needs-decision", never at "". A real redirect
+              makes the URL (and therefore the nav's isActive match) consistent regardless of
+              which of the two paths a visitor actually lands on. */}
+          <Route index element={<Navigate to="needs-decision" replace />} />
           <Route path="needs-decision" element={<NeedsDecision />} />
           <Route path="repos" element={<Repos />} />
           <Route path="decided" element={<Decided />} />

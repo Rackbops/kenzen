@@ -13,8 +13,11 @@ test("renders the nav for all five sections, and the index route shows Needs a d
   for (const label of ["Needs a decision", "Repos", "Decided", "Dependabot", "History"]) {
     expect(screen.getByRole("link", { name: label })).toBeInTheDocument()
   }
-  // The index route renders NeedsDecision's own fixture content.
+  // The index route redirects to needs-decision (K4-7 review round 1, MEDIUM): landing on /
+  // must mark the same nav item active as landing on /needs-decision directly, not leave
+  // every link unmarked.
   expect(screen.getByText(/Rackbops\/Tooling · pip-dep requests/)).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Needs a decision" })).toHaveClass("rb-link--active")
 })
 
 test("the Repos nav link is marked active on the /repos route, others are not", async () => {
