@@ -1,38 +1,190 @@
-import { Card } from "@rackbops/ui-react"
-import { fetchRepos, type RepoSummary } from "../api.js"
+import { Badge, Card } from "@rackbops/ui-react"
+import { type ReactNode, useMemo, useState } from "react"
+import { AdvisoryList } from "../AdvisoryList.js"
+import { fetchLatestSnapshotItems, fetchRepos, type ReportItem, type RepoSummary } from "../api.js"
+import { advisoryVariant, gapVariant } from "../badgeVariants.js"
+import { DataTable, type DataTableColumn } from "../components/DataTable.js"
+import { gapPriority } from "../gapPriority.js"
+import { applyItemFilters, type ItemFilterState, ItemFilters } from "../ItemFilters.js"
+import { sourceUrl } from "../sourceLink.js"
 import { useAsync } from "../useAsync.js"
 
 /**
- * Design.md section 6, section 2 ("Per repo") -- the K4-7 shell version: real data from the
- * shipped `/api/repos` (K4-4), one row per repo with its soundness line and role/gap counts.
- * The full per-item table (`kind · name · pinned · latest · gap · advisories · source`,
- * grouped by role, source/advisory links, floating-major display) is K4-8a's `DataTable` --
- * not built here, per design.md section 6's own "no bespoke shell: layout only."
+ * Design.md section 6, section 2 ("Per repo"): one table per repo, grouped by role, columns
+ * `kind · name · pinned · latest/latestInMajor · gap · advisories · source`; a floating-major
+ * pin shows `latestInMajor` and `latest` side by side. The soundness-line summary (K4-7/K4-4,
+ * unchanged) stays as each repo's card header; the full per-item table is new here (K4-8a).
+ *
+ * K4-8a review round 1 (HIGH): "floating-major" here means Tooling's `pinStyle: "major"`
+ * (software_inventory.py's `derive_pin_style`: a `^`-prefixed npm dep, a single-numeric-
+ * component Docker tag like `node:22`, a bare `vN` GitHub Action tag -- pinned to a major
+ * line, floating within it), NOT its `"floating"` enum value (reserved for genuinely
+ * unbounded pins -- branch names, `latest` tags, open `>=` ranges -- which never carry a
+ * `latestInMajor` at all). The original code checked `pinStyle === "floating"`, so the
+ * dual-version display never fired for any real major-pinned item -- 36.5% of a real 802-item
+ * snapshot by live count, confirmed against `research/software-inventory-and-update-
+ * surfacing.md`'s own "on 2, latest 3.x exists" framing, which is about major-line pins.
  */
-export function Repos() {
-  const state = useAsync(() => fetchRepos(), [])
 
-  if (state.status === "loading") {
-    return <p>Loading repos…</p>
+const ROLE_ORDER = ["runtime", "infra", "ci", "build", "test"]
+
+function pinnedCell(item: ReportItem): ReactNode {
+  const showBothVersions =
+    item.pinStyle === "major" && item.latestInMajor !== null && item.latestInMajor !== item.latest
+  if (!showBothVersions) {
+    return `${item.pinned ?? "?"} → ${item.latest ?? "?"}`
   }
-  if (state.status === "error") {
-    return <p role="alert">Could not load repos: {state.error.message}</p>
-  }
-  return <RepoList repos={state.data} />
+  return (
+    <>
+      {item.pinned ?? "?"} → {item.latestInMajor}{" "}
+      <span className="rb-muted">(latest: {item.latest ?? "?"})</span>
+    </>
+  )
 }
 
-function RepoList({ repos }: { repos: RepoSummary[] }) {
+const COLUMNS: DataTableColumn<ReportItem>[] = [
+  { key: "kind", header: "Kind", render: (i) => i.kind, sortValue: (i) => i.kind },
+  { key: "name", header: "Name", render: (i) => i.name, sortValue: (i) => i.name },
+  { key: "pinned", header: "Pinned → latest", render: pinnedCell },
+  {
+    key: "gap",
+    header: "Gap",
+    render: (i) =>
+      i.gap && i.gap !== "none" ? <Badge variant={gapVariant(i.gap)}>{i.gap}</Badge> : i.gap,
+    sortValue: (i) => gapPriority(i.gap),
+  },
+  {
+    key: "advisories",
+    header: "Advisories",
+    render: (i) =>
+      i.advisoryStatus && i.advisoryStatus !== "none" ? (
+        <>
+          <Badge variant={advisoryVariant(i.advisoryStatus)}>
+            {i.advisoryStatus === "affected" ? `${i.advisories.length} affected` : i.advisoryStatus}
+          </Badge>{" "}
+          <AdvisoryList advisories={i.advisories} />
+        </>
+      ) : null,
+  },
+  {
+    key: "source",
+    header: "Source",
+    render: (i) => {
+      const url = i.source ? sourceUrl(i.repo, i.source) : null
+      return url ? (
+        <a href={url} target="_blank" rel="noreferrer">
+          {i.source}
+        </a>
+      ) : (
+        (i.source ?? "?")
+      )
+    },
+  },
+]
+
+/**
+ * Two independent fetches, not one combined `Promise.all` (K4-8a review round 1, MEDIUM,
+ * live-reproduced): `Promise.all` rejects wholesale the instant either call rejects, so a
+ * transient failure of just one endpoint discarded the other's already-succeeded data and
+ * blanked the whole page. Each fetch now degrades independently.
+ *
+ * The two calls are unsynchronized -- no shared snapshot id -- so a repo's soundness-line
+ * counts (from /api/repos, computed live off "the latest snapshot" at request time) and its
+ * item table below (from this snapshot's items) could in principle reflect two different
+ * snapshots if an ingest lands in the gap between them (K4-8a review round 1, LOW, declined:
+ * fixing this needs a server-side snapshot-pinning query param, real scope beyond this child,
+ * against a window measured in milliseconds versus an ingest cadence measured in
+ * hours/days -- self-corrects on the next render regardless).
+ */
+export function Repos() {
+  const reposState = useAsync(() => fetchRepos(), [])
+  const itemsState = useAsync(() => fetchLatestSnapshotItems(), [])
+  const [filters, setFilters] = useState<ItemFilterState>({})
+
+  if (reposState.status === "loading" || itemsState.status === "loading") {
+    return <p>Loading repos…</p>
+  }
+  // repos is the backbone of this page (the list itself, the soundness lines) -- nothing
+  // meaningful renders without it, so its own failure stays a full-page error. items is
+  // additive detail on top of an already-rendered repo list -- its failure degrades to an
+  // inline alert alongside the repo list repos still gives us, not a blanked page.
+  if (reposState.status === "error") {
+    return <p role="alert">Could not load repos: {reposState.error.message}</p>
+  }
+  return (
+    <div>
+      {itemsState.status === "error" && (
+        <p role="alert">Could not load item details: {itemsState.error.message}</p>
+      )}
+      <RepoList
+        repos={reposState.data}
+        items={itemsState.status === "ready" ? (itemsState.data?.items ?? []) : []}
+        filters={filters}
+        onFiltersChange={setFilters}
+      />
+    </div>
+  )
+}
+
+function RepoList({
+  repos,
+  items,
+  filters,
+  onFiltersChange,
+}: {
+  repos: RepoSummary[]
+  items: ReportItem[]
+  filters: ItemFilterState
+  onFiltersChange: (next: ItemFilterState) => void
+}) {
+  const itemsByRepo = useMemo(() => {
+    const map = new Map<string, ReportItem[]>()
+    for (const item of items) {
+      const bucket = map.get(item.repo)
+      if (bucket) {
+        bucket.push(item)
+      } else {
+        map.set(item.repo, [item])
+      }
+    }
+    return map
+  }, [items])
+
   if (repos.length === 0) {
     return <p>No repos ingested yet.</p>
   }
   return (
     <div>
-      {repos.map((r) => (
-        <Card key={r.repo}>
-          <h3>{r.repo}</h3>
-          <p>{r.soundness}</p>
-        </Card>
+      <ItemFilters
+        items={items}
+        value={filters}
+        onChange={onFiltersChange}
+        dimensions={["kind", "role", "status"]}
+      />
+      {repos.map((repo) => (
+        <RepoCard
+          key={repo.repo}
+          repo={repo}
+          items={applyItemFilters(itemsByRepo.get(repo.repo) ?? [], filters)}
+        />
       ))}
     </div>
+  )
+}
+
+function RepoCard({ repo, items }: { repo: RepoSummary; items: ReportItem[] }) {
+  return (
+    <Card>
+      <h3>{repo.repo}</h3>
+      <p>{repo.soundness}</p>
+      <DataTable
+        columns={COLUMNS}
+        rows={items}
+        rowKey={(i) => i.key}
+        groupBy={(i) => i.role ?? "unknown"}
+        groupOrder={ROLE_ORDER}
+        emptyMessage="No items match these filters."
+      />
+    </Card>
   )
 }
