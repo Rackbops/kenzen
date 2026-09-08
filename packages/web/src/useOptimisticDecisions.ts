@@ -22,6 +22,17 @@ import { putDecision } from "./api.js"
  * PUT settles, so a stale response from a superseded call is silently dropped rather than
  * clobbering a newer one.
  *
+ * Round 3 review (HIGH, live-reproduced): that sequence number was keyed by item key ALONE,
+ * not by axis -- so starting an acknowledge while an approve on the SAME item was still in
+ * flight marked the approve call "superseded" too, even though the two axes are independent
+ * and both genuinely succeeded (design.md section 5: the gap trio and acknowledgedAdvisories
+ * don't conflict). The approve call's own real, successful confirmed response was then
+ * silently dropped when it arrived, leaving `updatedBy`/`approvedVersion` stuck on the
+ * optimistic placeholder forever -- only reachable once round 1 + round 2 together made both
+ * axes concurrently actionable AND correctly visible at once. `sequenceRef` is now keyed by
+ * `key:axis` (see `axisOf`) so the trio (mutually exclusive with itself, still correctly
+ * guarded) and acknowledgedAdvisories (independent) each get their own counter.
+ *
  * Round 2 review (MEDIUM, both reviewers independently found it live): the optimistic preview
  * used to rebuild from an all-null base regardless of what was already decided, so acting on
  * ONE axis (say, Skip) transiently wiped the OTHER axis's already-confirmed value (an
@@ -32,6 +43,18 @@ import { putDecision } from "./api.js"
  * (design.md section 5: the gap trio -- skip/remind/approve -- resets together since only one
  * can hold at a time; acknowledgedAdvisories is untouched by a trio write and vice versa).
  */
+
+/**
+ * Groups a patch's field into which of the two independent decision axes it belongs to
+ * (design.md section 5) -- the version trio (skippedVersion/remindAt/approvedVersion) is one
+ * axis, mutually exclusive with itself; acknowledgedAdvisories is the other, untouched by a
+ * trio write and vice versa. Used to scope the sequence guard in `apply()` below so two calls
+ * on DIFFERENT axes never mark each other superseded, while two calls on the SAME axis still
+ * correctly do.
+ */
+function axisOf(field: DecisionPatch["field"]): "gap" | "advisory" {
+  return field === "acknowledgedAdvisories" ? "advisory" : "gap"
+}
 
 export interface DecisionActionState {
   /** `items`, with any locally-applied (optimistic or confirmed) decision override merged in. */
@@ -104,7 +127,11 @@ export function useOptimisticDecisions(
 ): DecisionActionState {
   const [overrides, setOverrides] = useState<Map<string, ItemDecision | null>>(new Map())
   const [errors, setErrors] = useState<Map<string, string>>(new Map())
-  const sequenceRef = useRef<Map<string, number>>(new Map())
+  // Nested (not a `${key}:${axis}` string concatenation) so a real item key already containing
+  // ":" or "|" (source lines are "path:22", full keys are "repo|kind|name|source") can never
+  // collide with the separator -- see `apply()`'s own doc for why this needs to be per-axis
+  // at all, not just per-key.
+  const sequenceRef = useRef<Map<string, Map<"gap" | "advisory", number>>>(new Map())
 
   // A freshly (re)loaded item set (a new snapshot fetch) invalidates any in-flight session's
   // local overrides -- they're about a previous fetch's items, not this one. Biome's own
@@ -124,9 +151,12 @@ export function useOptimisticDecisions(
   )
 
   async function apply(key: string, patch: DecisionPatch): Promise<void> {
-    const mySequence = (sequenceRef.current.get(key) ?? 0) + 1
-    sequenceRef.current.set(key, mySequence)
-    const isCurrent = () => sequenceRef.current.get(key) === mySequence
+    const axis = axisOf(patch.field)
+    const keyAxisSequences = sequenceRef.current.get(key) ?? new Map()
+    sequenceRef.current.set(key, keyAxisSequences)
+    const mySequence = (keyAxisSequences.get(axis) ?? 0) + 1
+    keyAxisSequences.set(axis, mySequence)
+    const isCurrent = () => sequenceRef.current.get(key)?.get(axis) === mySequence
 
     // `effectiveItems` already carries whatever this key's current decision is -- confirmed
     // from `items`, or a still-in-flight optimistic value from a previous `apply()` call on the

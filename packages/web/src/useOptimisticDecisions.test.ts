@@ -240,6 +240,68 @@ test("a later action wins over an earlier one's response arriving after it, on t
   expect(result.current.items[0]?.decision?.skippedVersion).toBeNull()
 })
 
+test("two calls on DIFFERENT, non-conflicting axes for the same key both commit their own confirmed response -- round 3 review, HIGH: sequenceRef was keyed only by item key, so starting the acknowledge axis before the approve axis's PUT resolved marked approve's own call superseded and silently dropped its real, successful response", async () => {
+  // Unlike the sibling test above (skip vs remind -- genuinely the SAME mutually-exclusive gap
+  // axis, where only the newer of the two SHOULD win), approvedVersion and acknowledgedAdvisories
+  // are independent axes per design.md section 5 -- both actions are meant to succeed and both
+  // confirmed responses must land, not just whichever fired last.
+  let resolveApprove: (value: api.ItemDecision | null) => void = () => {}
+  let resolveAcknowledge: (value: api.ItemDecision | null) => void = () => {}
+  const putDecision = vi.spyOn(api, "putDecision")
+  putDecision.mockReturnValueOnce(
+    new Promise<api.ItemDecision | null>((resolve) => {
+      resolveApprove = resolve
+    }),
+  )
+  putDecision.mockReturnValueOnce(
+    new Promise<api.ItemDecision | null>((resolve) => {
+      resolveAcknowledge = resolve
+    }),
+  )
+
+  const { result } = renderHook(() => useOptimisticDecisions([item({ key: "a" })], 1))
+
+  act(() => {
+    void result.current.apply("a", { field: "approvedVersion", value: "2.0.0" })
+  })
+  act(() => {
+    void result.current.apply("a", { field: "acknowledgedAdvisories", value: ["GHSA-1"] })
+  })
+
+  // Acknowledge resolves first -- its own response should land, same as always.
+  await act(async () => {
+    resolveAcknowledge({
+      ...decision,
+      skippedVersion: null,
+      acknowledgedAdvisories: ["GHSA-1"],
+      updatedBy: "roshne",
+    })
+    await Promise.resolve()
+  })
+  await waitFor(() =>
+    expect(result.current.items[0]?.decision?.acknowledgedAdvisories).toEqual(["GHSA-1"]),
+  )
+
+  // Approve resolves LAST, but it is NOT a stale/superseded call on the SAME axis -- it is an
+  // entirely independent axis that also genuinely succeeded. Its confirmed response must still
+  // land: updatedBy must move off the optimistic placeholder, and approvedVersion must be set.
+  await act(async () => {
+    resolveApprove({
+      ...decision,
+      skippedVersion: null,
+      approvedVersion: "2.0.0",
+      approvedFromPinned: "2.31.0",
+      acknowledgedAdvisories: ["GHSA-1"],
+      updatedBy: "roshne",
+    })
+    await Promise.resolve()
+  })
+
+  expect(result.current.items[0]?.decision?.approvedVersion).toBe("2.0.0")
+  expect(result.current.items[0]?.decision?.updatedBy).toBe("roshne")
+  expect(result.current.items[0]?.decision?.acknowledgedAdvisories).toEqual(["GHSA-1"])
+})
+
 test("a stale rejection arriving after a newer action does not overwrite the newer state or set a stale error", async () => {
   let rejectFirst: (err: Error) => void = () => {}
   const putDecision = vi.spyOn(api, "putDecision")
