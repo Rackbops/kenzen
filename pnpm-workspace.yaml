@@ -12,7 +12,7 @@ allowBuilds:
 # Matches Rackbops/artifact-console's own pins (Tooling#473 design.md section 3).
 catalog:
   typescript: ^5.7.0
-  vitest: ^3.0.0
+  vitest: ^4.0.0
   "@types/node": ^26.0.0
 
 minimumReleaseAgeExclude:
