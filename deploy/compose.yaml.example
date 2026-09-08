@@ -20,9 +20,15 @@ services:
     # start without it (main.ts's requireIngestToken, K4-4) -- there is no config.toml fallback
     # for a secret. The image already defaults KENZEN_HOST=0.0.0.0, KENZEN_CONFIG_DIR=/config,
     # KENZEN_STATE_DIR=/state, so nothing else needs setting here.
+    # KENZEN_ACCESS_TEAM_DOMAIN/KENZEN_ACCESS_AUD (config.ts, both-or-neither) are neither of
+    # them secrets, but both are deployment-specific -- without them PUT /api/decisions/* has no
+    # verified Access identity path (K4-6c, kenzen#44: found live when this was missing on the
+    # real deploy; see deploy/.env.example for the KENZEN_DEV_IDENTITY caveat).
     environment:
       - KENZEN_HOST=${KENZEN_HOST:-0.0.0.0}
       - KENZEN_INGEST_TOKEN=${KENZEN_INGEST_TOKEN}
+      - KENZEN_ACCESS_TEAM_DOMAIN=${KENZEN_ACCESS_TEAM_DOMAIN}
+      - KENZEN_ACCESS_AUD=${KENZEN_ACCESS_AUD}
     volumes:
       # Named volume: Docker creates it owning the image's dir uid, so the non-root container
       # user can write kenzen.db (WAL SQLite, design.md section 3/7).
