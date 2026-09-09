@@ -144,6 +144,17 @@
   text-overflow: ellipsis;
 }
 
+/* Review round 1, HIGH, live-reasoned (not yet live-reproduced): an ancestor's `overflow:
+ * hidden` clips a descendant's painted box even when that descendant is absolutely positioned
+ * and its own containing block is unaffected -- clipping follows the ancestor chain, not the
+ * containing-block chain. The Skip menu's `.kz-menu__panel` (kenzen#64) lives inside the Actions
+ * cell and, open, is far taller than the cell's own in-flow row height, so the blanket rule
+ * above would clip it to a sliver. Actions is always the last column in both layouts and holds
+ * no long text needing ellipsis, so it's the one cell exempted. */
+.kz-items-table td:last-child {
+  overflow: visible;
+}
+
 /* Repos (7 cols): Kind / Name / Pinned->latest / Gap / Advisories / Source / Actions. */
 .kz-items-table th:nth-child(1),
 .kz-items-table td:nth-child(1) {
