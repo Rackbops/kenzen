@@ -147,9 +147,16 @@ describe.each(["koi-banner.png", "koi-banner.webp"])("%s", (file) => {
       .toBuffer({ resolveWithObject: true })
     let darkestPartialAlphaLightness = 255
     for (let i = 0; i < data.length; i += info.channels) {
-      const alpha = data[i + 3]
+      // noUncheckedIndexedAccess: these reads are in-bounds by construction (`i` never
+      // exceeds `data.length - info.channels`, and sharp's raw buffer is exactly
+      // `width * height * channels` bytes with no gaps) -- `?? 0` satisfies the type checker
+      // without changing behavior for any real pixel.
+      const alpha = data[i + 3] ?? 0
       if (alpha > 0 && alpha < 255) {
-        const lightness = (data[i] + data[i + 1] + data[i + 2]) / 3
+        const r = data[i] ?? 0
+        const g = data[i + 1] ?? 0
+        const b = data[i + 2] ?? 0
+        const lightness = (r + g + b) / 3
         darkestPartialAlphaLightness = Math.min(darkestPartialAlphaLightness, lightness)
       }
     }
