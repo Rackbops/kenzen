@@ -105,7 +105,7 @@ export function DecisionActions({
   return (
     <span>
       {(showGapButtons || showAcknowledgeButton) && (
-        <span>
+        <span className="kz-actions">
           {showGapButtons && (
             // kenzen#64: native <details> instead of a hand-rolled dropdown -- keyboard-operable
             // (Enter/Space toggles the summary, native focus order) and closes for free the

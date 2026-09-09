@@ -155,7 +155,12 @@
   overflow: visible;
 }
 
-/* Repos (7 cols): Kind / Name / Pinned->latest / Gap / Advisories / Source / Actions. */
+/* Repos (7 cols): Kind / Name / Pinned->latest / Gap / Advisories / Source / Actions.
+ * Round 2, live-reproduced: at the original 20%, the three-control Actions case (Skip ▾ /
+ * Approve / Acknowledge, kenzen#64) wrapped to two lines -- the buttons need ~236px combined and
+ * the column was only ~224px at a 1120px table. Widened to 24% (taken from Name/Pinned/Source),
+ * paired with `.kz-actions`'s own `gap` below (the buttons had none since #64 round 1 dropped
+ * the unstyled `kz-actions__controls` class). */
 .kz-items-table th:nth-child(1),
 .kz-items-table td:nth-child(1) {
   width: 8%;
@@ -163,7 +168,7 @@
 
 .kz-items-table th:nth-child(2),
 .kz-items-table td:nth-child(2) {
-  width: 21%;
+  width: 18%;
 }
 
 .kz-items-table th:nth-child(3),
@@ -183,18 +188,18 @@
 
 .kz-items-table th:nth-child(6),
 .kz-items-table td:nth-child(6) {
-  width: 17%;
+  width: 16%;
 }
 
 .kz-items-table th:nth-child(7),
 .kz-items-table td:nth-child(7) {
-  width: 20%;
+  width: 24%;
 }
 
 /* Needs-a-decision (8 cols, extra Repo column first): Repo / Kind / Name / Pinned->latest / Gap /
  * Advisories / Source / Actions -- same specificity as the base block above, so source order
  * (this block comes after) is what makes these win for nth-child(1..7) on the wrapper that
- * carries both classes. */
+ * carries both classes. Actions widened to 24% for the same reason as the Repos set above. */
 .kz-items-table--repo th:nth-child(1),
 .kz-items-table--repo td:nth-child(1) {
   width: 12%;
@@ -207,7 +212,7 @@
 
 .kz-items-table--repo th:nth-child(3),
 .kz-items-table--repo td:nth-child(3) {
-  width: 17%;
+  width: 15%;
 }
 
 .kz-items-table--repo th:nth-child(4),
@@ -227,12 +232,26 @@
 
 .kz-items-table--repo th:nth-child(7),
 .kz-items-table--repo td:nth-child(7) {
-  width: 15%;
+  width: 13%;
 }
 
 .kz-items-table--repo th:nth-child(8),
 .kz-items-table--repo td:nth-child(8) {
-  width: 20%;
+  width: 24%;
+}
+
+/* kenzen#70 round 2, live-reproduced: DecisionActions.tsx's controls span had no gap between
+ * Skip ▾ / Approve / Acknowledge (kenzen#64 round 1 dropped the unstyled `kz-actions__controls`
+ * class as dead CSS) -- harmless while the Actions column happened to have slack, but the fixed
+ * width above is tight enough that a plain inline span wrapped the three-control case onto two
+ * lines. `inline-flex` + `flex-wrap: nowrap` keeps them on one row and `gap` replaces the
+ * spacing #64 lost. */
+.kz-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--rb-space-1);
+  white-space: nowrap;
 }
 
 /* kenzen#64: DataTable's own `sticky` prop wraps the table in a second, inner scroll box

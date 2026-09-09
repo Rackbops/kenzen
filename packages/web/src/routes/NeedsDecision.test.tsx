@@ -135,6 +135,9 @@ test("kenzen#70: the table is wrapped for the shared fixed-column layout, with t
   const wrapper = container.querySelector(".kz-items-table")
   expect(wrapper).not.toBeNull()
   expect(wrapper).toHaveClass("kz-items-table--repo")
+  // kenzen#70 round 2: the controls span needs its own non-wrapping row (`.kz-actions`) now that
+  // the fixed-width Actions column is tight enough to wrap a three-control case.
+  expect(container.querySelector(".kz-actions")).not.toBeNull()
 })
 
 test("an affected item is prioritized above a gapped item in row order", async () => {

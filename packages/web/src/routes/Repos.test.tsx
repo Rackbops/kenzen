@@ -63,13 +63,16 @@ test("kenzen#70: each repo's table is wrapped for the shared fixed-column layout
   vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
     snapshot: SNAPSHOT,
-    items: [item({ key: "a", name: "requests" })],
+    items: [item({ key: "a", name: "requests", gap: "minor" })],
   })
   const { container } = render(<Repos />)
   await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument())
   const wrapper = container.querySelector(".kz-items-table")
   expect(wrapper).not.toBeNull()
   expect(wrapper).not.toHaveClass("kz-items-table--repo")
+  // kenzen#70 round 2: the controls span needs its own non-wrapping row (`.kz-actions`) now that
+  // the fixed-width Actions column is tight enough to wrap a three-control case.
+  expect(container.querySelector(".kz-actions")).not.toBeNull()
 })
 
 test("renders an empty state when there are no repos yet", async () => {
