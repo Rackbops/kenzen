@@ -8,7 +8,7 @@
 # release.yml's v0.1.0-alpha.2 run from 4 minutes to over 45. Pinning the build stage to the
 # builder's own (native) platform keeps `pnpm -r build` off QEMU entirely; only the runtime
 # stage (a plain COPY + adduser, no compilation) still runs per target.
-FROM --platform=$BUILDPLATFORM node:24-alpine AS build
+FROM --platform=$BUILDPLATFORM node:26-alpine AS build
 WORKDIR /repo
 RUN corepack enable
 COPY . .
@@ -24,7 +24,7 @@ RUN pnpm -r build
 RUN pnpm --filter @kenzen/server deploy --prod --legacy /prod/server
 
 # --- runtime: non-root, just the deploy bundle ---
-FROM node:24-alpine AS runtime
+FROM node:26-alpine AS runtime
 # The container binds all interfaces so the cloudflared sidecar (or, here, the ratchet's
 # published port) reaches it; config.ts's own default (127.0.0.1) is the safe fallback for a
 # bare `node dist/main.js` run outside a container, not for this image.
