@@ -33,3 +33,32 @@
   flex: 1 1 12rem;
   min-width: 12rem;
 }
+
+/* kenzen#63: the Advisories cell's collapsed line (Badge + closed <details>) must never set
+ * the row's height on its own -- the caller wraps its cell content in this class. The open
+ * list (.kz-advisories__list) overrides back to a normal wrap so it isn't forced onto one
+ * unbroken line by this same rule (white-space is inherited). */
+.kz-advisories-cell {
+  white-space: nowrap;
+}
+
+.kz-advisories {
+  display: inline;
+}
+
+.kz-advisories > summary {
+  display: inline;
+  cursor: pointer;
+  color: var(--rb-text-faint);
+  font-size: var(--rb-text-sm);
+}
+
+.kz-advisories__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rb-space-2);
+  list-style: none;
+  padding: 0;
+  margin: var(--rb-space-1) 0 0;
+  white-space: normal;
+}

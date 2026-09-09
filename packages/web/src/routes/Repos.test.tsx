@@ -242,6 +242,9 @@ test("a historical-only item's advisories render as links, not just the status w
   await waitFor(() => expect(screen.getByText("cloudflare/cloudflared")).toBeInTheDocument())
   const table = screen.getByRole("table")
   expect(within(table).getByText("historical-only")).toBeInTheDocument()
+  // kenzen#63: the id list is collapsed behind a disclosure by default -- open it before
+  // asserting on the link.
+  fireEvent.click(within(table).getByText("show ids"))
   expect(within(table).getByRole("link", { name: "GHSA-hgwp-4vp4-qmm2" })).toHaveAttribute(
     "href",
     "https://github.com/advisories/GHSA-hgwp-4vp4-qmm2",
