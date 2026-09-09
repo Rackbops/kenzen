@@ -3,7 +3,13 @@ import { MemoryRouter } from "react-router"
 import { afterEach, expect, test, vi } from "vitest"
 import { App } from "./App.js"
 import * as api from "./api.js"
-import { BUNDLED_THEMES, DEFAULT_THEME, THEME_LOADERS, THEME_STORAGE_KEY } from "./theme.js"
+import {
+  BUNDLED_THEMES,
+  DEFAULT_THEME,
+  orderedForPicker,
+  THEME_LOADERS,
+  THEME_STORAGE_KEY,
+} from "./theme.js"
 
 // kenzen#82: the picker writes real document/localStorage state -- reset both after every
 // test in this file so a theme choice in one test can't leak into the next.
@@ -122,7 +128,7 @@ test("navigating to /history renders the History route's content", async () => {
 
 // --- kenzen#82: the header theme picker ---------------------------------------------
 
-test("the theme select lists every bundled theme", async () => {
+test("the theme select lists every bundled theme, Kenzen pair first then alphabetical", async () => {
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
   render(
     <MemoryRouter initialEntries={["/"]}>
@@ -131,7 +137,7 @@ test("the theme select lists every bundled theme", async () => {
   )
   const select = await screen.findByLabelText("Theme")
   const optionValues = Array.from(select.querySelectorAll("option")).map((o) => o.value)
-  expect(optionValues).toEqual([...BUNDLED_THEMES])
+  expect(optionValues).toEqual(orderedForPicker(BUNDLED_THEMES))
 })
 
 test("choosing a theme sets data-rb-style on the root and persists it to localStorage", async () => {
