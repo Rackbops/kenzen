@@ -56,8 +56,15 @@ function decisionJson(decision: DecisionRow): Record<string, unknown> {
  * takes precedence when present -- verified via the injected `verifyAccessJwt`, never trusted
  * unverified, and never overridden by `devIdentity` even if that's also set (design.md
  * section 11 / plan.md K4-5: "refused when a JWT is present"). No header falls back to
- * `devIdentity`. Either path can end in "no identity" (`null`), which the caller turns into a
+ * `devIdentity`. Every path can end in "no identity" (`null`), which the caller turns into a
  * 401 -- a write with no attributable identity is never allowed through.
+ *
+ * kenzen#57: a verified Access **service token** identity is rejected outright
+ * (`identity.isServiceToken`), and so is any identity whose `email || sub` still resolves to
+ * empty/whitespace after that check -- decisions are a human-only write path, and a service
+ * token's `sub: ""` + absent `email` previously slipped past the old `=== null` guard (a string,
+ * just an empty one) and got recorded as `updatedBy: ""`. Both rejections log a reason, never
+ * the token itself.
  */
 async function resolveUpdatedBy(
   c: Context,
@@ -69,11 +76,23 @@ async function resolveUpdatedBy(
       return null
     }
     const identity = await options.verifyAccessJwt(jwt)
+    if (!identity) {
+      return null
+    }
+    if (identity.isServiceToken) {
+      options.log.warn("decision rejected: no attributable identity", { reason: "service token" })
+      return null
+    }
     // `||`, not `??`: a token carrying a literal empty-string email claim (not expected from
     // real Cloudflare Access, but not ruled out by the type) must fall back to sub the same
     // way an absent claim does, rather than recording updatedBy as "" (Tooling#478 K4-5
     // review round 1, LOW).
-    return identity ? identity.email || identity.sub : null
+    const updatedBy = identity.email || identity.sub
+    if (updatedBy.trim() === "") {
+      options.log.warn("decision rejected: no attributable identity", { reason: "empty claims" })
+      return null
+    }
+    return updatedBy
   }
   return options.devIdentity ?? null
 }
