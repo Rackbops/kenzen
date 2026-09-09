@@ -6,10 +6,15 @@ import { describe, expect, test } from "vitest"
 /**
  * kenzen#89: smoke-tests the committed OUTPUT of `brand/derive.py` (run by hand -- Python/
  * Pillow isn't part of this repo's JS toolchain or CI, so this validates the checked-in PNGs
- * rather than re-running the derivation). Confirms each asset is the size it claims to be and
- * genuinely has a real alpha channel -- some fully transparent pixels (the removed
- * checkerboard) and some fully opaque ones (the fish itself) -- rather than e.g. a flat
- * all-transparent or all-opaque image, which would mean the cutout silently failed.
+ * rather than re-running the derivation). Confirms each asset is the size it claims to be.
+ *
+ * The four transparent exports additionally get a real-alpha check: some fully transparent
+ * pixels (the removed checkerboard) and some fully opaque ones (the fish itself), rather than
+ * e.g. a flat all-transparent or all-opaque image, which would mean the cutout silently
+ * failed. `apple-touch-icon.png` is excluded from that check on purpose -- Apple's own HIG
+ * says a touch icon shouldn't carry transparency (iOS can render the empty area black instead
+ * of compositing it), so `derive.py` flattens that one target onto a solid navy background and
+ * ships it with no alpha channel at all.
  */
 const BRAND_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -27,13 +32,17 @@ const ASSETS = [
   { file: "apple-touch-icon.png", size: 180 },
 ]
 
+const TRANSPARENT_ASSETS = ASSETS.filter((a) => a.file !== "apple-touch-icon.png")
+
 describe.each(ASSETS)("$file", ({ file, size }) => {
   test(`is exactly ${size}x${size}`, async () => {
     const meta = await sharp(path.join(BRAND_DIR, file)).metadata()
     expect(meta.width).toBe(size)
     expect(meta.height).toBe(size)
   })
+})
 
+describe.each(TRANSPARENT_ASSETS)("$file", ({ file }) => {
   test("has a real alpha channel: some fully transparent pixels and some fully opaque ones", async () => {
     const { data, info } = await sharp(path.join(BRAND_DIR, file))
       .ensureAlpha()
@@ -51,4 +60,9 @@ describe.each(ASSETS)("$file", ({ file, size }) => {
     expect(sawTransparent).toBe(true)
     expect(sawOpaque).toBe(true)
   })
+})
+
+test("apple-touch-icon.png deliberately carries no alpha channel at all", async () => {
+  const meta = await sharp(path.join(BRAND_DIR, "apple-touch-icon.png")).metadata()
+  expect(meta.hasAlpha).toBe(false)
 })

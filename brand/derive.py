@@ -14,8 +14,10 @@ Run with (Windows, this machine -- see the repo CLAUDE.md on Python invocation):
 Requires Pillow and numpy (not repo dependencies -- a one-off asset-derivation script, run
 by hand when the source art changes, not part of any build).
 
-Writes packages/web/public/brand/koi-{512,192,64,32}.png and apple-touch-icon.png (180),
-each the fish's own aspect ratio centered in a transparent square canvas.
+Writes packages/web/public/brand/koi-{512,192,64,32}.png (transparent, the fish's own aspect
+ratio centered in the square canvas) and apple-touch-icon.png (180, same crop, but flattened
+onto a solid navy background -- iOS doesn't compositing-blend a transparent touch icon, it can
+render the empty area black instead, per Apple's own HIG).
 """
 
 from pathlib import Path
@@ -33,13 +35,16 @@ CHROMA_THRESHOLD = 20.0  # max(R,G,B) - min(R,G,B); real fish colour is always w
 LIGHTNESS_THRESHOLD = 140.0  # (max+min)/2; checkerboard tones measured at ~200 and ~255
 FEATHER_PX = 2
 CROP_PADDING_FRAC = 0.03  # a little breathing room around the fish's own bounding box
+# brand/README.md's measured palette -- deep navy/midnight -- used only as the solid backing
+# for apple-touch-icon.png below, never as a fill on the transparent exports.
+TOUCH_ICON_BACKGROUND = (10, 32, 56)
 
 TARGETS = [
-    ("koi-512.png", 512),
-    ("koi-192.png", 192),
-    ("koi-64.png", 64),
-    ("koi-32.png", 32),
-    ("apple-touch-icon.png", 180),
+    ("koi-512.png", 512, None),
+    ("koi-192.png", 192, None),
+    ("koi-64.png", 64, None),
+    ("koi-32.png", 32, None),
+    ("apple-touch-icon.png", 180, TOUCH_ICON_BACKGROUND),
 ]
 
 
@@ -75,24 +80,29 @@ def crop_to_content(rgba: Image.Image, padding_frac: float) -> Image.Image:
     return rgba.crop((left, top, right, bottom))
 
 
-def fit_into_square(img: Image.Image, size: int) -> Image.Image:
+def fit_into_square(
+    img: Image.Image, size: int, background: tuple[int, int, int] | None = None
+) -> Image.Image:
     """`img` resized (preserving aspect ratio) to fit within `size`x`size`, centered on a
-    transparent canvas of exactly that size."""
+    square canvas of exactly that size. `background=None` (the default) keeps the canvas
+    transparent; a solid `(r, g, b)` flattens the result instead, for the one target (the
+    apple touch icon) that must not carry alpha."""
     scale = size / max(img.width, img.height)
     new_w = max(1, round(img.width * scale))
     new_h = max(1, round(img.height * scale))
     resized = img.resize((new_w, new_h), Image.LANCZOS)
-    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    canvas_color = (*background, 255) if background is not None else (0, 0, 0, 0)
+    canvas = Image.new("RGBA", (size, size), canvas_color)
     canvas.paste(resized, ((size - new_w) // 2, (size - new_h) // 2), resized)
-    return canvas
+    return canvas.convert("RGB") if background is not None else canvas
 
 
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     source = Image.open(SOURCE)
     cutout = crop_to_content(remove_checkerboard(source), CROP_PADDING_FRAC)
-    for filename, size in TARGETS:
-        fit_into_square(cutout, size).save(OUT_DIR / filename)
+    for filename, size, background in TARGETS:
+        fit_into_square(cutout, size, background).save(OUT_DIR / filename)
         print(f"wrote {OUT_DIR / filename} ({size}x{size})")
 
 
