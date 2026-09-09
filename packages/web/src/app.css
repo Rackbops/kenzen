@@ -1,0 +1,35 @@
+/* kenzen#60: the app shell's structural layout -- a grid/flex arrangement no theme's design.md
+ * has an opinion on (STANDARD.md section 12), so it lives here rather than in a theme's own
+ * package CSS. `kz-*` classes only, `--rb-*` tokens only (STANDARD.md section 15: "overrides by
+ * adding, not editing; uses tokens, not literals") -- the one exception is `.kz-main`'s
+ * max-width, a Kenzen-specific reading-width decision with no token to express it. */
+
+.kz-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--rb-space-3);
+  padding: var(--rb-space-4);
+}
+
+.kz-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--rb-space-4);
+}
+
+/* One wrapping flex row of ItemFilters' Fields, so the four filter selects share a line at
+ * desktop width instead of stacking (kenzen#60's diagnosis: ItemFilters lays out its Fields
+ * with nothing arranging them). Each Field keeps a minimum comfortable width and grows to
+ * fill remaining space rather than all sharing it equally regardless of count. */
+.kz-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rb-space-3);
+}
+
+.kz-filters > .rb-field {
+  flex: 1 1 12rem;
+  min-width: 12rem;
+}

@@ -60,7 +60,7 @@ export function ItemFilters({
   dimensions: ItemFilterDimension[]
 }) {
   return (
-    <div>
+    <div className="kz-filters">
       {dimensions.map((dimension) => (
         <Field key={dimension}>
           <Label htmlFor={`filter-${dimension}`}>{LABELS[dimension]}</Label>
