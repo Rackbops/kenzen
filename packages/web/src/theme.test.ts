@@ -63,6 +63,12 @@ test("DEFAULT_THEME is Kenzen's own brand pair's light half, not a library defau
   expect(DEFAULT_THEME).toBe("kenzen-cyberhealth")
 })
 
+test("DEFAULT_THEME is always a bundled theme", () => {
+  // resolveTheme returns DEFAULT_THEME unconditionally on the unconfigured path (theme.ts
+  // ~line 111); an unbundled default would ship an unstyled page with an empty picker value.
+  expect(BUNDLED_THEMES).toContain(DEFAULT_THEME)
+})
+
 test("resolveTheme falls back to the default when unset", () => {
   expect(resolveTheme({})).toBe(DEFAULT_THEME)
   expect(resolveTheme({ VITE_KENZEN_THEME: undefined })).toBe(DEFAULT_THEME)
