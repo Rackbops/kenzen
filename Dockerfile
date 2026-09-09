@@ -8,9 +8,14 @@
 # release.yml's v0.1.0-alpha.2 run from 4 minutes to over 45. Pinning the build stage to the
 # builder's own (native) platform keeps `pnpm -r build` off QEMU entirely; only the runtime
 # stage (a plain COPY + adduser, no compilation) still runs per target.
-FROM --platform=$BUILDPLATFORM node:24-alpine AS build
+FROM --platform=$BUILDPLATFORM node:26-alpine AS build
 WORKDIR /repo
-RUN corepack enable
+# Corepack was removed from Node core as of Node 25 -- there is no `corepack` binary to
+# enable on 25+, so pnpm is installed directly instead. Reading the version from
+# package.json's own packageManager field (rather than a second pin here) keeps Renovate's
+# pnpm bumps flowing through the one field this repo already tracks them in.
+COPY package.json ./
+RUN npm install -g pnpm@"$(node -p "require('./package.json').packageManager.split('@')[1]")"
 COPY . .
 RUN pnpm install --frozen-lockfile
 # One recursive build across the workspace (matching Rackbops/artifact-console's Dockerfile):
@@ -24,7 +29,7 @@ RUN pnpm -r build
 RUN pnpm --filter @kenzen/server deploy --prod --legacy /prod/server
 
 # --- runtime: non-root, just the deploy bundle ---
-FROM node:24-alpine AS runtime
+FROM node:26-alpine AS runtime
 # The container binds all interfaces so the cloudflared sidecar (or, here, the ratchet's
 # published port) reaches it; config.ts's own default (127.0.0.1) is the safe fallback for a
 # bare `node dist/main.js` run outside a container, not for this image.
@@ -42,6 +47,7 @@ USER kenzen
 EXPOSE 8686
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:8686/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-# node:sqlite is flagless on Node 24. main.js resolves ../public, ../migrations, ../package.json
+# node:sqlite is flagless on Node 24+ (verified: no breaking DatabaseSync/StatementSync changes
+# through Node 26). main.js resolves ../public, ../migrations, ../package.json
 # (version.ts) -- all three must ship as siblings of dist/, or boot 404s/ENOENTs (migrations/README.md).
 CMD ["node", "dist/main.js"]

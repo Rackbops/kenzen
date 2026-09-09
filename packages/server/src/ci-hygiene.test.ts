@@ -77,7 +77,14 @@ describe("Dockerfile hygiene", () => {
     // build stage under QEMU emulation, which took release.yml's v0.1.0-alpha.2 run from 4
     // minutes to over 45. Only the `build` stage is pinned -- `runtime` stays per-target since
     // it's just COPY + adduser, no compilation.
-    expect(dockerfile).toMatch(/^FROM --platform=\$BUILDPLATFORM node:24-alpine AS build$/m)
+    expect(dockerfile).toMatch(/^FROM --platform=\$BUILDPLATFORM node:26-alpine AS build$/m)
+  })
+
+  it("installs pnpm from package.json's packageManager field, not corepack (removed from Node core in 25+)", () => {
+    expect(dockerfile).toMatch(
+      /npm install -g pnpm@.*require\('\.\/package\.json'\)\.packageManager/,
+    )
+    expect(dockerfile).not.toMatch(/corepack enable/)
   })
 })
 
