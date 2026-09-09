@@ -323,3 +323,12 @@
   line-height: 1.2;
   margin: 0 0 var(--rb-space-2);
 }
+
+/* kenzen#92: the koi banner sits below the kanji heading, above its caption. max-width: 100%
+ * (never a fixed px width) so it shrinks with a narrow viewport instead of overflowing --
+ * the source is exactly 1024px wide and there is no 2x, so it never grows past that. */
+.kz-empty-state__banner {
+  max-width: 100%;
+  height: auto;
+  margin: 0 0 var(--rb-space-2);
+}
