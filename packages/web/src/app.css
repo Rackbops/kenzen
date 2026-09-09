@@ -53,14 +53,22 @@
   font-size: var(--rb-text-sm);
 }
 
+/* kenzen#64 round 2, live-reproduced: same defect as .kz-menu__panel below -- an unconditional
+ * `display: flex` here overrode the native `details:not([open]) > *:not(summary){display:none}`
+ * hiding (author CSS always wins over user-agent CSS regardless of specificity), so this id list
+ * was always laid out and inflated every advisory row's height even while collapsed. Scoped to
+ * `[open]` so the UA rule hides it the rest of the time. */
 .kz-advisories__list {
-  display: flex;
   flex-wrap: wrap;
   gap: var(--rb-space-2);
   list-style: none;
   padding: 0;
   margin: var(--rb-space-1) 0 0;
   white-space: normal;
+}
+
+.kz-advisories[open] > .kz-advisories__list {
+  display: flex;
 }
 
 /* kenzen#64: the Skip control is a native <details> so it's keyboard-operable and closes for
