@@ -374,6 +374,52 @@ test("the repo filter narrows the rendered rows", async () => {
   expect(screen.getByText("in-kenzen")).toBeInTheDocument()
 })
 
+test("kenzen#107: a filter combination matching nothing shows a message, not a silently empty table", async () => {
+  const snapshot = {
+    snapshotId: 1,
+    generatedAt: "2026-09-08T00:00:00Z",
+    inventoryItems: 2,
+    summary: {},
+  }
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot,
+    items: [
+      item({
+        key: "a",
+        name: "in-tooling",
+        repo: "Rackbops/Tooling",
+        kind: "pip-dep",
+        advisoryStatus: "affected",
+      }),
+      item({
+        key: "b",
+        name: "in-kenzen",
+        repo: "Rackbops/kenzen",
+        kind: "npm-dep",
+        advisoryStatus: "affected",
+      }),
+    ],
+  })
+  render(<NeedsDecision />)
+  await waitFor(() => expect(screen.getByText("in-tooling")).toBeInTheDocument())
+
+  // Each value alone is a real option (present on one of the two items) -- the combination of
+  // BOTH is what matches nothing, not an out-of-range select value.
+  fireEvent.change(screen.getByLabelText("Repo"), { target: { value: "Rackbops/kenzen" } })
+  fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "pip-dep" } })
+
+  expect(screen.queryByText("in-tooling")).not.toBeInTheDocument()
+  expect(screen.queryByText("in-kenzen")).not.toBeInTheDocument()
+  expect(screen.getByText("No items match these filters.")).toBeInTheDocument()
+  // The positive empty state (kanji + banner) is reserved for "no candidates at all" -- it
+  // must NOT appear here, since there ARE candidates, just none matching this filter combo.
+  expect(screen.queryByText("The stream is clean.")).not.toBeInTheDocument()
+
+  fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "" } })
+  expect(screen.queryByText("No items match these filters.")).not.toBeInTheDocument()
+  expect(screen.getByText("in-kenzen")).toBeInTheDocument()
+})
+
 test("end to end: skipping an item on the real page calls putDecision and removes the row", async () => {
   // Integration test, not another unit test for a piece already covered elsewhere
   // (DecisionActions.test.tsx, useOptimisticDecisions.test.ts) -- proves NeedsDecision.tsx
