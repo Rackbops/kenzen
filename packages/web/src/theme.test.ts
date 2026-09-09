@@ -7,7 +7,9 @@ import {
   DEFAULT_THEME,
   loadTheme,
   resolveTheme,
+  setTheme,
   THEME_LOADERS,
+  THEME_STORAGE_KEY,
 } from "./theme.js"
 
 // K4-7b acceptance (kenzen#24): "the resolver picks the right loader for a known name,
@@ -209,6 +211,121 @@ test("bootTheme applies a configured non-default theme, not the default", async 
         expect(spy).not.toHaveBeenCalled()
       }
     }
+  })
+
+  expect(root.dataset.rbStyle).toBe(nonDefault)
+})
+
+// --- kenzen#82: a per-browser localStorage override, injected as `storage` -------------
+
+/** A minimal Pick<Storage, "getItem"> (or "getItem" | "setItem") backed by a plain Map --
+ * real localStorage isn't needed (and isn't reliably present in every test environment);
+ * resolveTheme/setTheme are pure with respect to whatever object implements this shape. */
+function fakeStorage(initial: Record<string, string> = {}): Storage {
+  const map = new Map(Object.entries(initial))
+  return {
+    getItem: (key: string) => map.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      map.set(key, value)
+    },
+    removeItem: (key: string) => {
+      map.delete(key)
+    },
+    clear: () => {
+      map.clear()
+    },
+    key: (index: number) => Array.from(map.keys())[index] ?? null,
+    get length() {
+      return map.size
+    },
+  }
+}
+
+// The full precedence table (kenzen#82's design decision 2): stored valid / stored unknown
+// (falls through, doesn't just default) / env only / neither.
+
+test("resolveTheme: a valid stored theme wins over VITE_KENZEN_THEME", () => {
+  const nonDefault = BUNDLED_THEMES.find((name) => name !== DEFAULT_THEME) as string
+  const other = BUNDLED_THEMES.find((name) => name !== nonDefault) as string
+  const storage = fakeStorage({ [THEME_STORAGE_KEY]: nonDefault })
+  expect(resolveTheme({ VITE_KENZEN_THEME: other }, storage)).toBe(nonDefault)
+  expect(warnSpy).not.toHaveBeenCalled()
+})
+
+test("resolveTheme: an unknown stored theme is ignored (warns), falling through to VITE_KENZEN_THEME", () => {
+  const configured = BUNDLED_THEMES.find((name) => name !== DEFAULT_THEME) as string
+  const storage = fakeStorage({ [THEME_STORAGE_KEY]: "not-a-real-rackbops-theme" })
+  expect(resolveTheme({ VITE_KENZEN_THEME: configured }, storage)).toBe(configured)
+  expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("not-a-real-rackbops-theme"))
+})
+
+test("resolveTheme: an unknown stored theme with no env configured falls through to the default", () => {
+  const storage = fakeStorage({ [THEME_STORAGE_KEY]: "not-a-real-rackbops-theme" })
+  expect(resolveTheme({}, storage)).toBe(DEFAULT_THEME)
+  expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("not-a-real-rackbops-theme"))
+})
+
+test("resolveTheme: VITE_KENZEN_THEME alone still works with no storage argument at all", () => {
+  const nonDefault = BUNDLED_THEMES.find((name) => name !== DEFAULT_THEME) as string
+  expect(resolveTheme({ VITE_KENZEN_THEME: nonDefault })).toBe(nonDefault)
+  expect(warnSpy).not.toHaveBeenCalled()
+})
+
+test("resolveTheme: neither storage nor env set falls back to the default", () => {
+  const storage = fakeStorage({})
+  expect(resolveTheme({}, storage)).toBe(DEFAULT_THEME)
+  expect(warnSpy).not.toHaveBeenCalled()
+})
+
+test("setTheme loads, applies, and persists the chosen theme, in that order", async () => {
+  const nonDefault = BUNDLED_THEMES.find((name) => name !== DEFAULT_THEME) as string
+  const root = document.createElement("html")
+  const storage = fakeStorage()
+
+  await withLoaderSpies(async (spies) => {
+    const spy = spies.get(nonDefault)
+    expect(spy).toBeDefined()
+
+    await setTheme(nonDefault, root, storage)
+
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  expect(root.dataset.rbStyle).toBe(nonDefault)
+  expect(storage.getItem(THEME_STORAGE_KEY)).toBe(nonDefault)
+})
+
+test("setTheme does not persist when loadTheme rejects", async () => {
+  // Mirrors bootTheme's own "applyTheme still runs on the caught path" contract at the
+  // loadTheme level: setTheme deliberately does NOT catch here (kenzen#82 -- the caller,
+  // the picker's onChange, decides how a failed switch surfaces), so a rejection must
+  // propagate rather than silently persisting a theme whose CSS never loaded.
+  const nonDefault = BUNDLED_THEMES.find((name) => name !== DEFAULT_THEME) as string
+  const root = document.createElement("html")
+  const storage = fakeStorage()
+  const original = THEME_LOADERS[nonDefault]
+  THEME_LOADERS[nonDefault] = vi.fn().mockRejectedValue(new Error("network blip"))
+
+  try {
+    await expect(setTheme(nonDefault, root, storage)).rejects.toThrow("network blip")
+  } finally {
+    THEME_LOADERS[nonDefault] = original as () => Promise<unknown>
+  }
+
+  expect(root.dataset.rbStyle).toBeUndefined()
+  expect(storage.getItem(THEME_STORAGE_KEY)).toBeNull()
+})
+
+test("bootTheme forwards storage to resolveTheme, so a stored override applies at boot too", async () => {
+  const nonDefault = BUNDLED_THEMES.find((name) => name !== DEFAULT_THEME) as string
+  const root = document.createElement("html")
+  const storage = fakeStorage({ [THEME_STORAGE_KEY]: nonDefault })
+
+  await withLoaderSpies(async (spies) => {
+    const resolved = await bootTheme({}, root, storage)
+    expect(resolved).toBe(nonDefault)
+    const spy = spies.get(nonDefault)
+    expect(spy).toHaveBeenCalledTimes(1)
   })
 
   expect(root.dataset.rbStyle).toBe(nonDefault)
