@@ -28,8 +28,13 @@ interface TokenOverrides {
   iss?: string
   aud?: string
   omitSub?: boolean
+  /** A real Access service-token JWT carries `sub: ""` (an empty string, not an absent claim) --
+   * distinct from `omitSub`, which leaves the claim out entirely and fails verification. */
+  emptySub?: boolean
   expiresInSeconds?: number
   email?: string
+  /** Present on a real Access service-token JWT; absent on a human login. */
+  commonName?: string
 }
 
 async function signToken(overrides: TokenOverrides = {}): Promise<string> {
@@ -37,15 +42,24 @@ async function signToken(overrides: TokenOverrides = {}): Promise<string> {
     iss = `https://${TEAM_DOMAIN}`,
     aud = AUD,
     omitSub = false,
+    emptySub = false,
     expiresInSeconds = 3600,
     email,
+    commonName,
   } = overrides
-  let builder = new SignJWT(email !== undefined ? { email } : {})
+  const claims: Record<string, string> = {}
+  if (email !== undefined) claims.email = email
+  if (commonName !== undefined) claims.common_name = commonName
+  let builder = new SignJWT(claims)
     .setProtectedHeader({ alg: "RS256", kid: KID })
     .setIssuedAt()
     .setIssuer(iss)
     .setAudience(aud)
-  if (!omitSub) builder = builder.setSubject("user@example.com")
+  if (emptySub) {
+    builder = builder.setSubject("")
+  } else if (!omitSub) {
+    builder = builder.setSubject("user@example.com")
+  }
   builder = builder.setExpirationTime(Math.floor(Date.now() / 1000) + expiresInSeconds)
   return builder.sign(privateKey)
 }
@@ -79,15 +93,17 @@ describe("createAccessJwtVerifier", () => {
     expect(identity).toEqual({
       sub: "user@example.com",
       email: "user@example.com",
+      isServiceToken: false,
       claims: expect.objectContaining({ sub: "user@example.com", email: "user@example.com" }),
     })
   })
 
-  it("accepts a token with no email claim, surfacing sub with email undefined", async () => {
+  it("accepts a token with no email claim, surfacing sub with email undefined -- not a service token, since sub is non-empty", async () => {
     const jwt = await signToken()
     const identity = await verify(jwt)
     expect(identity?.sub).toBe("user@example.com")
     expect(identity?.email).toBeUndefined()
+    expect(identity?.isServiceToken).toBe(false)
   })
 
   it("rejects a tampered signature", async () => {
@@ -113,6 +129,35 @@ describe("createAccessJwtVerifier", () => {
   it("rejects a token with no subject claim", async () => {
     const jwt = await signToken({ omitSub: true })
     expect(await verify(jwt)).toBeNull()
+  })
+
+  describe("kenzen#57: isServiceToken", () => {
+    it("flags a real Access service-token shape: a common_name claim, empty sub, no email", async () => {
+      const jwt = await signToken({ emptySub: true, commonName: "env-health" })
+      const identity = await verify(jwt)
+      expect(identity?.sub).toBe("")
+      expect(identity?.email).toBeUndefined()
+      expect(identity?.isServiceToken).toBe(true)
+    })
+
+    it("flags an identity with empty sub and no email even without a common_name claim (fallback signal)", async () => {
+      const jwt = await signToken({ emptySub: true })
+      const identity = await verify(jwt)
+      expect(identity?.isServiceToken).toBe(true)
+    })
+
+    it("flags an identity carrying common_name even if sub happens to be non-empty", async () => {
+      const jwt = await signToken({ commonName: "env-health" })
+      const identity = await verify(jwt)
+      expect(identity?.sub).toBe("user@example.com")
+      expect(identity?.isServiceToken).toBe(true)
+    })
+
+    it("does NOT flag a human identity with an empty sub as long as it carries a real email", async () => {
+      const jwt = await signToken({ emptySub: true, email: "user@example.com" })
+      const identity = await verify(jwt)
+      expect(identity?.isServiceToken).toBe(false)
+    })
   })
 
   it("rejects garbage input", async () => {

@@ -1,7 +1,7 @@
 import { dirname, resolve } from "node:path"
 import type { DatabaseSync } from "node:sqlite"
 import { fileURLToPath } from "node:url"
-import { createLogger } from "@rackbops/node-app-kit/log"
+import { createLogger, type Logger } from "@rackbops/node-app-kit/log"
 import { openState } from "@rackbops/node-app-kit/state"
 import { Hono } from "hono"
 import { describe, expect, it, vi } from "vitest"
@@ -18,13 +18,16 @@ const silent = createLogger({ write: () => {} })
 // just a key that happens to already be URL-safe.
 const KEY = "Rackbops/kenzen|npm-dep|hono|package.json:12"
 
-function testApp(options: { verifyAccessJwt?: VerifyAccessJwt; devIdentity?: string } = {}): {
+function testApp(
+  options: { verifyAccessJwt?: VerifyAccessJwt; devIdentity?: string; log?: Logger } = {},
+): {
   app: Hono
   db: DatabaseSync
 } {
+  const { log = silent, ...rest } = options
   const { db } = openState({ dbFile: ":memory:", migrationsDir, log: silent })
   const app = new Hono()
-  mountDecisionsRoute(app, { db, log: silent, ...options })
+  mountDecisionsRoute(app, { db, log, ...rest })
   return { app, db }
 }
 
@@ -125,6 +128,7 @@ describe("PUT /api/decisions/:key -- identity resolution", () => {
       async (): Promise<AccessIdentity | null> => ({
         sub: "user-sub",
         email: "user@example.com",
+        isServiceToken: false,
         claims: {},
       }),
     )
@@ -158,6 +162,7 @@ describe("PUT /api/decisions/:key -- identity resolution", () => {
       async (): Promise<AccessIdentity | null> => ({
         sub: "service-token-abc",
         email: undefined,
+        isServiceToken: false,
         claims: {},
       }),
     )
@@ -177,6 +182,7 @@ describe("PUT /api/decisions/:key -- identity resolution", () => {
       async (): Promise<AccessIdentity | null> => ({
         sub: "service-token-abc",
         email: "",
+        isServiceToken: false,
         claims: {},
       }),
     )
@@ -191,6 +197,98 @@ describe("PUT /api/decisions/:key -- identity resolution", () => {
     // `??` would have recorded "" here since it only falls back on null/undefined -- `||`
     // (the actual fix) treats an empty string the same as an absent claim.
     expect(body.decision.updatedBy).toBe("service-token-abc")
+  })
+
+  it("kenzen#57: 401s a verified Access service-token identity, even though it's a real (non-null) identity", async () => {
+    const writes: string[] = []
+    const log = createLogger({ write: (line) => writes.push(line) })
+    const verifyAccessJwt = vi.fn(
+      async (): Promise<AccessIdentity | null> => ({
+        sub: "",
+        email: undefined,
+        isServiceToken: true,
+        claims: { common_name: "env-health" },
+      }),
+    )
+    const { app, db } = testApp({ verifyAccessJwt, log })
+    seedItem(db)
+    const res = await app.request(putUrl(KEY), {
+      method: "PUT",
+      headers: { "Cf-Access-Jwt-Assertion": "a.b.c" },
+      body: JSON.stringify({ skippedVersion: "5.0.0" }),
+    })
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ apiVersion: 1, error: "unauthorized" })
+    // Nothing written: GET still shows no decision at all.
+    const get = (await (await app.request("/api/decisions")).json()) as { decisions: unknown[] }
+    expect(get.decisions).toEqual([])
+    // Logged a reason, never the JWT itself.
+    expect(writes.some((line) => line.includes("no attributable identity"))).toBe(true)
+    expect(writes.some((line) => line.includes("service token"))).toBe(true)
+    expect(writes.some((line) => line.includes("a.b.c"))).toBe(false)
+  })
+
+  it("kenzen#57: 401s an identity that isn't flagged as a service token but still resolves to an empty updatedBy", async () => {
+    // Defense in depth: isServiceToken is the primary signal, but a verifier implementation
+    // that somehow leaves it false on an empty-claims identity must still be caught here.
+    const writes: string[] = []
+    const log = createLogger({ write: (line) => writes.push(line) })
+    const verifyAccessJwt = vi.fn(
+      async (): Promise<AccessIdentity | null> => ({
+        sub: "   ",
+        email: undefined,
+        isServiceToken: false,
+        claims: {},
+      }),
+    )
+    const { app, db } = testApp({ verifyAccessJwt, log })
+    seedItem(db)
+    const res = await app.request(putUrl(KEY), {
+      method: "PUT",
+      headers: { "Cf-Access-Jwt-Assertion": "a.b.c" },
+      body: JSON.stringify({ skippedVersion: "5.0.0" }),
+    })
+    expect(res.status).toBe(401)
+    expect(writes.some((line) => line.includes("no attributable identity"))).toBe(true)
+    expect(writes.some((line) => line.includes("empty claims"))).toBe(true)
+  })
+})
+
+describe("GET /api/decisions -- invariant", () => {
+  it("kenzen#57: never returns a decision with an empty updatedBy, even after a rejected service-token write attempt", async () => {
+    const verifyAccessJwt = vi.fn(
+      async (): Promise<AccessIdentity | null> => ({
+        sub: "",
+        email: undefined,
+        isServiceToken: true,
+        claims: { common_name: "env-health" },
+      }),
+    )
+    const { app, db } = testApp({ devIdentity: "alice", verifyAccessJwt })
+    seedItem(db)
+
+    // A legitimate human write via devIdentity succeeds.
+    const human = await app.request(putUrl(KEY), {
+      method: "PUT",
+      body: JSON.stringify({ skippedVersion: "5.0.0" }),
+    })
+    expect(human.status).toBe(200)
+
+    // A service-token write to the same key is rejected and changes nothing.
+    const serviceToken = await app.request(putUrl(KEY), {
+      method: "PUT",
+      headers: { "Cf-Access-Jwt-Assertion": "a.b.c" },
+      body: JSON.stringify({ approvedVersion: "5.0.0" }),
+    })
+    expect(serviceToken.status).toBe(401)
+
+    const get = (await (await app.request("/api/decisions")).json()) as {
+      decisions: { updatedBy: string }[]
+    }
+    expect(get.decisions.length).toBeGreaterThan(0)
+    for (const decision of get.decisions) {
+      expect(decision.updatedBy.trim()).not.toBe("")
+    }
   })
 })
 
