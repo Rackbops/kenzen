@@ -7,7 +7,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "vite build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "icons": "node scripts/gen-icons.mjs"
   },
   "dependencies": {
     "@kenzen/contract": "workspace:*",
@@ -25,6 +26,7 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.1.0",
     "jsdom": "^30.0.0",
+    "sharp": "^0.35.4",
     "typescript": "catalog:",
     "vite": "^8.2.0",
     "vitest": "catalog:"

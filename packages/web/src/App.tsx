@@ -1,6 +1,7 @@
 import { Field, Label, Select, Tabstrip, type TabstripTab } from "@rackbops/ui-react"
 import { useState } from "react"
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router"
+import { KoiMark } from "./brand/KoiMark.js"
 import { Decided } from "./routes/Decided.js"
 import { Dependabot } from "./routes/Dependabot.js"
 import { History } from "./routes/History.js"
@@ -77,9 +78,7 @@ export function App() {
     <>
       <header className="kz-header">
         <h1 className="rb-wordmark">
-          <span className="rb-wordmark__spark" aria-hidden="true">
-            &#9670;
-          </span>
+          <KoiMark size={22} />
           kenzen
         </h1>
         <div className="kz-header__theme">

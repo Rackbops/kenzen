@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- kenzen#89: the same Code Stream Koi mark as KoiMark.tsx, with hex baked in. A favicon
+       can't read CSS custom properties at all, so this is the one place in packages/web
+       allowed literal brand colour (arcane-parchment's light-theme values), whitelisted
+       explicitly by brand-hex-guard.test.ts. -->
+  <title>Kenzen</title>
+  <polygon
+    points="58,30 50,21 42,18 34,7 26,18 16,15 6,6 13,28 6,50 18,39 30,42 40,34 48,37"
+    fill="#6a4fe0"
+    stroke="#191d26"
+    stroke-width="2.5"
+    stroke-linejoin="round"
+  />
+  <polygon
+    points="42,18 50,21 44,30 36,26"
+    fill="#6a4fe0"
+    stroke="#191d26"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+  <polygon
+    points="26,18 36,26 30,36 18,30"
+    fill="#6a4fe0"
+    stroke="#191d26"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+  <polyline points="46,19 16,15" fill="none" stroke="#1f9d57" stroke-width="2" stroke-linecap="round" />
+  <polyline
+    points="34,31 40,31 40,25"
+    fill="none"
+    stroke="#1f9d57"
+    stroke-width="1.75"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle cx="40" cy="25" r="1.6" fill="#1f9d57" />
+  <circle cx="48" cy="26" r="3.4" fill="#191d26" />
+  <circle cx="49" cy="25" r="1.2" fill="#f6f7f9" />
+</svg>
