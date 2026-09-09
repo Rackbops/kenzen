@@ -17,5 +17,7 @@ catalog:
 
 minimumReleaseAgeExclude:
   - '@rackbops/node-app-kit@0.1.0 || 0.1.1'
-  - '@rackbops/styles@0.2.16'
-  - '@rackbops/ui-react@0.2.16'
+  # @rackbops/* is first-party: published by our own OIDC pipeline from repos we control,
+  # so the release-age gate (meant to catch a hijacked third-party publish) adds nothing --
+  # exempt the whole scope rather than re-listing each new version by hand.
+  - '@rackbops/*'
