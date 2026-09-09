@@ -1,45 +1,74 @@
-import { cx } from "@rackbops/ui-react"
-import type { ReactNode } from "react"
-import { Navigate, Route, NavLink as RouterNavLink, Routes } from "react-router"
+import { Tabstrip, type TabstripTab } from "@rackbops/ui-react"
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router"
 import { Decided } from "./routes/Decided.js"
 import { Dependabot } from "./routes/Dependabot.js"
 import { History } from "./routes/History.js"
 import { NeedsDecision } from "./routes/NeedsDecision.js"
 import { Repos } from "./routes/Repos.js"
 
+/** The five top-level views (design.md section 6), in the order the strip shows them. `id`
+ * doubles as the route path each Route below mounts at, and as the absolute path `onSelect`
+ * navigates to. */
+const TABS: TabstripTab[] = [
+  { id: "needs-decision", label: "Needs a decision" },
+  { id: "repos", label: "Repos" },
+  { id: "decided", label: "Decided" },
+  { id: "dependabot", label: "Dependabot" },
+  { id: "history", label: "History" },
+]
+
 /**
- * The routed content tree for design.md section 6's five sections. Relative route/link paths
- * throughout (never a leading `/`) so this tree stays mountable under a router prefix later
- * without code changes -- design.md section 12: "the UI as a router-mounted React tree with
- * no global shell assumptions, so a port is re-hosting." The standalone top-level shell
- * (BrowserRouter, theme application) is main.tsx's job, not this component's -- that's the
- * one piece design.md section 12 calls out as app-only.
+ * The routed content tree for design.md section 6's five sections, now with the app shell
+ * (kenzen#60): a header row (wordmark + top-level view nav) above a max-width main column,
+ * both app-local layout (`app.css`'s `kz-*` classes) -- design.md section 12's "app-only"
+ * shell piece, same boundary as main.tsx's BrowserRouter/theme application.
  *
- * `NavLink` here is deliberately react-router's own, not `@rackbops/ui-react`'s -- Tooling
- * docs/non-addon-repo-scaffold.md section 7's own documented trap: the design system's
- * `NavLink` is a styled `<a>` with a caller-supplied `active` prop, not a navigation-aware
- * component, so using it directly would silently produce dead links (a full page reload
- * instead of client-side routing, and no automatic active-route detection). Its CSS classes
- * (`rb-link`/`rb-link--active`) are applied to react-router's `NavLink` instead, via its own
- * `className` render-prop, keeping the real navigation behavior and the intended styling.
+ * Top-level nav is `Tabstrip` (`@rackbops/ui-react`), not a row of links -- STANDARD.md
+ * section 5.1 documents `rb-tabstrip` as "top-level view nav (bordered pill buttons)", and
+ * `Decided.tsx` already uses it for its own sub-view strip. `selected` is read from the
+ * current route's top-level segment; `onSelect` navigates to the chosen tab's absolute path.
+ *
+ * A real `<a href>` per tab is deliberately not layered in, per the issue's own call ("if
+ * cheap" -- `Tabstrip`'s actual implementation renders plain `<button>`s, so wrapping each in
+ * a real anchor on top would not be cheap). This is a genuine tradeoff, not a strict
+ * improvement over the old `NavLink`-per-item nav: right-click, middle-click-to-open-in-a-
+ * new-tab, and hover-preview are traded away for Tabstrip's ARIA tablist contract (single tab
+ * stop, roving tabindex, arrow-key navigation, a live `aria-selected` on the current view).
  */
 export function App() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  // location.pathname.slice(1) alone breaks on a trailing slash (e.g. a bookmarked
+  // "/decided/"): react-router's own path matching treats it as equivalent to "/decided" and
+  // renders the route correctly, but the naive slice computes "decided/", which matches no
+  // TABS id -- the visible route and the highlighted tab silently disagree. Splitting on "/"
+  // and taking the first non-empty segment is robust to a trailing slash, a bare "/" (empty
+  // array), and any hypothetical nested segment under one of these five routes.
+  const selected = location.pathname.split("/").filter(Boolean)[0] ?? ""
+
   return (
-    <div>
-      <nav>
-        <NavItem to="needs-decision">Needs a decision</NavItem>
-        <NavItem to="repos">Repos</NavItem>
-        <NavItem to="decided">Decided</NavItem>
-        <NavItem to="dependabot">Dependabot</NavItem>
-        <NavItem to="history">History</NavItem>
-      </nav>
-      <main>
+    <>
+      <header className="kz-header">
+        <h1 className="rb-wordmark">
+          <span className="rb-wordmark__spark" aria-hidden="true">
+            &#9670;
+          </span>
+          kenzen
+        </h1>
+        <Tabstrip
+          label="View"
+          selected={selected}
+          onSelect={(id) => navigate(`/${id}`)}
+          tabs={TABS}
+        />
+      </header>
+      <main className="kz-main">
         <Routes>
           {/* K4-7 review round 1, MEDIUM, live-verified: rendering <NeedsDecision/> directly
               at the index route (instead of redirecting to its own path) meant landing on /
-              -- the app's natural URL -- showed real content with no nav item marked active,
-              since the only NavLink points at "needs-decision", never at "". A real redirect
-              makes the URL (and therefore the nav's isActive match) consistent regardless of
+              -- the app's natural URL -- showed real content with no tab marked selected,
+              since `selected` (the pathname's segment) is "" at "/", matching no tab id. A
+              real redirect makes the URL (and therefore `selected`) consistent regardless of
               which of the two paths a visitor actually lands on. */}
           <Route index element={<Navigate to="needs-decision" replace />} />
           <Route path="needs-decision" element={<NeedsDecision />} />
@@ -49,17 +78,6 @@ export function App() {
           <Route path="history" element={<History />} />
         </Routes>
       </main>
-    </div>
-  )
-}
-
-function NavItem({ to, children }: { to: string; children: ReactNode }) {
-  return (
-    <RouterNavLink
-      to={to}
-      className={({ isActive }) => cx("rb-link", isActive && "rb-link--active")}
-    >
-      {children}
-    </RouterNavLink>
+    </>
   )
 }
