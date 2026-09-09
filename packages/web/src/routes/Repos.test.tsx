@@ -63,16 +63,45 @@ test("kenzen#70: each repo's table is wrapped for the shared fixed-column layout
   vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
     snapshot: SNAPSHOT,
-    items: [item({ key: "a", name: "requests", gap: "minor" })],
+    items: [
+      item({
+        key: "a",
+        name: "requests",
+        gap: "minor",
+        advisoryStatus: "affected",
+        advisories: [
+          {
+            id: "GHSA-1",
+            summary: "x",
+            severity: "high",
+            url: "https://x",
+            source: "ghsa",
+            affected: true,
+          },
+        ],
+      }),
+    ],
   })
   const { container } = render(<Repos />)
   await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument())
   const wrapper = container.querySelector(".kz-items-table")
   expect(wrapper).not.toBeNull()
   expect(wrapper).not.toHaveClass("kz-items-table--repo")
-  // kenzen#70 round 2: the controls span needs its own non-wrapping row (`.kz-actions`) now that
-  // the fixed-width Actions column is tight enough to wrap a three-control case.
-  expect(container.querySelector(".kz-actions")).not.toBeNull()
+  // kenzen#70 round 2, review round 1: the earlier version of this assertion used a gap-only
+  // item (the two-control case), which never exercises the three-control (gap AND advisory)
+  // combination that actually wrapped -- an item with all three controls moved outside
+  // `.kz-actions` would have passed the old assertion. This item carries both axes, and checks
+  // all three controls are children of the SAME `.kz-actions` element.
+  const actions = container.querySelector(".kz-actions")
+  expect(actions).not.toBeNull()
+  const controlTexts = actions
+    ? Array.from(actions.children).map((el) =>
+        el.tagName === "DETAILS"
+          ? el.querySelector("summary")?.textContent?.trim()
+          : el.textContent?.trim(),
+      )
+    : []
+  expect(controlTexts).toEqual(["Skip ▾", "Approve", "Acknowledge"])
 })
 
 test("renders an empty state when there are no repos yet", async () => {
