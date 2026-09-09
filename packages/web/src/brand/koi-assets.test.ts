@@ -4,17 +4,23 @@ import sharp from "sharp"
 import { describe, expect, test } from "vitest"
 
 /**
- * kenzen#89: smoke-tests the committed OUTPUT of `brand/derive.py` (run by hand -- Python/
- * Pillow isn't part of this repo's JS toolchain or CI, so this validates the checked-in PNGs
- * rather than re-running the derivation). Confirms each asset is the size it claims to be.
+ * kenzen#89 (+ kenzen#92's banner): smoke-tests the committed OUTPUT of `brand/derive.py` (run
+ * by hand -- Python/Pillow isn't part of this repo's JS toolchain or CI, so this validates the
+ * checked-in PNGs rather than re-running the derivation). Confirms each asset is the size it
+ * claims to be.
  *
- * The four transparent exports additionally get a real-alpha check: some fully transparent
+ * The four transparent koi exports additionally get a real-alpha check: some fully transparent
  * pixels (the removed checkerboard) and some fully opaque ones (the fish itself), rather than
  * e.g. a flat all-transparent or all-opaque image, which would mean the cutout silently
  * failed. `apple-touch-icon.png` is excluded from that check on purpose -- Apple's own HIG
  * says a touch icon shouldn't carry transparency (iOS can render the empty area black instead
  * of compositing it), so `derive.py` flattens that one target onto a solid navy background and
  * ships it with no alpha channel at all.
+ *
+ * `koi-banner.png`/`.webp` (kenzen#92) get their own block below -- 1024x395 (cropped to
+ * content + margin, not square), so they don't fit the `ASSETS`/`describe.each` shape above,
+ * but the same real-alpha check applies (the checkerboard removed correctly, not silently
+ * flattened to fully one alpha value in either direction).
  */
 const BRAND_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -65,4 +71,95 @@ describe.each(TRANSPARENT_ASSETS)("$file", ({ file }) => {
 test("apple-touch-icon.png deliberately carries no alpha channel at all", async () => {
   const meta = await sharp(path.join(BRAND_DIR, "apple-touch-icon.png")).metadata()
   expect(meta.hasAlpha).toBe(false)
+})
+
+describe.each(["koi-banner.png", "koi-banner.webp"])("%s", (file) => {
+  test("is exactly 1024x395 -- content bounding box plus derive.py's CROP_MARGIN", async () => {
+    const meta = await sharp(path.join(BRAND_DIR, file)).metadata()
+    expect(meta.width).toBe(1024)
+    expect(meta.height).toBe(395)
+  })
+
+  test("has a real alpha channel: some fully transparent pixels and some fully opaque ones", async () => {
+    const { data, info } = await sharp(path.join(BRAND_DIR, file))
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    expect(info.channels).toBe(4)
+    let sawTransparent = false
+    let sawOpaque = false
+    for (let i = 3; i < data.length; i += 4) {
+      const alpha = data[i]
+      if (alpha === 0) sawTransparent = true
+      if (alpha === 255) sawOpaque = true
+      if (sawTransparent && sawOpaque) break
+    }
+    expect(sawTransparent).toBe(true)
+    expect(sawOpaque).toBe(true)
+  })
+
+  test("the opaque fraction is in the range real art produces, not just a sliver of forced-dark outline", async () => {
+    // kenzen#92 round 3 review (originally against a since-superseded recipe, re-verified
+    // here against the current light-checker one): derive_banner()'s `inside_outline` step
+    // forces the koi's own dark-outline-fenced pixels opaque regardless of the colour-to-alpha
+    // thresholds, so a badly broken threshold can still leave a few opaque pixels and the
+    // plain "some opaque" check above can't tell that apart from a correct cutout. Measured
+    // directly against this recipe's real constants (all fractions over the actual cropped
+    // 1024x395 output, same as the committed asset):
+    //   - correct (real constants):            14.6% opaque
+    //   - DARK_LUM=-1 (no outline protection):   7.9% opaque
+    //   - C2A_OPAQUE=0.99 (opacity near-unreachable via colour-to-alpha alone):  10.3% opaque
+    //   - BG_LUM_MIN=999 (background never detected):                          100.0% opaque
+    //   - C2A_TRANSPARENT=0.5 (at/above the opacity threshold, degenerate):      98.4% opaque
+    // A floor above the two ~8-10% breaks and a ceiling well under the two ~98-100% breaks
+    // catches both directions without being brittle to small legitimate re-tunes.
+    const { data } = await sharp(path.join(BRAND_DIR, file))
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    let opaque = 0
+    let totalPixels = 0
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] === 255) opaque++
+      totalPixels++
+    }
+    const fraction = opaque / totalPixels
+    expect(fraction).toBeGreaterThan(0.115)
+    expect(fraction).toBeLessThan(0.3)
+  })
+
+  test("partial-alpha pixels keep real colour, not a dark rim from an unbounded un-matte", async () => {
+    // Round-1 review (correctness/failure-modes) on kenzen#92: every check above (dimensions,
+    // alpha presence, opaque fraction) only ever inspects the ALPHA channel -- none inspect
+    // RGB. derive_banner()'s FG_FLOOR step exists specifically to stop a low-alpha pixel's
+    // un-matted colour from extrapolating towards black (its own doc comment says so), and
+    // that constant had zero test coverage: mutating it to 0.0 (no floor at all) or 1.0
+    // (floor pinned to the observed pixel, effectively disabling un-matting) produced the
+    // EXACT SAME alpha channel, dimensions, and opaque fraction as the correct output --
+    // every check above stayed green. Measured directly: the real committed asset's darkest
+    // partial-alpha pixel averages 128.7/255 across RGB; FG_FLOOR=0.0 (the exact "dark rim"
+    // failure the source comment warns about) drops that to a literal 0/255 pixel. A floor
+    // well above 0 and comfortably below the real minimum catches that regression without
+    // being brittle to the exact real value.
+    const { data, info } = await sharp(path.join(BRAND_DIR, file))
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    let darkestPartialAlphaLightness = 255
+    for (let i = 0; i < data.length; i += info.channels) {
+      // noUncheckedIndexedAccess: these reads are in-bounds by construction (`i` never
+      // exceeds `data.length - info.channels`, and sharp's raw buffer is exactly
+      // `width * height * channels` bytes with no gaps) -- `?? 0` satisfies the type checker
+      // without changing behavior for any real pixel.
+      const alpha = data[i + 3] ?? 0
+      if (alpha > 0 && alpha < 255) {
+        const r = data[i] ?? 0
+        const g = data[i + 1] ?? 0
+        const b = data[i + 2] ?? 0
+        const lightness = (r + g + b) / 3
+        darkestPartialAlphaLightness = Math.min(darkestPartialAlphaLightness, lightness)
+      }
+    }
+    expect(darkestPartialAlphaLightness).toBeGreaterThan(60)
+  })
 })

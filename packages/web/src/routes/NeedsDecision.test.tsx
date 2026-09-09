@@ -53,7 +53,7 @@ test("shows a positive empty state when nothing currently needs a decision", asy
     items: [item({ key: "sound", gap: "none", advisoryStatus: "none" })],
   })
   render(<NeedsDecision />)
-  await waitFor(() => expect(screen.getByText("Nothing needs a decision.")).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByText("The stream is clean.")).toBeInTheDocument())
 })
 
 test("kenzen#96: the positive empty state shows the large kanji heading above its caption", async () => {
@@ -68,11 +68,30 @@ test("kenzen#96: the positive empty state shows the large kanji heading above it
     items: [item({ key: "sound", gap: "none", advisoryStatus: "none" })],
   })
   const { container } = render(<NeedsDecision />)
-  await waitFor(() => expect(screen.getByText("Nothing needs a decision.")).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByText("The stream is clean.")).toBeInTheDocument())
   const heading = container.querySelector(".kz-kanji--heading")
   expect(heading).not.toBeNull()
   expect(heading).toHaveTextContent("健全性")
   expect(heading).toHaveAttribute("lang", "ja")
+})
+
+test("kenzen#92: the positive empty state shows the koi banner, decorative, above its caption", async () => {
+  const snapshot = {
+    snapshotId: 1,
+    generatedAt: "2026-09-08T00:00:00Z",
+    inventoryItems: 1,
+    summary: {},
+  }
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot,
+    items: [item({ key: "sound", gap: "none", advisoryStatus: "none" })],
+  })
+  const { container } = render(<NeedsDecision />)
+  await waitFor(() => expect(screen.getByText("The stream is clean.")).toBeInTheDocument())
+  const banner = container.querySelector(".kz-empty-state__banner")
+  expect(banner).not.toBeNull()
+  expect(banner).toHaveAttribute("src", "/brand/koi-banner.webp")
+  expect(banner).toHaveAttribute("alt", "")
 })
 
 test("includes an affected item and a gapped item, excludes a sound item and a decided item", async () => {
@@ -395,5 +414,5 @@ test("end to end: skipping an item on the real page calls putDecision and remove
     { field: "skippedVersion", value: "9.9.9" },
     expect.anything(),
   )
-  await waitFor(() => expect(screen.getByText("Nothing needs a decision.")).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByText("The stream is clean.")).toBeInTheDocument())
 })

@@ -11,11 +11,14 @@ code that uses them and are traced/produced from these.
 | `koi-mark-glyphs.jpg` | Two poses of the Code Stream Koi as a one-colour glyph, deep navy and solid white | Reference for the SVG mark |
 | `koi-teal.jpg` | The koi in full colour: teal plates, navy outline, mint data line | Reference for the colour mark / favicon |
 | `status-shields.jpg` | Three shields: mint check (healthy), crimson bug (vulnerability), amber exclamation (attention) | Reference for the badge glyphs; defines the warning colour |
-| `koi-banner-silver.jpg` | Wide banner, white/silver koi swimming through binary streams | Empty-state / landing illustration; needs a real-alpha re-export |
+| `koi-banner-silver.jpg` | Wide (1024x377) banner, white/silver koi swimming through binary streams, dark checkerboard | Superseded for the empty-state banner (kenzen#92) -- kept for history, no longer derived from |
+| `koi-banner-light.jpg` | Same composition, 1024x1024, koi + streams on a LIGHT checkerboard with a real dark outline around the koi | Empty-state illustration (kenzen#92); derived automatically -- see below |
 | `mascot-concept-sheet.jpg` | The four-mascot concept sheet (Komainu guardian, Tech-botanist, Code Stream Koi, Code medic bot), watermarked | Palette and character reference |
 
-Every "transparent" file here is a JPEG with a checkerboard baked in -- there is no alpha
-channel. Do not place them on a page directly.
+Every file here is a JPEG with a checkerboard baked in place of transparency -- there is no
+alpha channel. Do not place any of these on a page directly. (A flat-navy re-export of the
+banner briefly stood in for `koi-banner-light.jpg` here -- see "Deriving the empty-state
+banner" below for why it didn't work out; it was never committed.)
 
 ## Deriving the shipped mark
 
@@ -34,6 +37,53 @@ not part of any build). Writes `packages/web/public/brand/koi-{512,192,64,32}.pn
 `apple-touch-icon.png` (180), all committed; `packages/web/src/brand/koi-assets.test.ts`
 smoke-tests the committed output (dimensions, a real alpha channel) since Python isn't part of
 this repo's JS toolchain or CI.
+
+## Deriving the empty-state banner
+
+kenzen#92 went through three source images and three recipes before landing here -- worth
+knowing if you're touching `derive_banner()`, since the function's own git history looks like
+a rewrite each time, not an iteration:
+
+1. `koi-banner-silver.jpg`'s dark checkerboard was cut with a lightness/saturation threshold
+   (like the mark/shields, but inverted polarity), later grown into a multi-step recipe
+   (soft ramp, island-drop, background un-matting, unsharp mask, hand-placed circuit-cluster
+   cleanup) chasing crisper edges against a source that never had them to begin with.
+2. roshne then re-exported the same composition on a **flat navy** background -- no
+   checkerboard at all, and simple/deterministic to key (median the border colour, alpha-ramp
+   the RGB distance from it, force anything darker than the background opaque so the outline
+   doesn't key out with it). This turned out **unrecoverable at the edges**: the export was a
+   4:2:0 chroma-subsampled JPEG, which blurs colour (not luminance) across each 2x2 block, and
+   at the koi's actual edges that put the outline at the same colour as the flat background --
+   nothing-per-pixel to key against. Never committed to `brand/source/`.
+3. roshne produced "banner 5", `koi-banner-light.jpg`: the same composition, 1024x1024, back
+   on a checkerboard -- but a **light** one this time, and critically with a **real dark
+   outline** around the koi, so the outline itself survives compression untouched. Approved
+   2026-09-09 ("I approve that last set"). The checker isn't a strict parity grid (a tile seam
+   puts two same-shade cells side by side), so `derive_banner()` doesn't try to model it:
+   - background candidates = neutral light grey (`BG_LUM_MIN`/`BG_CHROMA_MAX`)
+   - the koi body reads as that same grey, so it's protected by its own outline instead: flood
+     fill from the image border through non-dark (`DARK_LUM`) pixels; whatever the flood can't
+     reach is "inside an outline" and forced opaque with its real colour, regardless of how
+     background-like that colour looks in isolation
+   - everything else gets GIMP-style colour-to-alpha against a locally box-blur-estimated
+     background, with a transparency floor (`C2A_TRANSPARENT`, the JPEG noise floor) and an
+     opacity ceiling (`C2A_OPAQUE`); an un-matted colour floor (`FG_FLOOR`) stops a low-alpha
+     pixel from extrapolating towards black and leaving a dark rim
+   - crop to content plus `CROP_MARGIN` px (1024x395 for this source, not square, not the
+     source's own 1024x1024)
+   All constants tuned by eye against `koi-banner-light.jpg` specifically -- don't change them
+   without re-checking with roshne. One Pillow gotcha worth knowing before touching the flood
+   fill: `ImageDraw.floodfill` silently no-ops on a `PIL.Image` built straight from a numpy
+   array -- `_flood_from_border()`'s `.copy()` isn't incidental, don't delete it as dead code.
+
+No 2x -- the source is 1024px wide either way, so there's no higher-resolution original to
+derive one from. Writes `koi-banner.png` and `koi-banner.webp` (lossless), both 1024x395,
+both committed and both smoke-tested alongside the mark's own assets in `koi-assets.test.ts`.
+
+**The banner is the one brand asset that does not recolour with the theme** -- a fixed-colour
+photographic/illustrated composition, not a `--rb-*`-tokenised graphic like the mark or the
+shields. That's an accepted, deliberate exception (same call already made on the shields,
+kenzen#90), not an oversight.
 
 ## Palette (measured from these files)
 
