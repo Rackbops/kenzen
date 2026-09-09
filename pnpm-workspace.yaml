@@ -11,7 +11,7 @@ allowBuilds:
 # and vitest resolve into every package's node_modules/.bin and stay on one version.
 # Matches Rackbops/artifact-console's own pins (Tooling#473 design.md section 3).
 catalog:
-  typescript: ^5.7.0
+  typescript: ^7.0.0
   vitest: ^5.0.0
   "@types/node": ^26.0.0
 
