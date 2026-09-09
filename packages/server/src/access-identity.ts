@@ -19,7 +19,13 @@ export interface AccessIdentity {
    * `common_name`, or (fallback, in case Access ever omits it) when both `email` and `sub` are
    * absent/empty. `resolveUpdatedBy` (decisions-route.ts) rejects any identity with this set:
    * decisions are a human-only write path (design.md section 11); the machine path is ingest
-   * only, via `KENZEN_INGEST_TOKEN`. */
+   * only, via `KENZEN_INGEST_TOKEN`.
+   *
+   * Assumption: kenzen's Access policy for this app is SSO-only, so `common_name` never appears
+   * on a human identity. Cloudflare Access can also inject `common_name` for an mTLS
+   * client-certificate login with no email -- if such a policy is ever added here, that human
+   * would be misclassified as a service token and rejected (a false rejection, safe-by-default,
+   * not a bypass -- but worth knowing before adding one). */
   isServiceToken: boolean
   claims: Record<string, unknown>
 }
