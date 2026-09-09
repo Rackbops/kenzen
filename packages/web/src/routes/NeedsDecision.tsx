@@ -2,7 +2,8 @@ import { Badge, Card, DataTable, type DataTableColumn } from "@rackbops/ui-react
 import { useMemo, useState } from "react"
 import { AdvisoryList } from "../AdvisoryList.js"
 import { type DecisionPatch, fetchLatestSnapshotItems, type ReportItem } from "../api.js"
-import { advisoryVariant, gapVariant } from "../badgeVariants.js"
+import { advisoryVariant, gapShieldVariant, gapVariant } from "../badgeVariants.js"
+import { StatusShield } from "../brand/StatusShield.js"
 import { DecisionActions } from "../DecisionActions.js"
 import { applyItemFilters, type ItemFilterState, ItemFilters } from "../ItemFilters.js"
 import { decisionPriority, needsDecision } from "../needsDecision.js"
@@ -69,11 +70,19 @@ function columns(
     {
       key: "gap",
       header: "Gap",
-      render: (i) => (
-        <span className="kz-nowrap">
-          {i.gap ? <Badge variant={gapVariant(i.gap)}>{i.gap}</Badge> : null}
-        </span>
-      ),
+      render: (i) => {
+        const shieldVariant = gapShieldVariant(i.gap)
+        return (
+          <span className="kz-nowrap">
+            {i.gap ? (
+              <span className="kz-status-badge">
+                {shieldVariant ? <StatusShield variant={shieldVariant} /> : null}
+                <Badge variant={gapVariant(i.gap)}>{i.gap}</Badge>
+              </span>
+            ) : null}
+          </span>
+        )
+      },
       sortValue: (i) => decisionPriority(i),
     },
     {
@@ -82,9 +91,15 @@ function columns(
       render: (i) =>
         i.advisoryStatus === "affected" ? (
           <span className="kz-advisories-cell">
-            <Badge variant={advisoryVariant(i.advisoryStatus)}>
-              {i.advisories.length} affected
-            </Badge>{" "}
+            <span className="kz-status-badge">
+              {/* Always "vulnerable" on this branch (advisoryStatus === "affected" is the
+                  condition above) -- advisoryShieldVariant is for Repos.tsx's wider column,
+                  which also shows historical-only/unknown rows this one never reaches. */}
+              <StatusShield variant="vulnerable" />
+              <Badge variant={advisoryVariant(i.advisoryStatus)}>
+                {i.advisories.length} affected
+              </Badge>
+            </span>{" "}
             <AdvisoryList advisories={i.advisories} />
           </span>
         ) : null,

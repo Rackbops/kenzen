@@ -266,3 +266,13 @@
   background: var(--rb-bg);
   z-index: 1;
 }
+
+/* kenzen#90: the leading StatusShield sits inline with its Badge, out of scope to wire into
+ * Badge itself (no leading-icon slot there yet -- file that upstream if it's ever needed
+ * beyond this one wrapper). A plain inline-flex row keeps the shield vertically centered
+ * against the Badge's text regardless of font metrics, in every theme. */
+.kz-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rb-space-1);
+}
