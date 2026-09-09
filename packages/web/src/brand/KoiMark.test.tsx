@@ -2,6 +2,12 @@ import { render } from "@testing-library/react"
 import { expect, test } from "vitest"
 import { KoiMark } from "./KoiMark.js"
 
+/** Drawn shapes only -- excludes the `<clipPath>`'s own `<path>` in `<defs>`, which is plumbing
+ * for the facet clip, not a visible mark of the drawing. */
+function drawnShapes(container: HTMLElement): Element[] {
+  return Array.from(container.querySelectorAll("path, circle")).filter((el) => !el.closest("defs"))
+}
+
 test("renders an SVG on the mark's 64x64 drawing grid", () => {
   const { container } = render(<KoiMark />)
   const svg = container.querySelector("svg")
@@ -39,7 +45,30 @@ test("size defaults to 24 when omitted", () => {
   expect(svg).toHaveAttribute("height", "24")
 })
 
-test("mono swaps every themed fill/stroke to currentColor, keeping only the bg cut-outs and seams as var(--rb-bg)", () => {
+test("kenzen#89 round 2: below 24px, the mark drops to fewer elements -- facets, circuit trace, and the pectoral fin don't survive that small", () => {
+  const { container: small } = render(<KoiMark size={16} />)
+  const { container: full } = render(<KoiMark size={64} />)
+  expect(drawnShapes(small).length).toBeLessThan(drawnShapes(full).length)
+})
+
+test("kenzen#89 round 2: at 24px and above, the full element set renders (dorsal, pectoral, all three facets, the trace and its via dot)", () => {
+  const { container } = render(<KoiMark size={24} />)
+  const shapes = drawnShapes(container)
+  // tail + body + dorsal + pectoral + 3 facets + spine + trace = 9 <path>s, + trace-dot + eye +
+  // eye-highlight = 3 <circle>s.
+  expect(shapes.filter((el) => el.tagName === "path")).toHaveLength(9)
+  expect(shapes.filter((el) => el.tagName === "circle")).toHaveLength(3)
+})
+
+test("kenzen#89 round 2: below 24px, only the tail, body, spine glow, and eye survive", () => {
+  const { container } = render(<KoiMark size={16} />)
+  const shapes = drawnShapes(container)
+  // tail + body + spine = 3 <path>s, + eye + eye-highlight = 2 <circle>s.
+  expect(shapes.filter((el) => el.tagName === "path")).toHaveLength(3)
+  expect(shapes.filter((el) => el.tagName === "circle")).toHaveLength(2)
+})
+
+test("mono swaps every themed fill/stroke to currentColor, keeping only the bg cut-outs as var(--rb-bg)", () => {
   const { container } = render(<KoiMark mono />)
   const svg = container.querySelector("svg") as SVGSVGElement
   const fillsAndStrokes = Array.from(svg.querySelectorAll("[fill], [stroke]")).flatMap((el) => [
@@ -51,7 +80,7 @@ test("mono swaps every themed fill/stroke to currentColor, keeping only the bg c
   expect(fillsAndStrokes.some((v) => v?.includes("--rb-success"))).toBe(false)
   expect(fillsAndStrokes.some((v) => v?.includes("--rb-text"))).toBe(false)
   // The body carries currentColor, not a fixed colour.
-  const body = svg.querySelector("polygon")
+  const body = drawnShapes(container).find((el) => el.tagName === "path") as SVGPathElement
   expect(body).toHaveAttribute("fill", "currentColor")
 })
 
