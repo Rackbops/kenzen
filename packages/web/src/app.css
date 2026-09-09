@@ -109,8 +109,8 @@
 }
 
 /* kenzen#64: DataTable's own `sticky` prop wraps the table in a second, inner scroll box
- * (`.rb-table-scroll`, 70vh) -- dropped from both usages so the page is the only scroller; this
- * pins the header to the viewport instead. */
+ * (`.rb-table-scroll`, 70vh) -- dropped from NeedsDecision.tsx's usage (Repos.tsx never had it)
+ * so the page is the only scroller; this pins the header to the viewport instead. */
 .kz-main .rb-table thead th {
   position: sticky;
   top: 0;

@@ -87,6 +87,21 @@ test("Skip and Approve are disabled when latest is null -- nothing to skip/appro
   expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled()
 })
 
+test("the Remind presets stay actionable even when latest is null -- only Skip/Approve need it", () => {
+  render(
+    <DecisionActions
+      item={item({ latest: null })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  fireEvent.click(screen.getByText("Skip ▾"))
+  expect(screen.getByRole("button", { name: "Remind in 7 days" })).toBeEnabled()
+  expect(screen.getByRole("button", { name: "Remind in 30 days" })).toBeEnabled()
+  expect(screen.getByRole("button", { name: "Remind in 90 days" })).toBeEnabled()
+})
+
 test("gap none/unknown shows no gap-axis buttons at all", () => {
   render(
     <DecisionActions item={item({ gap: "none" })} now={NOW} onApply={() => {}} error={undefined} />,

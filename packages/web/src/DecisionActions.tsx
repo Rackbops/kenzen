@@ -103,9 +103,9 @@ export function DecisionActions({
   const canSkipOrApprove = item.latest !== null
 
   return (
-    <span className="kz-actions">
+    <span>
       {(showGapButtons || showAcknowledgeButton) && (
-        <span className="kz-actions__controls">
+        <span>
           {showGapButtons && (
             // kenzen#64: native <details> instead of a hand-rolled dropdown -- keyboard-operable
             // (Enter/Space toggles the summary, native focus order) and closes for free the
