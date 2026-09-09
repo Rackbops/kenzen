@@ -195,10 +195,10 @@ importers:
         version: link:../contract
       '@rackbops/styles':
         specifier: ^0.2.16
-        version: 0.2.25
+        version: 0.2.28
       '@rackbops/ui-react':
         specifier: ^0.2.16
-        version: 0.2.25(react@19.2.8)
+        version: 0.2.28(react@19.2.8)
       react:
         specifier: ^19.2.0
         version: 19.2.8
@@ -552,11 +552,11 @@ packages:
     peerDependencies:
       hono: '>=4.0.0'
 
-  '@rackbops/styles@0.2.25':
-    resolution: {integrity: sha512-h3vgxAuNBvr9JTn+KAnfpP85rU/dSKeBRWXRNJrcMwK+JBWTk7VlUVWJi/bOkZl2rdRiEr1SPC3EC8MMxZ2law==}
+  '@rackbops/styles@0.2.28':
+    resolution: {integrity: sha512-XTq+lFNS6R2V38oDHsEDpIRFgIdD5G9AKz4BA44tsXBcnUUe5Gl0cgsTe1hEL2fO4JSpeJL9sFFGXElUu0jR3w==}
 
-  '@rackbops/ui-react@0.2.25':
-    resolution: {integrity: sha512-xPQ7xUmHNWXpQf+L0u+n7QGVxly28IxlI0dcxUYbk7Xihfqkk6etpvgnZ641J4iJyHPfcYfqnyd9ruv7pxWfZg==}
+  '@rackbops/ui-react@0.2.28':
+    resolution: {integrity: sha512-DJDGk6GcK2wdjeZrQBhmYI0D3HrKL2ednzMsuWmAxUcBUoJ6/wymF5bvLDzhIcp+Yxr2HaZtJfzRRG+DgOk4Gw==}
     peerDependencies:
       react: '>=18'
 
@@ -1532,9 +1532,9 @@ snapshots:
       hono: 4.13.7
       smol-toml: 1.8.0
 
-  '@rackbops/styles@0.2.25': {}
+  '@rackbops/styles@0.2.28': {}
 
-  '@rackbops/ui-react@0.2.25(react@19.2.8)':
+  '@rackbops/ui-react@0.2.28(react@19.2.8)':
     dependencies:
       react: 19.2.8
 
