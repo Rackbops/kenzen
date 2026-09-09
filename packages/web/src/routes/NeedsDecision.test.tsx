@@ -232,6 +232,83 @@ test("an affected item's advisories render as links to their real URLs", async (
   )
 })
 
+test("kenzen#90: an affected item shows the vulnerable shield before its advisory badge", async () => {
+  const snapshot = {
+    snapshotId: 1,
+    generatedAt: "2026-09-08T00:00:00Z",
+    inventoryItems: 1,
+    summary: {},
+  }
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot,
+    items: [
+      item({
+        key: "vuln",
+        name: "vuln-pkg",
+        advisoryStatus: "affected",
+        gap: "none",
+        advisories: [
+          {
+            id: "GHSA-1",
+            summary: "x",
+            severity: "high",
+            url: "https://x",
+            source: "ghsa",
+            affected: true,
+          },
+        ],
+      }),
+    ],
+  })
+  const { container } = render(<NeedsDecision />)
+  await waitFor(() => expect(screen.getByText("vuln-pkg")).toBeInTheDocument())
+  const advisoryBadge = container.querySelector(".kz-advisories-cell .kz-status-badge")
+  expect(advisoryBadge).not.toBeNull()
+  expect(advisoryBadge?.querySelector("svg g")).toHaveAttribute("stroke", "var(--rb-danger)")
+})
+
+test("kenzen#90: a clean (gap=none) item shows the healthy shield before its gap badge", async () => {
+  // needsDecision() only surfaces a sound-gap row when its OTHER axis (advisories) is what
+  // actually earns it a place in this table -- pairing gap: "none" with advisoryStatus:
+  // "affected" is the only way a "clean gap" row appears here at all.
+  const snapshot = {
+    snapshotId: 1,
+    generatedAt: "2026-09-08T00:00:00Z",
+    inventoryItems: 1,
+    summary: {},
+  }
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot,
+    items: [
+      item({
+        key: "clean-gap",
+        name: "clean-gap-pkg",
+        gap: "none",
+        advisoryStatus: "affected",
+        advisories: [
+          {
+            id: "GHSA-2",
+            summary: "y",
+            severity: "high",
+            url: "https://y",
+            source: "ghsa",
+            affected: true,
+          },
+        ],
+      }),
+    ],
+  })
+  const { container } = render(<NeedsDecision />)
+  await waitFor(() => expect(screen.getByText("clean-gap-pkg")).toBeInTheDocument())
+  const row = screen.getByText("clean-gap-pkg").closest("tr")
+  const gapCell = row?.querySelectorAll("td")[4]
+  const gapShield = gapCell?.querySelector(".kz-status-badge svg g")
+  expect(gapShield).toHaveAttribute("stroke", "var(--rb-success)")
+  // sanity: not accidentally reading the advisory cell's own (differently-coloured) shield
+  const advisoryShield = container.querySelector(".kz-advisories-cell .kz-status-badge svg g")
+  expect(advisoryShield).toHaveAttribute("stroke", "var(--rb-danger)")
+})
+
 test("the repo filter narrows the rendered rows", async () => {
   const snapshot = {
     snapshotId: 1,

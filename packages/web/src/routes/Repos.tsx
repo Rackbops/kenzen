@@ -8,7 +8,13 @@ import {
   type ReportItem,
   type RepoSummary,
 } from "../api.js"
-import { advisoryVariant, gapVariant } from "../badgeVariants.js"
+import {
+  advisoryShieldVariant,
+  advisoryVariant,
+  gapShieldVariant,
+  gapVariant,
+} from "../badgeVariants.js"
+import { StatusShield } from "../brand/StatusShield.js"
 import { DecisionActions } from "../DecisionActions.js"
 import { gapPriority } from "../gapPriority.js"
 import { applyItemFilters, type ItemFilterState, ItemFilters } from "../ItemFilters.js"
@@ -84,27 +90,42 @@ function columns(
     {
       key: "gap",
       header: "Gap",
-      render: (i) => (
-        <span className="kz-nowrap">
-          {i.gap && i.gap !== "none" ? <Badge variant={gapVariant(i.gap)}>{i.gap}</Badge> : i.gap}
-        </span>
-      ),
+      render: (i) => {
+        const shieldVariant = gapShieldVariant(i.gap)
+        return (
+          <span className="kz-nowrap">
+            {i.gap && i.gap !== "none" ? (
+              <span className="kz-status-badge">
+                {shieldVariant ? <StatusShield variant={shieldVariant} /> : null}
+                <Badge variant={gapVariant(i.gap)}>{i.gap}</Badge>
+              </span>
+            ) : (
+              i.gap
+            )}
+          </span>
+        )
+      },
       sortValue: (i) => gapPriority(i.gap),
     },
     {
       key: "advisories",
       header: "Advisories",
-      render: (i) =>
-        i.advisoryStatus && i.advisoryStatus !== "none" ? (
+      render: (i) => {
+        const shieldVariant = advisoryShieldVariant(i.advisoryStatus)
+        return i.advisoryStatus && i.advisoryStatus !== "none" ? (
           <span className="kz-advisories-cell">
-            <Badge variant={advisoryVariant(i.advisoryStatus)}>
-              {i.advisoryStatus === "affected"
-                ? `${i.advisories.length} affected`
-                : i.advisoryStatus}
-            </Badge>{" "}
+            <span className="kz-status-badge">
+              {shieldVariant ? <StatusShield variant={shieldVariant} /> : null}
+              <Badge variant={advisoryVariant(i.advisoryStatus)}>
+                {i.advisoryStatus === "affected"
+                  ? `${i.advisories.length} affected`
+                  : i.advisoryStatus}
+              </Badge>
+            </span>{" "}
             <AdvisoryList advisories={i.advisories} />
           </span>
-        ) : null,
+        ) : null
+      },
     },
     {
       key: "source",
