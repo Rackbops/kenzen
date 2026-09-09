@@ -104,6 +104,41 @@ test("kenzen#70: each repo's table is wrapped for the shared fixed-column layout
   expect(controlTexts).toEqual(["Skip ▾", "Approve", "Acknowledge"])
 })
 
+// --- kenzen#109: the koi hero renders above the repo list, in every state -------------
+
+test("kenzen#109: the koi hero renders above the repo list", async () => {
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot: SNAPSHOT,
+    items: [item({ key: "a", name: "requests" })],
+  })
+  const { container } = render(<Repos />)
+  await waitFor(() => expect(screen.getByText("Rackbops/Tooling")).toBeInTheDocument())
+  const hero = container.querySelector(".kz-hero")
+  const card = container.querySelector(".rb-card")
+  expect(hero).not.toBeNull()
+  expect(card).not.toBeNull()
+  expect(
+    (hero as Element).compareDocumentPosition(card as Element) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy()
+})
+
+test("kenzen#109: the koi hero renders while loading", () => {
+  vi.spyOn(api, "fetchRepos").mockReturnValue(new Promise(() => {}))
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockReturnValue(new Promise(() => {}))
+  const { container } = render(<Repos />)
+  expect(screen.getByText("Loading repos…")).toBeInTheDocument()
+  expect(container.querySelector(".kz-hero")).not.toBeNull()
+})
+
+test("kenzen#109: the koi hero renders on a repos fetch error", async () => {
+  vi.spyOn(api, "fetchRepos").mockRejectedValue(new Error("boom"))
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
+  const { container } = render(<Repos />)
+  await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/boom/))
+  expect(container.querySelector(".kz-hero")).not.toBeNull()
+})
+
 test("renders an empty state when there are no repos yet", async () => {
   vi.spyOn(api, "fetchRepos").mockResolvedValue([])
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)

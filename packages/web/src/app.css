@@ -13,6 +13,14 @@
   padding: var(--rb-space-4);
 }
 
+/* kenzen#109: taller brand block -- roshne on alpha.16: "awfully small". */
+.kz-header .rb-wordmark {
+  font-size: 1.5em;
+}
+.kz-header .kz-koi {
+  flex: 0 0 auto;
+}
+
 /* kenzen#82: the header's own justify-content: space-between assumed exactly two children
  * (the wordmark and the Tabstrip) -- a bare third child would land BETWEEN them instead of
  * beside the Tabstrip. Tabstrip takes no className (its own component contract), so it can't
@@ -331,4 +339,18 @@
   max-width: 100%;
   height: auto;
   margin: 0 0 var(--rb-space-2);
+}
+
+/* kenzen#109: the same banner asset as a hero band on the Repos view -- centered, capped at
+ * the source's own 1024px (never grows past it, there is no 2x), shrinks below that on a
+ * narrow viewport the same way the empty-state banner above already does. */
+.kz-hero {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 var(--rb-space-4);
+}
+.kz-hero__banner {
+  width: 100%;
+  max-width: 1024px;
+  height: auto;
 }

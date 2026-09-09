@@ -31,6 +31,19 @@ test("kenzen#96: the header wordmark carries the kanji, tagged for assistive tec
   expect(kanji).toHaveAttribute("aria-label", "kenzen-sei")
 })
 
+test("kenzen#109: the header koi mark is 40px", async () => {
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
+  const { container } = render(
+    <MemoryRouter initialEntries={["/"]}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument())
+  const koi = container.querySelector("img.kz-koi")
+  expect(koi).toHaveAttribute("width", "40")
+  expect(koi).toHaveAttribute("height", "40")
+})
+
 test("renders a tablist with all five view labels", async () => {
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
   render(
