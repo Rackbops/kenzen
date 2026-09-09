@@ -38,11 +38,20 @@ const ROLE_ORDER = ["runtime", "infra", "ci", "build", "test"]
 function pinnedCell(item: ReportItem): ReactNode {
   const showBothVersions =
     item.pinStyle === "major" && item.latestInMajor !== null && item.latestInMajor !== item.latest
+  // kenzen#64 round 2, live-reproduced: `pinned` isn't always a short version -- one real item
+  // carries a 164-char assumption note, which under plain nowrap blew this column out and
+  // overflowed the whole table. Ellipsize like Source; `title` keeps the full text.
   if (!showBothVersions) {
-    return <span className="kz-nowrap">{`${item.pinned ?? "?"} → ${item.latest ?? "?"}`}</span>
+    const text = `${item.pinned ?? "?"} → ${item.latest ?? "?"}`
+    return (
+      <span className="kz-ellipsis" title={text}>
+        {text}
+      </span>
+    )
   }
+  const text = `${item.pinned ?? "?"} → ${item.latestInMajor} (latest: ${item.latest ?? "?"})`
   return (
-    <span className="kz-nowrap">
+    <span className="kz-ellipsis" title={text}>
       {item.pinned ?? "?"} → {item.latestInMajor}{" "}
       <span className="rb-muted">(latest: {item.latest ?? "?"})</span>
     </span>

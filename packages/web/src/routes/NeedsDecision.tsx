@@ -46,11 +46,17 @@ function columns(
     {
       key: "pinned",
       header: "Pinned → latest",
-      render: (i) => (
-        <span className="kz-nowrap">
-          {i.pinned ?? "?"} → {i.latest ?? "?"}
-        </span>
-      ),
+      render: (i) => {
+        // kenzen#64 round 2, live-reproduced: `pinned` isn't always a short version -- one real
+        // item carries a 164-char assumption note, which under plain nowrap blew this column to
+        // 924px and overflowed the whole table. Ellipsize like Source; `title` keeps the full text.
+        const text = `${i.pinned ?? "?"} → ${i.latest ?? "?"}`
+        return (
+          <span className="kz-ellipsis" title={text}>
+            {text}
+          </span>
+        )
+      },
     },
     {
       key: "gap",
