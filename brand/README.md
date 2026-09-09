@@ -17,6 +17,24 @@ code that uses them and are traced/produced from these.
 Every "transparent" file here is a JPEG with a checkerboard baked in -- there is no alpha
 channel. Do not place them on a page directly.
 
+## Deriving the shipped mark
+
+kenzen#89: the header mark and favicon set use `koi-teal.jpg` as-is, in its real colours --
+not a redrawn or recoloured version. `derive.py` removes the baked checkerboard (rebuilds a
+real alpha channel from the fact that background pixels are both nearly perfectly desaturated
+and light, which the fish's navy/teal/mint palette never is; feathers the cut edge 2px), crops
+to the fish's own bounding box, and exports every icon size Kenzen ships:
+
+```
+py -3.12 brand/derive.py
+```
+
+Requires Pillow and numpy (not repo dependencies -- run by hand when the source art changes,
+not part of any build). Writes `packages/web/public/brand/koi-{512,192,64,32}.png` and
+`apple-touch-icon.png` (180), all committed; `packages/web/src/brand/koi-assets.test.ts`
+smoke-tests the committed output (dimensions, a real alpha channel) since Python isn't part of
+this repo's JS toolchain or CI.
+
 ## Palette (measured from these files)
 
 | Role | Hex |
