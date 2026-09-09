@@ -80,18 +80,27 @@
   display: none;
 }
 
+/* kenzen#64 round 2, live-reproduced: a closed <details>' non-summary content is hidden only by
+ * a USER-AGENT stylesheet rule (`details:not([open]) > *:not(summary){display:none}`), and
+ * author CSS always wins over UA CSS regardless of selector specificity -- so giving the panel
+ * an unconditional `display: flex` here defeated that native hiding and left it permanently
+ * laid out (confirmed live: closed `<details>`, panel still `display: flex` with real height).
+ * Scoping `display` to the `[open]` state instead lets the UA rule hide it the rest of the time. */
 .kz-menu__panel {
   position: absolute;
   z-index: 1;
   margin-top: var(--rb-space-1);
   padding: var(--rb-space-2);
-  display: flex;
   flex-direction: column;
   gap: var(--rb-space-1);
   background: var(--rb-surface);
   border: 1px solid var(--rb-border-strong);
   border-radius: var(--rb-radius);
   box-shadow: var(--rb-shadow-sm);
+}
+
+.kz-menu[open] > .kz-menu__panel {
+  display: flex;
 }
 
 /* kenzen#64: identity columns never wrap; Source ellipsizes instead of inflating the row (the
