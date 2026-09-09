@@ -34,8 +34,11 @@ import { expect, test } from "vitest"
  * This file is excluded from its own scan (its doc comments and the regex source below both
  * necessarily contain `#` near hex-digit-class syntax that would otherwise self-trip it).
  *
- * Mutation: kenzen#90 pinned a literal hex fill in StatusShield.tsx and confirmed this fails,
- * naming the file and line.
+ * Mutation: kenzen#90 originally pinned a literal hex fill in StatusShield.tsx (then a
+ * hand-drawn inline SVG) and confirmed this fails, naming the file and line -- StatusShield
+ * has since become a real-artwork `<img>` cutout with no colour literal of its own to pin
+ * (kenzen#90's rework), so the same mutation was re-run against a literal hex temporarily
+ * added to app.css instead, with the same result.
  */
 
 const SRC_DIR = path.dirname(fileURLToPath(import.meta.url))
