@@ -1,8 +1,16 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
-import { expect, test, vi } from "vitest"
+import { afterEach, expect, test, vi } from "vitest"
 import { App } from "./App.js"
 import * as api from "./api.js"
+import { BUNDLED_THEMES, DEFAULT_THEME, THEME_STORAGE_KEY } from "./theme.js"
+
+// kenzen#82: the picker writes real document/localStorage state -- reset both after every
+// test in this file so a theme choice in one test can't leak into the next.
+afterEach(() => {
+  delete document.documentElement.dataset.rbStyle
+  window.localStorage.clear()
+})
 
 test("renders a tablist with all five view labels", async () => {
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
@@ -97,4 +105,34 @@ test("navigating to /history renders the History route's content", async () => {
   )
   await waitFor(() => expect(screen.getByText("Soundness")).toBeInTheDocument())
   expect(screen.getByText("No snapshots ingested yet.")).toBeInTheDocument()
+})
+
+// --- kenzen#82: the header theme picker ---------------------------------------------
+
+test("the theme select lists every bundled theme", async () => {
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
+  render(
+    <MemoryRouter initialEntries={["/"]}>
+      <App />
+    </MemoryRouter>,
+  )
+  const select = await screen.findByLabelText("Theme")
+  const optionValues = Array.from(select.querySelectorAll("option")).map((o) => o.value)
+  expect(optionValues).toEqual([...BUNDLED_THEMES])
+})
+
+test("choosing a theme sets data-rb-style on the root and persists it to localStorage", async () => {
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
+  const nonDefault = BUNDLED_THEMES.find((name) => name !== DEFAULT_THEME) as string
+  render(
+    <MemoryRouter initialEntries={["/"]}>
+      <App />
+    </MemoryRouter>,
+  )
+  const select = await screen.findByLabelText("Theme")
+
+  fireEvent.change(select, { target: { value: nonDefault } })
+
+  await waitFor(() => expect(document.documentElement.dataset.rbStyle).toBe(nonDefault))
+  expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe(nonDefault)
 })

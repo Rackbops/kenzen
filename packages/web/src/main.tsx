@@ -10,8 +10,9 @@ import { bootTheme } from "./theme.js"
 //
 // K4-7b (kenzen#24): bootTheme resolves the configured theme, lazily fetches its CSS
 // (import.meta.glob loader -- see theme.ts), and applies it -- all awaited BEFORE the app
-// renders, so the page never paints unstyled while the chunk loads.
-await bootTheme(import.meta.env, document.documentElement)
+// renders, so the page never paints unstyled while the chunk loads. window.localStorage
+// (kenzen#82) is the viewer's own theme override, checked before VITE_KENZEN_THEME.
+await bootTheme(import.meta.env, document.documentElement, window.localStorage)
 
 const root = document.getElementById("root")
 if (root) {

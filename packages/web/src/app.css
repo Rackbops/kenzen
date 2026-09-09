@@ -13,6 +13,18 @@
   padding: var(--rb-space-4);
 }
 
+/* kenzen#82: the header's own justify-content: space-between assumed exactly two children
+ * (the wordmark and the Tabstrip) -- a bare third child would land BETWEEN them instead of
+ * beside the Tabstrip. Tabstrip takes no className (its own component contract), so it can't
+ * carry a placement class itself; wrapping it with the theme picker in one flex group keeps
+ * space-between's original two-child math (wordmark, [nav group]) while placing the picker
+ * right of the Tabstrip with the header's own gap value between them. */
+.kz-header__theme {
+  display: flex;
+  align-items: center;
+  gap: var(--rb-space-3);
+}
+
 .kz-main {
   max-width: 1200px;
   margin: 0 auto;

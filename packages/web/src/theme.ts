@@ -56,11 +56,35 @@ export const DEFAULT_THEME = "arcane-obsidian"
  * Sorted for a deterministic, testable order. */
 export const BUNDLED_THEMES = Object.keys(THEME_LOADERS).sort() as readonly string[]
 
-/** Pure: resolveTheme(import.meta.env) at the call site, injected so it unit-tests without
- * depending on Vite's real env object. Falls back to DEFAULT_THEME (with a console warning)
- * for anything not in BUNDLED_THEMES, so a typo'd or unrecognized theme name fails safe
- * (a working default, loudly) instead of silently shipping an unstyled page. */
-export function resolveTheme(env: Record<string, string | boolean | undefined>): string {
+/** localStorage key for the viewer's own theme override (kenzen#82) -- a per-browser
+ * preference, never sent to the server: it overrides the deployment's `VITE_KENZEN_THEME`
+ * default for this browser only, the same way a viewer preference should never become
+ * decision state. */
+export const THEME_STORAGE_KEY = "kenzen.theme"
+
+/** Pure: resolveTheme(import.meta.env, window.localStorage) at the call site, both injected
+ * so it unit-tests without depending on Vite's real env object or a real Storage. Precedence
+ * (kenzen#82): a bundled theme name in `storage` wins over `env.VITE_KENZEN_THEME`, which
+ * wins over DEFAULT_THEME -- `storage` is the viewer's own override of the deployment
+ * default, not a replacement for it. `storage` is optional so every existing single-argument
+ * call (bootTheme with no viewer override yet resolved, every pre-#82 test) keeps working
+ * unchanged. Falls back with the same console warning shape for an unbundled name from
+ * EITHER source, so a typo'd or unrecognized theme name fails safe (a working default,
+ * loudly) instead of silently shipping an unstyled page. */
+export function resolveTheme(
+  env: Record<string, string | boolean | undefined>,
+  storage?: Pick<Storage, "getItem">,
+): string {
+  const stored = storage?.getItem(THEME_STORAGE_KEY)
+  if (stored) {
+    if ((BUNDLED_THEMES as readonly string[]).includes(stored)) {
+      return stored
+    }
+    console.warn(
+      `${THEME_STORAGE_KEY}=${JSON.stringify(stored)} has no matching CSS bundled ` +
+        `(BUNDLED_THEMES: ${BUNDLED_THEMES.join(", ")}) -- ignoring the stored override.`,
+    )
+  }
   const configured = env.VITE_KENZEN_THEME
   if (typeof configured !== "string" || configured === "") {
     return DEFAULT_THEME
@@ -96,12 +120,33 @@ export function applyTheme(theme: string, root: HTMLElement): void {
   root.dataset.rbStyle = theme
 }
 
+/** Live theme switch (kenzen#82), driven by the header picker: load the next theme's
+ * stylesheet, apply it, then persist the viewer's choice -- in that order, so a rejected
+ * `loadTheme` (a real network/chunk-load failure) never persists a theme whose CSS isn't
+ * actually loaded. Unlike `bootTheme`, this does NOT catch that rejection: it runs in
+ * response to a user action, not a page-blocking top-level await, so the caller (the
+ * picker's onChange handler) is the right place to decide how a failed switch should be
+ * surfaced. Both the old and new themes' stylesheets stay loaded -- `loadTheme` never
+ * unloads anything -- so switching back is instant and there is no page reload. */
+export async function setTheme(
+  next: string,
+  root: HTMLElement,
+  storage: Pick<Storage, "setItem">,
+): Promise<void> {
+  await loadTheme(next)
+  applyTheme(next, root)
+  storage.setItem(THEME_STORAGE_KEY, next)
+}
+
 /** The single entry point `main.tsx` calls at boot: resolve the configured theme, await
  * its stylesheet load, THEN apply it to `root` -- in that order, so `root`'s
  * `data-rb-style` attribute is never set to a theme whose CSS hasn't finished loading.
  * Pulled out of `main.tsx` (which also mounts the React tree and isn't itself unit-tested)
  * so the resolve -> load -> apply sequence has real, direct test coverage. Returns the
  * resolved theme name for callers that want to log/assert it.
+ *
+ * `storage` is optional (kenzen#82) and forwarded to `resolveTheme` unchanged -- omit it
+ * and boot resolves purely from `env`, exactly as before this existed.
  *
  * A rejected `loadTheme` -- a real network/chunk-load failure, not a resolveTheme-level
  * misconfiguration -- is caught and logged, not rethrown: `main.tsx` top-level-`await`s
@@ -113,8 +158,9 @@ export function applyTheme(theme: string, root: HTMLElement): void {
 export async function bootTheme(
   env: Record<string, string | boolean | undefined>,
   root: HTMLElement,
+  storage?: Pick<Storage, "getItem">,
 ): Promise<string> {
-  const theme = resolveTheme(env)
+  const theme = resolveTheme(env, storage)
   try {
     await loadTheme(theme)
   } catch (err) {
