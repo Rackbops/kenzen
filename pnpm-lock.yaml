@@ -78,7 +78,7 @@ importers:
         version: 0.2.19
       '@rackbops/ui-react':
         specifier: ^0.2.16
-        version: 0.2.16(react@19.2.8)
+        version: 0.2.19(react@19.2.8)
       react:
         specifier: ^19.2.0
         version: 19.2.8
@@ -435,8 +435,8 @@ packages:
   '@rackbops/styles@0.2.19':
     resolution: {integrity: sha512-TOH3BHwfbgNTpdw+S9I942Z7wukM54g2RkTv90JFSQQOFL3zNOXaWPZNZe4Pnub/PkxT9G1kbzIjlYNsxtDFXg==}
 
-  '@rackbops/ui-react@0.2.16':
-    resolution: {integrity: sha512-UhHXp63D65PYErNonvVTx9GyrgHB3Nvw2n5F2okwTipxCxzj8uyGPYf3ioZniU+AUxCOarymsp9zHAg+KDNuGQ==}
+  '@rackbops/ui-react@0.2.19':
+    resolution: {integrity: sha512-DOla36hwltaM2604FOFyciNSoVRn1rRmuJnJpiNCVVB7K1YdmYwSVQBPpE66tr+CFiqP5s9s0dQ2kIdR0/fN7A==}
     peerDependencies:
       react: '>=18'
 
@@ -1414,7 +1414,7 @@ snapshots:
 
   '@rackbops/styles@0.2.19': {}
 
-  '@rackbops/ui-react@0.2.16(react@19.2.8)':
+  '@rackbops/ui-react@0.2.19(react@19.2.8)':
     dependencies:
       react: 19.2.8
 
