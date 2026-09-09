@@ -47,6 +47,22 @@ scaffolded now (Tooling#478 K4-1) and filled in their own child issue:
 
 ## Key gotchas
 
+- **A local `node dist/main.js` run with no env vars set shares `<drive>:\state\` across
+  every worktree and every boot on Windows** ([#72](https://github.com/Rackbops/kenzen/issues/72)).
+  `@rackbops/node-app-kit`'s `resolveConfig` defaults `stateDir` to `/state`
+  (`dist/config.js:3`, `DEFAULT_STATE_DIR`), which is a container-correct absolute path but
+  resolves on Windows to the *current drive's root* -- `R:\state\kenzen.db` -- not a path
+  scoped to the checkout. Every worktree on the same drive, and every separate local run,
+  reads and writes that one file. A live-probe measured stale synthetic advisory data left
+  by an earlier run before this was noticed. **Always pass `KENZEN_STATE_DIR` (and
+  `KENZEN_CONFIG_DIR`)** to an explicit, fresh directory for any local smoke test or probe
+  -- both names come straight from the `prefix` kenzen passes node-app-kit
+  (`packages/server/src/config.ts:35`, `resolveBaseConfig(env, { ...options, prefix:
+  "KENZEN" })`) through node-app-kit's own `${p}_STATE_DIR`/`${p}_CONFIG_DIR` env lookups
+  (`dist/config.js:44`/`:15`). Never treat a local `kenzen.db`'s contents as fresh unless
+  you set `KENZEN_STATE_DIR` yourself for that run. `R:\state\kenzen.db` on Melody is left
+  in place -- it's roshne's to delete, nothing here depends on it.
+
 - **`Rackbops` is a FREE org: a private repo cannot read an org-level secret via
   `secrets: inherit`** -- it resolves the name but passes an empty string, silently shadowing a
   working repo-level secret. Always pass secrets explicitly to a reusable workflow here.
