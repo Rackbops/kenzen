@@ -6,7 +6,7 @@
  * body is `var(--rb-text)` with an inset outline in `var(--rb-bg)` (as in the source's
  * navy-on-light-border look), and the glyph is `var(--rb-success)` / `var(--rb-danger)` /
  * `var(--rb-warning)`, matching the three semantic Badge variants it sits beside. Every glyph
- * is drawn with `stroke` and `stroke-linecap: round` only -- including the checkmark's and
+ * is drawn with `stroke` and `stroke-linecap: round` only -- including the bug's and
  * exclamation's "dots" (a zero-length round-capped stroke renders as a filled circle without
  * ever setting `fill` to anything but `none`) -- so nothing here needs a fill colour beyond
  * the shield body itself.
