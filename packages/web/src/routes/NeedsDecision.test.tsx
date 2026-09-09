@@ -128,13 +128,47 @@ test("kenzen#70: the table is wrapped for the shared fixed-column layout, with t
   }
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
     snapshot,
-    items: [item({ key: "a", name: "behind-pkg", gap: "minor" })],
+    items: [
+      item({
+        key: "a",
+        name: "behind-pkg",
+        gap: "minor",
+        advisoryStatus: "affected",
+        advisories: [
+          {
+            id: "GHSA-1",
+            summary: "x",
+            severity: "high",
+            url: "https://x",
+            source: "ghsa",
+            affected: true,
+          },
+        ],
+      }),
+    ],
   })
   const { container } = render(<NeedsDecision />)
   await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument())
   const wrapper = container.querySelector(".kz-items-table")
   expect(wrapper).not.toBeNull()
   expect(wrapper).toHaveClass("kz-items-table--repo")
+  // kenzen#70 round 2, review round 1: the earlier version of this assertion used a gap-only
+  // item (the two-control case), which never exercises the three-control (gap AND advisory)
+  // combination that actually wrapped -- an item with all three controls moved outside
+  // `.kz-actions` would have passed the old assertion. This item carries both axes, and checks
+  // all three controls are children of the SAME `.kz-actions` element.
+  const actions = container.querySelector(".kz-actions")
+  expect(actions).not.toBeNull()
+  // Direct children only -- the Skip <details> also nests the four gap-option buttons inside its
+  // own panel, which querySelectorAll("button") would wrongly include.
+  const controlTexts = actions
+    ? Array.from(actions.children).map((el) =>
+        el.tagName === "DETAILS"
+          ? el.querySelector("summary")?.textContent?.trim()
+          : el.textContent?.trim(),
+      )
+    : []
+  expect(controlTexts).toEqual(["Skip ▾", "Approve", "Acknowledge"])
 })
 
 test("an affected item is prioritized above a gapped item in row order", async () => {
