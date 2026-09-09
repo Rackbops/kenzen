@@ -130,6 +130,10 @@ test("orderedForPicker tolerates a theme list missing one or both pinned names",
   expect(orderedForPicker(onlyDark)).toEqual(["kenzen-midnight", ...withoutKenzen])
 })
 
+test("orderedForPicker returns an empty array for an empty input", () => {
+  expect(orderedForPicker([])).toEqual([])
+})
+
 test("loadTheme invokes only the resolved theme's loader, never another bundled theme's", async () => {
   const nonDefault = BUNDLED_THEMES.find((name) => name !== DEFAULT_THEME)
   expect(nonDefault).toBeDefined()
