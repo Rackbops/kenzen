@@ -1,12 +1,25 @@
 #!/usr/bin/env python3
-"""kenzen#89: derives real-alpha PNG cutouts of the Code Stream Koi from
-brand/source/koi-teal.jpg -- roshne's direction was to use the artwork as-is, in its real
-colours, not a hand-redrawn approximation. koi-teal.jpg bakes a grey/white checkerboard in
-place of transparency (JPG has no alpha channel); this script rebuilds a real alpha channel
-by treating the checkerboard's own signature -- pixels that are both nearly perfectly
-desaturated (R almost equal to G almost equal to B) AND light -- as background, feathers the
-edge 2px so the cutout doesn't have a hard-pixelated silhouette, crops to the fish's own
-bounding box, and resizes into each target icon size.
+"""kenzen#89/#90: derives real-alpha PNG cutouts from two flattened-onto-checkerboard JPEG
+sources -- roshne's direction for the whole brand epic was to use the artwork as-is, in its
+real colours, not a hand-redrawn approximation. Both sources bake a grey/white checkerboard
+in place of transparency (JPG has no alpha channel); this script rebuilds a real alpha
+channel by treating the checkerboard's own signature -- pixels that are both nearly
+perfectly desaturated (R almost equal to G almost equal to B) AND light -- as background,
+feathers the edge 2px so the cutout doesn't have a hard-pixelated silhouette, crops to the
+subject's own bounding box, and resizes into each target size.
+
+- `brand/source/koi-teal.jpg` (kenzen#89): the Code Stream Koi mark, one subject filling the
+  frame -- `derive_koi()`.
+- `brand/source/status-shields.jpg` (kenzen#90): three status shields (healthy/vulnerable/
+  attention, left to right) side by side in one frame -- `derive_shields()` slices the frame
+  into equal thirds first (each shield's own bounding-box crop then runs inside just its
+  third, so one shield's content can never bleed into a neighbour's crop) and otherwise
+  reuses the exact same checkerboard-removal technique. Each shield's inner ring (between the
+  outer silhouette and the inner body) is genuine transparency in the source art, not a solid
+  stroke -- confirmed by zooming into the source JPEG, where the same checkerboard pattern
+  and phase as the true background shows through it -- so the plain per-pixel threshold
+  already removes it correctly, letting it show whatever sits behind the rendered `<img>`
+  (the theme's own background) rather than a hardcoded colour.
 
 Run with (Windows, this machine -- see the repo CLAUDE.md on Python invocation):
     py -3.12 brand/derive.py
@@ -15,9 +28,11 @@ Requires Pillow and numpy (not repo dependencies -- a one-off asset-derivation s
 by hand when the source art changes, not part of any build).
 
 Writes packages/web/public/brand/koi-{512,192,64,32}.png (transparent, the fish's own aspect
-ratio centered in the square canvas) and apple-touch-icon.png (180, same crop, but flattened
-onto a solid navy background -- iOS doesn't compositing-blend a transparent touch icon, it can
-render the empty area black instead, per Apple's own HIG).
+ratio centered in the square canvas), apple-touch-icon.png (180, same crop, but flattened onto
+a solid navy background -- iOS doesn't compositing-blend a transparent touch icon, it can
+render the empty area black instead, per Apple's own HIG), and
+shield-{healthy,vulnerable,attention}-{64,32}.png -- each transparent, the source's own aspect
+ratio centered in the square canvas.
 """
 
 from pathlib import Path
@@ -26,15 +41,17 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SOURCE = REPO_ROOT / "brand" / "source" / "koi-teal.jpg"
+SOURCE_KOI = REPO_ROOT / "brand" / "source" / "koi-teal.jpg"
+SOURCE_SHIELDS = REPO_ROOT / "brand" / "source" / "status-shields.jpg"
 OUT_DIR = REPO_ROOT / "packages" / "web" / "public" / "brand"
 
-# Background pixels in this source are near-perfectly desaturated (the checkerboard is pure
-# grey/white, R==G==B) and light -- the fish's navy/teal/mint palette is never both.
-CHROMA_THRESHOLD = 20.0  # max(R,G,B) - min(R,G,B); real fish colour is always well above this
+# Background pixels in both sources are near-perfectly desaturated (the checkerboard is pure
+# grey/white, R==G==B) and light -- neither the koi's navy/teal/mint palette nor any shield's
+# navy/mint/red/amber palette is ever both. Shared across derive_koi() and derive_shields().
+CHROMA_THRESHOLD = 20.0  # max(R,G,B) - min(R,G,B); real subject colour is always well above this
 LIGHTNESS_THRESHOLD = 140.0  # (max+min)/2; checkerboard tones measured at ~200 and ~255
 FEATHER_PX = 2
-CROP_PADDING_FRAC = 0.03  # a little breathing room around the fish's own bounding box
+CROP_PADDING_FRAC = 0.03  # a little breathing room around the subject's own bounding box
 # brand/README.md's measured palette -- deep navy/midnight -- used only as the solid backing
 # for apple-touch-icon.png below, never as a fill on the transparent exports.
 TOUCH_ICON_BACKGROUND = (10, 32, 56)
@@ -46,6 +63,11 @@ TARGETS = [
     ("koi-32.png", 32, None),
     ("apple-touch-icon.png", 180, TOUCH_ICON_BACKGROUND),
 ]
+
+# Left to right in status-shields.jpg, per kenzen#90's own issue text: mint check = healthy,
+# crimson bug = vulnerable, amber exclamation = attention.
+SHIELD_VARIANTS = ["healthy", "vulnerable", "attention"]
+SHIELD_SIZES = (64, 32)
 
 
 def remove_checkerboard(img: Image.Image) -> Image.Image:
@@ -97,13 +119,34 @@ def fit_into_square(
     return canvas.convert("RGB") if background is not None else canvas
 
 
-def main() -> None:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    source = Image.open(SOURCE)
+def derive_koi() -> None:
+    source = Image.open(SOURCE_KOI)
     cutout = crop_to_content(remove_checkerboard(source), CROP_PADDING_FRAC)
     for filename, size, background in TARGETS:
         fit_into_square(cutout, size, background).save(OUT_DIR / filename)
         print(f"wrote {OUT_DIR / filename} ({size}x{size})")
+
+
+def derive_shields() -> None:
+    """Slices `status-shields.jpg` into three equal-width thirds -- one per variant, left to
+    right -- before running each through the same checkerboard removal and bounding-box crop
+    `derive_koi()` uses, so one shield's crop can never pick up a sliver of its neighbour."""
+    source = Image.open(SOURCE_SHIELDS).convert("RGB")
+    width, _height = source.size
+    edges = [round(i * width / len(SHIELD_VARIANTS)) for i in range(len(SHIELD_VARIANTS) + 1)]
+    for variant, left, right in zip(SHIELD_VARIANTS, edges, edges[1:]):
+        third = source.crop((left, 0, right, source.height))
+        cutout = crop_to_content(remove_checkerboard(third), CROP_PADDING_FRAC)
+        for size in SHIELD_SIZES:
+            filename = f"shield-{variant}-{size}.png"
+            fit_into_square(cutout, size).save(OUT_DIR / filename)
+            print(f"wrote {OUT_DIR / filename} ({size}x{size})")
+
+
+def main() -> None:
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    derive_koi()
+    derive_shields()
 
 
 if __name__ == "__main__":

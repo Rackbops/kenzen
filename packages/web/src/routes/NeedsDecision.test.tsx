@@ -283,7 +283,10 @@ test("kenzen#90: an affected item shows the vulnerable shield before its advisor
   await waitFor(() => expect(screen.getByText("vuln-pkg")).toBeInTheDocument())
   const advisoryBadge = container.querySelector(".kz-advisories-cell .kz-status-badge")
   expect(advisoryBadge).not.toBeNull()
-  expect(advisoryBadge?.querySelector("svg g")).toHaveAttribute("stroke", "var(--rb-danger)")
+  expect(advisoryBadge?.querySelector("img")).toHaveAttribute(
+    "src",
+    "/brand/shield-vulnerable-32.png",
+  )
 })
 
 test("kenzen#90: a clean (gap=none) item shows the healthy shield before its gap badge", async () => {
@@ -321,11 +324,11 @@ test("kenzen#90: a clean (gap=none) item shows the healthy shield before its gap
   await waitFor(() => expect(screen.getByText("clean-gap-pkg")).toBeInTheDocument())
   const row = screen.getByText("clean-gap-pkg").closest("tr")
   const gapCell = row?.querySelectorAll("td")[4]
-  const gapShield = gapCell?.querySelector(".kz-status-badge svg g")
-  expect(gapShield).toHaveAttribute("stroke", "var(--rb-success)")
-  // sanity: not accidentally reading the advisory cell's own (differently-coloured) shield
-  const advisoryShield = container.querySelector(".kz-advisories-cell .kz-status-badge svg g")
-  expect(advisoryShield).toHaveAttribute("stroke", "var(--rb-danger)")
+  const gapShield = gapCell?.querySelector(".kz-status-badge img")
+  expect(gapShield).toHaveAttribute("src", "/brand/shield-healthy-32.png")
+  // sanity: not accidentally reading the advisory cell's own (differently-variant) shield
+  const advisoryShield = container.querySelector(".kz-advisories-cell .kz-status-badge img")
+  expect(advisoryShield).toHaveAttribute("src", "/brand/shield-vulnerable-32.png")
 })
 
 test("the repo filter narrows the rendered rows", async () => {

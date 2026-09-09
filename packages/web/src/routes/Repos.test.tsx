@@ -305,8 +305,8 @@ test("kenzen#90: a major-gap item shows the attention shield before its gap badg
   render(<Repos />)
   await waitFor(() => expect(screen.getByText("major-gap-pkg")).toBeInTheDocument())
   const row = screen.getByText("major-gap-pkg").closest("tr")
-  const shield = row?.querySelector(".kz-status-badge svg g")
-  expect(shield).toHaveAttribute("stroke", "var(--rb-warning)")
+  const shield = row?.querySelector(".kz-status-badge img")
+  expect(shield).toHaveAttribute("src", "/brand/shield-attention-32.png")
 })
 
 test("kenzen#90: a historical-only advisory item shows the healthy shield before its advisory badge", async () => {
@@ -334,8 +334,8 @@ test("kenzen#90: a historical-only advisory item shows the healthy shield before
   render(<Repos />)
   await waitFor(() => expect(screen.getByText("historical-pkg")).toBeInTheDocument())
   const row = screen.getByText("historical-pkg").closest("tr")
-  const shield = row?.querySelector(".kz-status-badge svg g")
-  expect(shield).toHaveAttribute("stroke", "var(--rb-success)")
+  const shield = row?.querySelector(".kz-status-badge img")
+  expect(shield).toHaveAttribute("src", "/brand/shield-healthy-32.png")
 })
 
 test("clicking the Gap header sorts by severity, not alphabetically", async () => {
