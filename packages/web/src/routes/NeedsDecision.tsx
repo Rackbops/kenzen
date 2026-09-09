@@ -44,12 +44,12 @@ function columns(
       header: "Advisories",
       render: (i) =>
         i.advisoryStatus === "affected" ? (
-          <>
+          <span className="kz-advisories-cell">
             <Badge variant={advisoryVariant(i.advisoryStatus)}>
               {i.advisories.length} affected
             </Badge>{" "}
             <AdvisoryList advisories={i.advisories} />
-          </>
+          </span>
         ) : null,
     },
     {

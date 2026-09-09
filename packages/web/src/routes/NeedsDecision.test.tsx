@@ -171,6 +171,9 @@ test("an affected item's advisories render as links to their real URLs", async (
   })
   render(<NeedsDecision />)
   await waitFor(() => expect(screen.getByText("vuln-pkg")).toBeInTheDocument())
+  // kenzen#63: the id list is collapsed behind a disclosure by default -- open it before
+  // asserting on the link.
+  fireEvent.click(screen.getByText("show ids"))
   expect(screen.getByRole("link", { name: "GHSA-7mjv-x3jf-545x" })).toHaveAttribute(
     "href",
     "https://github.com/advisories/GHSA-7mjv-x3jf-545x",
