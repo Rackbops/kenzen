@@ -68,3 +68,9 @@ scaffolded now (Tooling#478 K4-1) and filled in their own child issue:
   working repo-level secret. Always pass secrets explicitly to a reusable workflow here.
 - **`dist/` is generated and gitignored; `pnpm-lock.yaml` is generated and committed** (CI
   installs `--frozen-lockfile`).
+- **`git push --force-with-lease` is pre-authorised on your own `claude/*` branch after a
+  rebase onto `origin/main`** -- the carve-out personal's **Escalation** requires a repo file
+  to state. Why here: Renovate lands dependency PRs in bursts (8 merged on 2026-09-08, 9 on
+  2026-09-09), so a feature branch routinely has to rebase to absorb one before its CI goes
+  green, and those branches are single-author and squash-merged, so rewriting them destroys
+  nothing. It never covers bare `--force`, a branch that isn't yours, or `main`.
