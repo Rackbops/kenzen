@@ -59,6 +59,19 @@ test("renders a card per repo with its real soundness line, then its item table"
   expect(screen.getByText("requests")).toBeInTheDocument()
 })
 
+test("kenzen#70: each repo's table is wrapped for the shared fixed-column layout, no Repo-column variant", async () => {
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot: SNAPSHOT,
+    items: [item({ key: "a", name: "requests" })],
+  })
+  const { container } = render(<Repos />)
+  await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument())
+  const wrapper = container.querySelector(".kz-items-table")
+  expect(wrapper).not.toBeNull()
+  expect(wrapper).not.toHaveClass("kz-items-table--repo")
+})
+
 test("renders an empty state when there are no repos yet", async () => {
   vi.spyOn(api, "fetchRepos").mockResolvedValue([])
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)

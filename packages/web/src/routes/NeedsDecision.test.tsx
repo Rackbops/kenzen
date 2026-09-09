@@ -119,6 +119,24 @@ test("each of major, minor, and patch individually counts as needing a decision"
   expect(screen.getByText("patch-behind-pkg")).toBeInTheDocument()
 })
 
+test("kenzen#70: the table is wrapped for the shared fixed-column layout, with the extra Repo-column variant", async () => {
+  const snapshot = {
+    snapshotId: 1,
+    generatedAt: "2026-09-08T00:00:00Z",
+    inventoryItems: 1,
+    summary: {},
+  }
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot,
+    items: [item({ key: "a", name: "behind-pkg", gap: "minor" })],
+  })
+  const { container } = render(<NeedsDecision />)
+  await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument())
+  const wrapper = container.querySelector(".kz-items-table")
+  expect(wrapper).not.toBeNull()
+  expect(wrapper).toHaveClass("kz-items-table--repo")
+})
+
 test("an affected item is prioritized above a gapped item in row order", async () => {
   const snapshot = {
     snapshotId: 1,

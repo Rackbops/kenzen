@@ -28,7 +28,11 @@ function columns(
     {
       key: "repo",
       header: "Repo",
-      render: (i) => <span className="kz-nowrap">{i.repo}</span>,
+      render: (i) => (
+        <span className="kz-nowrap" title={i.repo}>
+          {i.repo}
+        </span>
+      ),
       sortValue: (i) => i.repo,
     },
     {
@@ -40,7 +44,11 @@ function columns(
     {
       key: "name",
       header: "Name",
-      render: (i) => <span className="kz-nowrap">{i.name}</span>,
+      render: (i) => (
+        <span className="kz-nowrap" title={i.name}>
+          {i.name}
+        </span>
+      ),
       sortValue: (i) => i.name,
     },
     {
@@ -159,13 +167,15 @@ function NeedsDecisionTable({ items, snapshotId }: { items: ReportItem[]; snapsh
         onChange={setFilters}
         dimensions={["repo", "kind", "role", "status"]}
       />
-      <DataTable
-        columns={tableColumns}
-        rows={filtered}
-        rowKey={(i) => i.key}
-        defaultSortKey="gap"
-        emptyMessage="No items match these filters."
-      />
+      <div className="kz-items-table kz-items-table--repo">
+        <DataTable
+          columns={tableColumns}
+          rows={filtered}
+          rowKey={(i) => i.key}
+          defaultSortKey="gap"
+          emptyMessage="No items match these filters."
+        />
+      </div>
     </Card>
   )
 }

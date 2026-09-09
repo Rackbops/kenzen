@@ -73,7 +73,11 @@ function columns(
     {
       key: "name",
       header: "Name",
-      render: (i) => <span className="kz-nowrap">{i.name}</span>,
+      render: (i) => (
+        <span className="kz-nowrap" title={i.name}>
+          {i.name}
+        </span>
+      ),
       sortValue: (i) => i.name,
     },
     { key: "pinned", header: "Pinned → latest", render: pinnedCell },
@@ -262,14 +266,16 @@ function RepoCard({
     <Card>
       <h3>{repo.repo}</h3>
       <p>{repo.soundness}</p>
-      <DataTable
-        columns={columns}
-        rows={items}
-        rowKey={(i) => i.key}
-        groupBy={(i) => i.role ?? "unknown"}
-        groupOrder={ROLE_ORDER}
-        emptyMessage="No items match these filters."
-      />
+      <div className="kz-items-table">
+        <DataTable
+          columns={columns}
+          rows={items}
+          rowKey={(i) => i.key}
+          groupBy={(i) => i.role ?? "unknown"}
+          groupOrder={ROLE_ORDER}
+          emptyMessage="No items match these filters."
+        />
+      </div>
     </Card>
   )
 }

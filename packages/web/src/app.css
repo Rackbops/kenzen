@@ -119,10 +119,120 @@
 
 .kz-ellipsis {
   display: inline-block;
-  max-width: 14rem;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* kenzen#70: `DataTable` exposes no per-column width, so this is app-local -- each usage wraps
+ * its `DataTable` in one of these classes and the columns get fixed, shared widths here instead
+ * of each table auto-sizing from its own content (which is what let widths and x-positions float
+ * per repo, and both `kz-nowrap` and `kz-ellipsis` push/overflow the table instead of clipping
+ * under `table-layout: auto`). `td`/`th` widths use `nth-child` since `DataTable` renders no
+ * `<colgroup>`; a later `width` prop on `DataTableColumn` (tracked as a design-system give-back)
+ * would make this declarative instead. Give the `.kz-items-table--repo` block AFTER the base
+ * block so its own values win on `NeedsDecision.tsx`'s wrapper, which carries both classes. */
+.kz-items-table .rb-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.kz-items-table th,
+.kz-items-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Review round 1, HIGH, live-reasoned (not yet live-reproduced): an ancestor's `overflow:
+ * hidden` clips a descendant's painted box even when that descendant is absolutely positioned
+ * and its own containing block is unaffected -- clipping follows the ancestor chain, not the
+ * containing-block chain. The Skip menu's `.kz-menu__panel` (kenzen#64) lives inside the Actions
+ * cell and, open, is far taller than the cell's own in-flow row height, so the blanket rule
+ * above would clip it to a sliver. Actions is always the last column in both layouts and holds
+ * no long text needing ellipsis, so it's the one cell exempted. */
+.kz-items-table td:last-child {
+  overflow: visible;
+}
+
+/* Repos (7 cols): Kind / Name / Pinned->latest / Gap / Advisories / Source / Actions. */
+.kz-items-table th:nth-child(1),
+.kz-items-table td:nth-child(1) {
+  width: 8%;
+}
+
+.kz-items-table th:nth-child(2),
+.kz-items-table td:nth-child(2) {
+  width: 21%;
+}
+
+.kz-items-table th:nth-child(3),
+.kz-items-table td:nth-child(3) {
+  width: 17%;
+}
+
+.kz-items-table th:nth-child(4),
+.kz-items-table td:nth-child(4) {
+  width: 6%;
+}
+
+.kz-items-table th:nth-child(5),
+.kz-items-table td:nth-child(5) {
+  width: 11%;
+}
+
+.kz-items-table th:nth-child(6),
+.kz-items-table td:nth-child(6) {
+  width: 17%;
+}
+
+.kz-items-table th:nth-child(7),
+.kz-items-table td:nth-child(7) {
+  width: 20%;
+}
+
+/* Needs-a-decision (8 cols, extra Repo column first): Repo / Kind / Name / Pinned->latest / Gap /
+ * Advisories / Source / Actions -- same specificity as the base block above, so source order
+ * (this block comes after) is what makes these win for nth-child(1..7) on the wrapper that
+ * carries both classes. */
+.kz-items-table--repo th:nth-child(1),
+.kz-items-table--repo td:nth-child(1) {
+  width: 12%;
+}
+
+.kz-items-table--repo th:nth-child(2),
+.kz-items-table--repo td:nth-child(2) {
+  width: 7%;
+}
+
+.kz-items-table--repo th:nth-child(3),
+.kz-items-table--repo td:nth-child(3) {
+  width: 17%;
+}
+
+.kz-items-table--repo th:nth-child(4),
+.kz-items-table--repo td:nth-child(4) {
+  width: 14%;
+}
+
+.kz-items-table--repo th:nth-child(5),
+.kz-items-table--repo td:nth-child(5) {
+  width: 5%;
+}
+
+.kz-items-table--repo th:nth-child(6),
+.kz-items-table--repo td:nth-child(6) {
+  width: 10%;
+}
+
+.kz-items-table--repo th:nth-child(7),
+.kz-items-table--repo td:nth-child(7) {
+  width: 15%;
+}
+
+.kz-items-table--repo th:nth-child(8),
+.kz-items-table--repo td:nth-child(8) {
+  width: 20%;
 }
 
 /* kenzen#64: DataTable's own `sticky` prop wraps the table in a second, inner scroll box
