@@ -14,6 +14,7 @@ import {
   gapShieldVariant,
   gapVariant,
 } from "../badgeVariants.js"
+import { KoiHero } from "../brand/KoiHero.js"
 import { StatusShield } from "../brand/StatusShield.js"
 import { DecisionActions } from "../DecisionActions.js"
 import { gapPriority } from "../gapPriority.js"
@@ -186,30 +187,39 @@ export function Repos() {
   const itemsState = useAsync(() => fetchLatestSnapshotItems(), [])
   const [filters, setFilters] = useState<ItemFilterState>({})
 
+  // kenzen#109: the hero renders exactly once, above whichever branch below is picked, so a
+  // future branch added here can't forget it the way a copy-pasted `return` per branch could.
+  let content: ReactNode
   if (reposState.status === "loading" || itemsState.status === "loading") {
-    return <p>Loading repos…</p>
+    content = <p>Loading repos…</p>
+    // repos is the backbone of this page (the list itself, the soundness lines) -- nothing
+    // meaningful renders without it, so its own failure stays a full-page error. items is
+    // additive detail on top of an already-rendered repo list -- its failure degrades to an
+    // inline alert alongside the repo list repos still gives us, not a blanked page.
+  } else if (reposState.status === "error") {
+    content = <p role="alert">Could not load repos: {reposState.error.message}</p>
+  } else {
+    const snapshotItems = itemsState.status === "ready" ? itemsState.data : null
+    content = (
+      <div>
+        {itemsState.status === "error" && (
+          <p role="alert">Could not load item details: {itemsState.error.message}</p>
+        )}
+        <RepoList
+          repos={reposState.data}
+          items={snapshotItems?.items ?? []}
+          snapshotId={snapshotItems?.snapshot.snapshotId ?? null}
+          filters={filters}
+          onFiltersChange={setFilters}
+        />
+      </div>
+    )
   }
-  // repos is the backbone of this page (the list itself, the soundness lines) -- nothing
-  // meaningful renders without it, so its own failure stays a full-page error. items is
-  // additive detail on top of an already-rendered repo list -- its failure degrades to an
-  // inline alert alongside the repo list repos still gives us, not a blanked page.
-  if (reposState.status === "error") {
-    return <p role="alert">Could not load repos: {reposState.error.message}</p>
-  }
-  const snapshotItems = itemsState.status === "ready" ? itemsState.data : null
   return (
-    <div>
-      {itemsState.status === "error" && (
-        <p role="alert">Could not load item details: {itemsState.error.message}</p>
-      )}
-      <RepoList
-        repos={reposState.data}
-        items={snapshotItems?.items ?? []}
-        snapshotId={snapshotItems?.snapshot.snapshotId ?? null}
-        filters={filters}
-        onFiltersChange={setFilters}
-      />
-    </div>
+    <>
+      <KoiHero />
+      {content}
+    </>
   )
 }
 
