@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { expect, test, vi } from "vitest"
 import type { Advisory, ItemDecision, ReportItem } from "./api.js"
 import { DecisionActions } from "./DecisionActions.js"
@@ -63,10 +63,12 @@ test("a gapped, undecided item shows Skip/Remind/Approve, no Acknowledge (adviso
       error={undefined}
     />,
   )
-  expect(screen.getByRole("button", { name: "Skip" })).toBeEnabled()
-  expect(screen.getByRole("button", { name: "7d" })).toBeEnabled()
-  expect(screen.getByRole("button", { name: "30d" })).toBeEnabled()
-  expect(screen.getByRole("button", { name: "90d" })).toBeEnabled()
+  expect(screen.getByText("Skip ▾")).toBeInTheDocument()
+  fireEvent.click(screen.getByText("Skip ▾"))
+  expect(screen.getByRole("button", { name: "Skip 2.32.3" })).toBeEnabled()
+  expect(screen.getByRole("button", { name: "Remind in 7 days" })).toBeEnabled()
+  expect(screen.getByRole("button", { name: "Remind in 30 days" })).toBeEnabled()
+  expect(screen.getByRole("button", { name: "Remind in 90 days" })).toBeEnabled()
   expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled()
   expect(screen.queryByRole("button", { name: "Acknowledge" })).not.toBeInTheDocument()
 })
@@ -80,8 +82,24 @@ test("Skip and Approve are disabled when latest is null -- nothing to skip/appro
       error={undefined}
     />,
   )
-  expect(screen.getByRole("button", { name: "Skip" })).toBeDisabled()
+  fireEvent.click(screen.getByText("Skip ▾"))
+  expect(screen.getByRole("button", { name: "Skip ?" })).toBeDisabled()
   expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled()
+})
+
+test("the Remind presets stay actionable even when latest is null -- only Skip/Approve need it", () => {
+  render(
+    <DecisionActions
+      item={item({ latest: null })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  fireEvent.click(screen.getByText("Skip ▾"))
+  expect(screen.getByRole("button", { name: "Remind in 7 days" })).toBeEnabled()
+  expect(screen.getByRole("button", { name: "Remind in 30 days" })).toBeEnabled()
+  expect(screen.getByRole("button", { name: "Remind in 90 days" })).toBeEnabled()
 })
 
 test("gap none/unknown shows no gap-axis buttons at all", () => {
@@ -109,7 +127,8 @@ test("clicking Skip reveals a one-line confirm naming the target version, not th
       error={undefined}
     />,
   )
-  fireEvent.click(screen.getByRole("button", { name: "Skip" }))
+  fireEvent.click(screen.getByText("Skip ▾"))
+  fireEvent.click(screen.getByRole("button", { name: "Skip 9.9.9" }))
   expect(screen.getByText(/Skip 9\.9\.9\?/)).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Yes" })).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "No" })).toBeInTheDocument()
@@ -126,7 +145,8 @@ test("confirming Yes calls onApply with the exact patch and returns to the butto
       error={undefined}
     />,
   )
-  fireEvent.click(screen.getByRole("button", { name: "Skip" }))
+  fireEvent.click(screen.getByText("Skip ▾"))
+  fireEvent.click(screen.getByRole("button", { name: "Skip 9.9.9" }))
   fireEvent.click(screen.getByRole("button", { name: "Yes" }))
   expect(onApply).toHaveBeenCalledWith({ field: "skippedVersion", value: "9.9.9" })
 })
@@ -141,17 +161,19 @@ test("clicking No cancels back to the button row without calling onApply", () =>
       error={undefined}
     />,
   )
-  fireEvent.click(screen.getByRole("button", { name: "Skip" }))
+  fireEvent.click(screen.getByText("Skip ▾"))
+  fireEvent.click(screen.getByRole("button", { name: "Skip 9.9.9" }))
   fireEvent.click(screen.getByRole("button", { name: "No" }))
   expect(onApply).not.toHaveBeenCalled()
-  expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument()
+  expect(screen.getByText("Skip ▾")).toBeInTheDocument()
 })
 
 test("a remind preset computes a future ISO timestamp roughly N days out", () => {
   const onApply = vi.fn()
   const before = Date.now()
   render(<DecisionActions item={item({})} now={NOW} onApply={onApply} error={undefined} />)
-  fireEvent.click(screen.getByRole("button", { name: "30d" }))
+  fireEvent.click(screen.getByText("Skip ▾"))
+  fireEvent.click(screen.getByRole("button", { name: "Remind in 30 days" }))
   fireEvent.click(screen.getByRole("button", { name: "Yes" }))
 
   expect(onApply).toHaveBeenCalledTimes(1)
@@ -194,7 +216,7 @@ test("a skip superseded by a newer latest resurfaces the gap buttons, not the st
       error={undefined}
     />,
   )
-  expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument()
+  expect(screen.getByText("Skip ▾")).toBeInTheDocument()
   expect(screen.queryByText(/Skipped 9\.0\.0/)).not.toBeInTheDocument()
 })
 
@@ -220,7 +242,7 @@ test("a remind whose date has passed resurfaces the gap buttons -- the whole poi
       error={undefined}
     />,
   )
-  expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument()
+  expect(screen.getByText("Skip ▾")).toBeInTheDocument()
   expect(screen.queryByText(/Snoozed/)).not.toBeInTheDocument()
 })
 
@@ -393,7 +415,7 @@ test("both axes open at once render both independently -- skip buttons AND ackno
       error={undefined}
     />,
   )
-  expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument()
+  expect(screen.getByText("Skip ▾")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Acknowledge" })).toBeInTheDocument()
 })
 
@@ -432,7 +454,7 @@ test("advisory acknowledged but gap still open shows the advisory summary AND th
     />,
   )
   expect(screen.getByText("Acknowledged 1 advisory by roshne")).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument()
+  expect(screen.getByText("Skip ▾")).toBeInTheDocument()
 })
 
 // --- Nothing to show at all ---
@@ -487,6 +509,48 @@ test("a decided item still pending server confirmation shows the summary with no
   expect(screen.getByText("Skipped 9.0.0")).toBeInTheDocument()
 })
 
+// --- kenzen#64: the Skip menu and the sm-sized control row ---
+
+test("every action control carries the sm class", () => {
+  render(
+    <DecisionActions
+      item={item({ gap: "minor", advisoryStatus: "affected", advisories: [advisory()] })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  fireEvent.click(screen.getByText("Skip ▾"))
+  expect(screen.getByText("Skip ▾")).toHaveClass("rb-btn--sm")
+  for (const name of [
+    "Skip 2.32.3",
+    "Remind in 7 days",
+    "Remind in 30 days",
+    "Remind in 90 days",
+    "Approve",
+    "Acknowledge",
+  ]) {
+    expect(screen.getByRole("button", { name })).toHaveClass("rb-btn--sm")
+  }
+})
+
+test("the Skip menu holds exactly the four gap options", () => {
+  render(
+    <DecisionActions
+      item={item({ gap: "minor" })}
+      now={NOW}
+      onApply={() => {}}
+      error={undefined}
+    />,
+  )
+  fireEvent.click(screen.getByText("Skip ▾"))
+  const panel = screen
+    .getByRole("button", { name: "Skip 2.32.3" })
+    .closest<HTMLElement>(".kz-menu__panel")
+  expect(panel).not.toBeNull()
+  expect(panel ? within(panel).getAllByRole("button") : []).toHaveLength(4)
+})
+
 test("an error is shown alongside the confirm bar", () => {
   render(
     <DecisionActions
@@ -496,6 +560,7 @@ test("an error is shown alongside the confirm bar", () => {
       error="unauthorized"
     />,
   )
-  fireEvent.click(screen.getByRole("button", { name: "Skip" }))
+  fireEvent.click(screen.getByText("Skip ▾"))
+  fireEvent.click(screen.getByRole("button", { name: "Skip 9.9.9" }))
   expect(screen.getByRole("alert")).toHaveTextContent("Failed: unauthorized")
 })

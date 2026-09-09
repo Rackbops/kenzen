@@ -104,68 +104,98 @@ export function DecisionActions({
 
   return (
     <span>
-      {showGapSummary && item.decision && <GapSummary decision={item.decision} />}
-      {showGapButtons && (
-        <>
-          <Button
-            type="button"
-            disabled={!canSkipOrApprove}
-            onClick={() =>
-              setConfirming({
-                patch: { field: "skippedVersion", value: item.latest as string },
-                label: `Skip ${item.latest}`,
-              })
-            }
-          >
-            Skip
-          </Button>{" "}
-          {REMIND_PRESET_DAYS.map((days) => (
+      {(showGapButtons || showAcknowledgeButton) && (
+        <span>
+          {showGapButtons && (
+            // kenzen#64: native <details> instead of a hand-rolled dropdown -- keyboard-operable
+            // (Enter/Space toggles the summary, native focus order) and closes for free the
+            // instant an option's onClick flips `confirming`, since that swaps this whole branch
+            // out for the confirm bar and the <details> unmounts with it.
+            <details className="kz-menu">
+              <summary className="rb-btn rb-btn--sm kz-menu__summary">Skip ▾</summary>
+              <div className="kz-menu__panel">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={!canSkipOrApprove}
+                  onClick={() =>
+                    setConfirming({
+                      patch: { field: "skippedVersion", value: item.latest as string },
+                      label: `Skip ${item.latest}`,
+                    })
+                  }
+                >
+                  Skip {item.latest ?? "?"}
+                </Button>
+                {REMIND_PRESET_DAYS.map((days) => (
+                  <Button
+                    key={days}
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      setConfirming({
+                        patch: { field: "remindAt", value: remindAtIn(days) },
+                        label: `Remind in ${days} days`,
+                      })
+                    }
+                  >
+                    Remind in {days} days
+                  </Button>
+                ))}
+              </div>
+            </details>
+          )}
+          {showGapButtons && (
             <Button
-              key={days}
               type="button"
+              size="sm"
+              disabled={!canSkipOrApprove}
               onClick={() =>
                 setConfirming({
-                  patch: { field: "remindAt", value: remindAtIn(days) },
-                  label: `Remind in ${days} days`,
+                  patch: { field: "approvedVersion", value: item.latest as string },
+                  label: `Approve ${item.latest}`,
                 })
               }
             >
-              {days}d
+              Approve
             </Button>
-          ))}{" "}
-          <Button
-            type="button"
-            disabled={!canSkipOrApprove}
-            onClick={() =>
-              setConfirming({
-                patch: { field: "approvedVersion", value: item.latest as string },
-                label: `Approve ${item.latest}`,
-              })
-            }
-          >
-            Approve
-          </Button>
-        </>
+          )}
+          {showAcknowledgeButton && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() =>
+                setConfirming({
+                  patch: {
+                    field: "acknowledgedAdvisories",
+                    value: item.advisories.map((a) => a.id),
+                  },
+                  label: `Acknowledge ${item.advisories.length} advisor${item.advisories.length === 1 ? "y" : "ies"}`,
+                })
+              }
+            >
+              Acknowledge
+            </Button>
+          )}
+        </span>
       )}
-      {(showGapButtons || showGapSummary) && (showAcknowledgeButton || showAdvisorySummary) && " "}
-      {showAdvisorySummary && item.decision && <AdvisorySummary decision={item.decision} />}
-      {showAcknowledgeButton && (
-        <Button
-          type="button"
-          onClick={() =>
-            setConfirming({
-              patch: {
-                field: "acknowledgedAdvisories",
-                value: item.advisories.map((a) => a.id),
-              },
-              label: `Acknowledge ${item.advisories.length} advisor${item.advisories.length === 1 ? "y" : "ies"}`,
-            })
-          }
-        >
-          Acknowledge
-        </Button>
+      {showGapSummary && item.decision && (
+        <div>
+          <GapSummary decision={item.decision} />
+        </div>
       )}
-      {error && <ErrorLine message={error} />}
+      {showAdvisorySummary && item.decision && (
+        <div>
+          <AdvisorySummary decision={item.decision} />
+        </div>
+      )}
+      {error && (
+        <div>
+          <ErrorLine message={error} />
+        </div>
+      )}
     </span>
   )
 }

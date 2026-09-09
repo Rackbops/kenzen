@@ -235,7 +235,8 @@ test("end to end: skipping an item on the real page calls putDecision and remove
   render(<NeedsDecision />)
   await waitFor(() => expect(screen.getByText("behind-pkg")).toBeInTheDocument())
 
-  fireEvent.click(screen.getByRole("button", { name: "Skip" }))
+  fireEvent.click(screen.getByText("Skip ▾"))
+  fireEvent.click(screen.getByRole("button", { name: "Skip 9.9.9" }))
   fireEvent.click(screen.getByRole("button", { name: "Yes" }))
 
   expect(putDecision).toHaveBeenCalledWith(

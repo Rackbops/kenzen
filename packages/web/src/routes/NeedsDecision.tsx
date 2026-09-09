@@ -25,18 +25,41 @@ function columns(
   errorFor: (key: string) => string | undefined,
 ): DataTableColumn<ReportItem>[] {
   return [
-    { key: "repo", header: "Repo", render: (i) => i.repo, sortValue: (i) => i.repo },
-    { key: "kind", header: "Kind", render: (i) => i.kind, sortValue: (i) => i.kind },
-    { key: "name", header: "Name", render: (i) => i.name, sortValue: (i) => i.name },
+    {
+      key: "repo",
+      header: "Repo",
+      render: (i) => <span className="kz-nowrap">{i.repo}</span>,
+      sortValue: (i) => i.repo,
+    },
+    {
+      key: "kind",
+      header: "Kind",
+      render: (i) => <span className="kz-nowrap">{i.kind}</span>,
+      sortValue: (i) => i.kind,
+    },
+    {
+      key: "name",
+      header: "Name",
+      render: (i) => <span className="kz-nowrap">{i.name}</span>,
+      sortValue: (i) => i.name,
+    },
     {
       key: "pinned",
       header: "Pinned → latest",
-      render: (i) => `${i.pinned ?? "?"} → ${i.latest ?? "?"}`,
+      render: (i) => (
+        <span className="kz-nowrap">
+          {i.pinned ?? "?"} → {i.latest ?? "?"}
+        </span>
+      ),
     },
     {
       key: "gap",
       header: "Gap",
-      render: (i) => (i.gap ? <Badge variant={gapVariant(i.gap)}>{i.gap}</Badge> : null),
+      render: (i) => (
+        <span className="kz-nowrap">
+          {i.gap ? <Badge variant={gapVariant(i.gap)}>{i.gap}</Badge> : null}
+        </span>
+      ),
       sortValue: (i) => decisionPriority(i),
     },
     {
@@ -57,12 +80,16 @@ function columns(
       header: "Source",
       render: (i) => {
         const url = i.source ? sourceUrl(i.repo, i.source) : null
-        return url ? (
-          <a href={url} target="_blank" rel="noreferrer">
-            {i.source}
-          </a>
-        ) : (
-          (i.source ?? "?")
+        return (
+          <span className="kz-ellipsis" title={i.source ?? undefined}>
+            {url ? (
+              <a href={url} target="_blank" rel="noreferrer">
+                {i.source}
+              </a>
+            ) : (
+              (i.source ?? "?")
+            )}
+          </span>
         )
       },
     },
@@ -132,7 +159,6 @@ function NeedsDecisionTable({ items, snapshotId }: { items: ReportItem[]; snapsh
         rowKey={(i) => i.key}
         defaultSortKey="gap"
         emptyMessage="No items match these filters."
-        sticky
       />
     </Card>
   )
