@@ -47,9 +47,10 @@ on Windows to the *current drive's root* -- shared across every worktree and eve
 
 `VITE_KENZEN_THEME` picks the deployment default at build time. The header's `Theme` picker lets
 a viewer override it for their own browser (`localStorage`, no server round trip) -- the env
-value is only the fallback when nothing is stored yet. (The picker lands with
-[kenzen#82](https://github.com/Rackbops/kenzen/issues/82) -- until that PR merges, only the env
-default applies; there is no picker in the currently deployed build.)
+value is only the fallback when nothing is stored yet. (The picker is
+[kenzen#82](https://github.com/Rackbops/kenzen/issues/82), merged on `main`; it reaches the
+deployed site with the next release -- the currently deployed `0.1.0-alpha.14` has only the env
+default.)
 
 ## Release
 
