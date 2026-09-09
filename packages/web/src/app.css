@@ -288,3 +288,38 @@
   align-items: center;
   gap: var(--rb-space-1);
 }
+
+/* kenzen#96: self-hosted subset (packages/web/public/fonts/, see its README for provenance
+ * and the exact pyftsubset command) -- unicode-range is exactly the three code points the
+ * wordmark and empty-state heading use (U+5065 健, U+5168 全, U+6027 性), matching the subset
+ * itself, so the browser never requests a glyph this file doesn't have. font-display: swap
+ * avoids a blocking font load on either usage. */
+@font-face {
+  font-family: "Shippori Mincho Kenzen";
+  src: url("/fonts/shippori-mincho-kenzen.woff2") format("woff2");
+  unicode-range: U+5065, U+5168, U+6027;
+  font-display: swap;
+}
+
+/* Falls back through the same family unsubset (if a viewer already has it), then a broad CJK
+ * serif, then the platform default -- never a tofu box. Colour is a token, not baked in here,
+ * so each usage (the header wordmark, muted; the empty-state heading, full-strength) sets its
+ * own via a modifier class below rather than this base rule picking one for both. */
+.kz-kanji {
+  font-family: "Shippori Mincho Kenzen", "Shippori Mincho", "Noto Serif JP", serif;
+  color: var(--rb-text);
+}
+
+.kz-kanji--muted {
+  color: var(--rb-text-faint);
+}
+
+/* kenzen#96: "about 3x the body size" on the Needs-a-decision empty state -- relative to the
+ * empty state's own inherited font-size (an em unit), not a fixed rem, so it scales the same
+ * way the rest of the page does under a user's browser zoom/font-size preference. */
+.kz-kanji--heading {
+  display: block;
+  font-size: 3em;
+  line-height: 1.2;
+  margin: 0 0 var(--rb-space-2);
+}

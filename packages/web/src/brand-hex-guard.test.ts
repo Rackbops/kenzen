@@ -12,6 +12,13 @@ import { expect, test } from "vitest"
  * .ts/.tsx/.css file under src/ directly and greps for a real hex-color token or an rgb(/
  * rgba( call, rather than rendering anything.
  *
+ * kenzen#96 extends this file with a second, independent guard: no `fonts.googleapis.com` /
+ * `fonts.gstatic.com` string anywhere under packages/web/src or in index.html. The app is
+ * behind Access, so a request that leaves for the Google Fonts CDN is both a real third-party
+ * call and a signal the self-hosted woff2 subset (kenzen#96's own `public/fonts/`) got bypassed
+ * -- same "shared guard, whoever needs it next extends it" contract kenzen#89 (KoiMark) also
+ * lands against.
+ *
  * The three false-positive traps a naive `#[0-9a-f]{3,8}` catches immediately in THIS repo:
  *   - an issue reference like "kenzen#64" or "Tooling#425" -- "64"/"425" are themselves
  *     valid hex digits, and once an issue number reaches 3+ digits a bare digit-count check
@@ -48,6 +55,9 @@ const HEX_COLOR = /(?<![\w&/])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[
 // kenzen#90 round 1 review (MEDIUM): CSS's rgb()/rgba() are case-insensitive, and tools like
 // Figma's inspector emit uppercase `RGB(...)` by default -- the original pattern missed it.
 const RGB_FUNCTION = /\brgba?\(/i
+// kenzen#96: a Google Fonts CDN reference, in either a CSS @import/font-face src, an
+// index.html <link>, or a stray string -- self-hosting means this string never appears.
+const GOOGLE_FONTS_CDN = /fonts\.(?:googleapis|gstatic)\.com/
 
 function walk(dir: string): string[] {
   const files: string[] = []
@@ -90,5 +100,30 @@ test("no literal hex color or rgb()/rgba() call in packages/web/src -- use --rb-
       }
     })
   }
+  expect(offenders).toEqual([])
+})
+
+test("GOOGLE_FONTS_CDN matches both Google Fonts hosts and nothing else", () => {
+  expect(GOOGLE_FONTS_CDN.test('@import url("https://fonts.googleapis.com/css2?family=x");')).toBe(
+    true,
+  )
+  expect(GOOGLE_FONTS_CDN.test("src: url(https://fonts.gstatic.com/s/x/v1/x.woff2);")).toBe(true)
+  expect(GOOGLE_FONTS_CDN.test('src: url("/fonts/shippori-mincho-kenzen.woff2");')).toBe(false)
+})
+
+test("no Google Fonts CDN reference in packages/web/src or index.html -- fonts are self-hosted (kenzen#96)", () => {
+  const offenders: string[] = []
+  const scan = (filePath: string, rel: string) => {
+    const lines = readFileSync(filePath, "utf-8").split("\n")
+    lines.forEach((line, index) => {
+      if (GOOGLE_FONTS_CDN.test(line)) {
+        offenders.push(`${rel}:${index + 1}: ${line.trim()}`)
+      }
+    })
+  }
+  for (const file of walk(SRC_DIR)) {
+    scan(file, path.relative(SRC_DIR, file))
+  }
+  scan(path.join(SRC_DIR, "..", "index.html"), "index.html")
   expect(offenders).toEqual([])
 })
