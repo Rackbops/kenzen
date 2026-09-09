@@ -39,13 +39,13 @@ function pinnedCell(item: ReportItem): ReactNode {
   const showBothVersions =
     item.pinStyle === "major" && item.latestInMajor !== null && item.latestInMajor !== item.latest
   if (!showBothVersions) {
-    return `${item.pinned ?? "?"} → ${item.latest ?? "?"}`
+    return <span className="kz-nowrap">{`${item.pinned ?? "?"} → ${item.latest ?? "?"}`}</span>
   }
   return (
-    <>
+    <span className="kz-nowrap">
       {item.pinned ?? "?"} → {item.latestInMajor}{" "}
       <span className="rb-muted">(latest: {item.latest ?? "?"})</span>
-    </>
+    </span>
   )
 }
 
@@ -55,14 +55,27 @@ function columns(
   errorFor: (key: string) => string | undefined,
 ): DataTableColumn<ReportItem>[] {
   return [
-    { key: "kind", header: "Kind", render: (i) => i.kind, sortValue: (i) => i.kind },
-    { key: "name", header: "Name", render: (i) => i.name, sortValue: (i) => i.name },
+    {
+      key: "kind",
+      header: "Kind",
+      render: (i) => <span className="kz-nowrap">{i.kind}</span>,
+      sortValue: (i) => i.kind,
+    },
+    {
+      key: "name",
+      header: "Name",
+      render: (i) => <span className="kz-nowrap">{i.name}</span>,
+      sortValue: (i) => i.name,
+    },
     { key: "pinned", header: "Pinned → latest", render: pinnedCell },
     {
       key: "gap",
       header: "Gap",
-      render: (i) =>
-        i.gap && i.gap !== "none" ? <Badge variant={gapVariant(i.gap)}>{i.gap}</Badge> : i.gap,
+      render: (i) => (
+        <span className="kz-nowrap">
+          {i.gap && i.gap !== "none" ? <Badge variant={gapVariant(i.gap)}>{i.gap}</Badge> : i.gap}
+        </span>
+      ),
       sortValue: (i) => gapPriority(i.gap),
     },
     {
@@ -85,12 +98,16 @@ function columns(
       header: "Source",
       render: (i) => {
         const url = i.source ? sourceUrl(i.repo, i.source) : null
-        return url ? (
-          <a href={url} target="_blank" rel="noreferrer">
-            {i.source}
-          </a>
-        ) : (
-          (i.source ?? "?")
+        return (
+          <span className="kz-ellipsis" title={i.source ?? undefined}>
+            {url ? (
+              <a href={url} target="_blank" rel="noreferrer">
+                {i.source}
+              </a>
+            ) : (
+              (i.source ?? "?")
+            )}
+          </span>
         )
       },
     },
