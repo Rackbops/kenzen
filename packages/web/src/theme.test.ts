@@ -6,6 +6,7 @@ import {
   bootTheme,
   DEFAULT_THEME,
   loadTheme,
+  orderedForPicker,
   resolveTheme,
   setTheme,
   THEME_LOADERS,
@@ -55,6 +56,13 @@ async function withLoaderSpies(
   }
 }
 
+test("DEFAULT_THEME is Kenzen's own brand pair's light half, not a library default (kenzen#91)", () => {
+  // Every other test in this file compares against the DEFAULT_THEME import itself, which
+  // can't catch a regression to the wrong default (it would just move with the constant) --
+  // this is the one place the literal value is pinned.
+  expect(DEFAULT_THEME).toBe("kenzen-cyberhealth")
+})
+
 test("resolveTheme falls back to the default when unset", () => {
   expect(resolveTheme({})).toBe(DEFAULT_THEME)
   expect(resolveTheme({ VITE_KENZEN_THEME: undefined })).toBe(DEFAULT_THEME)
@@ -90,6 +98,30 @@ test("BUNDLED_THEMES matches every theme @rackbops/styles actually publishes", (
   // Ties the resolver's allowlist to the design system's own manifest, rather than a
   // hand-maintained list here going stale -- this is the "every theme selectable" bullet.
   expect(BUNDLED_THEMES).toEqual(Object.keys(stylesManifest.themes).sort())
+})
+
+// --- kenzen#91: the picker's Kenzen-pair-first, then-alphabetical order ---------------
+
+test("orderedForPicker puts the Kenzen pair first (light before dark), then the rest alphabetical", () => {
+  expect(orderedForPicker(BUNDLED_THEMES)).toEqual([
+    "kenzen-cyberhealth",
+    "kenzen-midnight",
+    ...BUNDLED_THEMES.filter((name) => !name.startsWith("kenzen-")),
+  ])
+})
+
+test("orderedForPicker is a no-op reorder: same members, none dropped or duplicated", () => {
+  const result = orderedForPicker(BUNDLED_THEMES)
+  expect(new Set(result)).toEqual(new Set(BUNDLED_THEMES))
+  expect(result).toHaveLength(BUNDLED_THEMES.length)
+})
+
+test("orderedForPicker tolerates a theme list missing one or both pinned names", () => {
+  const withoutKenzen = BUNDLED_THEMES.filter((name) => !name.startsWith("kenzen-"))
+  expect(orderedForPicker(withoutKenzen)).toEqual(withoutKenzen)
+
+  const onlyDark = withoutKenzen.concat("kenzen-midnight")
+  expect(orderedForPicker(onlyDark)).toEqual(["kenzen-midnight", ...withoutKenzen])
 })
 
 test("loadTheme invokes only the resolved theme's loader, never another bundled theme's", async () => {
@@ -139,13 +171,13 @@ test("loadTheme rejects a name with no loader and no fallback available", async 
 test("applyTheme sets data-rb-style on the given root to the resolved theme", () => {
   const root = document.createElement("html")
   applyTheme(resolveTheme({}), root)
-  expect(root.dataset.rbStyle).toBe("arcane-obsidian")
-  expect(root.getAttribute("data-rb-style")).toBe("arcane-obsidian")
+  expect(root.dataset.rbStyle).toBe(DEFAULT_THEME)
+  expect(root.getAttribute("data-rb-style")).toBe(DEFAULT_THEME)
 
   // An unbundled config value resolves to the (still real, still applied) default -- the
   // attribute always reflects a theme whose CSS is genuinely present.
   applyTheme(resolveTheme({ VITE_KENZEN_THEME: "some-future-theme" }), root)
-  expect(root.dataset.rbStyle).toBe("arcane-obsidian")
+  expect(root.dataset.rbStyle).toBe(DEFAULT_THEME)
 })
 
 test("bootTheme resolves, loads, then applies -- in that order -- and returns the resolved name", async () => {

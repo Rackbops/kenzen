@@ -45,12 +45,25 @@ on Windows to the *current drive's root* -- shared across every worktree and eve
 
 ## Theme
 
-`VITE_KENZEN_THEME` picks the deployment default at build time. The header's `Theme` picker lets
-a viewer override it for their own browser (`localStorage`, no server round trip) -- the env
-value is only the fallback when nothing is stored yet. (The picker is
-[kenzen#82](https://github.com/Rackbops/kenzen/issues/82), merged on `main`; it reaches the
-deployed site with the next release -- the currently deployed `0.1.0-alpha.14` has only the env
-default.)
+The default theme is Kenzen-sei's own brand pair, `kenzen-cyberhealth` (light) / `kenzen-midnight`
+(dark) -- built for this app specifically
+([rackbops-ui-ux-std-lib#158](https://github.com/Rackbops/rackbops-ui-ux-std-lib/issues/158)),
+adopted in [kenzen#91](https://github.com/Rackbops/kenzen/issues/91). STANDARD.md section 15's
+"pick by kind, not by taste" rule reads naturally as a rule for choosing among the library's
+*generic* themes (a console defaults to `arcane-obsidian`, a public-facing app to
+`rackbops-studio`); this reading isn't spelled out as a carve-out in STANDARD.md itself, so treat
+it as this app's own interpretation, not a documented exception. Under it, this pair doesn't need
+a by-kind justification -- it's Kenzen's own commissioned identity, not a borrowed library theme --
+but the "why" an opt-in pick requires is still owed here in prose, which is what this section is.
+
+`VITE_KENZEN_THEME` picks the deployment default at build time (`theme.ts`'s `DEFAULT_THEME`
+constant when nothing overrides it -- no `Dockerfile`/compose/deploy site currently sets the env
+var itself, so the code constant is the only lever today). The header's `Theme` picker lets a
+viewer override it for their own browser (`localStorage`, no server round trip), listing the
+Kenzen pair first (light, then dark) and every other bundled theme alphabetically after. (The
+picker is [kenzen#82](https://github.com/Rackbops/kenzen/issues/82), merged on `main`; both it and
+the new default reach the deployed site with the next alpha -- not yet applied there as of this
+PR.)
 
 ## Release
 

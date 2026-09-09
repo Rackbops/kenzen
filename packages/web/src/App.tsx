@@ -6,7 +6,7 @@ import { Dependabot } from "./routes/Dependabot.js"
 import { History } from "./routes/History.js"
 import { NeedsDecision } from "./routes/NeedsDecision.js"
 import { Repos } from "./routes/Repos.js"
-import { BUNDLED_THEMES, resolveTheme, setTheme } from "./theme.js"
+import { BUNDLED_THEMES, orderedForPicker, resolveTheme, setTheme } from "./theme.js"
 
 /** The five top-level views (design.md section 6), in the order the strip shows them. `id`
  * doubles as the route path each Route below mounts at, and as the absolute path `onSelect`
@@ -107,7 +107,7 @@ export function App() {
                 void handleThemeChange(e.target.value)
               }}
             >
-              {BUNDLED_THEMES.map((name) => (
+              {orderedForPicker(BUNDLED_THEMES).map((name) => (
                 <option key={name} value={name}>
                   {name}
                 </option>

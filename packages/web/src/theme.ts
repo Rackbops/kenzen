@@ -48,13 +48,34 @@ for (const [path, loader] of Object.entries(THEME_STYLESHEET_GLOB)) {
   }
 }
 
-export const DEFAULT_THEME = "arcane-obsidian"
+/** kenzen#91: Kenzen's own cyber-health brand pair (rackbops-ui-ux-std-lib#158), adopted
+ * as the deployment default -- not one of the library's generic "pick by kind" themes
+ * (STANDARD.md section 15), so there is no by-kind default to defer to. */
+export const DEFAULT_THEME = "kenzen-cyberhealth"
 
 /** Every theme name this module can lazily load -- derived from the glob above, so it
  * stays in sync with whatever themes @rackbops/styles actually ships without a
  * hand-maintained list. `resolveTheme` validates a configured name against this.
  * Sorted for a deterministic, testable order. */
 export const BUNDLED_THEMES = Object.keys(THEME_LOADERS).sort() as readonly string[]
+
+/** kenzen#91: Kenzen's own theme pair, listed first (light before dark) in the header
+ * picker -- everything else stays alphabetical. Kept separate from `BUNDLED_THEMES`
+ * itself (which every other consumer -- `resolveTheme`'s validation, `loadTheme`'s
+ * lookup -- uses as a plain membership/iteration set with no display-order meaning) so
+ * this reorder is visible only where a display order actually matters. */
+const PINNED_FIRST = ["kenzen-cyberhealth", "kenzen-midnight"] as const
+
+/** Pure and independently testable: the picker's option order is `PINNED_FIRST`'s
+ * members (in that order, skipping any not actually present in `themes`) followed by
+ * every remaining name in `themes`' own order -- callers pass the already-alphabetical
+ * `BUNDLED_THEMES`, so "the rest" comes out alphabetical without this function sorting
+ * anything itself. */
+export function orderedForPicker(themes: readonly string[]): string[] {
+  const pinned = PINNED_FIRST.filter((name) => themes.includes(name))
+  const rest = themes.filter((name) => !(PINNED_FIRST as readonly string[]).includes(name))
+  return [...pinned, ...rest]
+}
 
 /** localStorage key for the viewer's own theme override (kenzen#82) -- a per-browser
  * preference, never sent to the server: it overrides the deployment's `VITE_KENZEN_THEME`

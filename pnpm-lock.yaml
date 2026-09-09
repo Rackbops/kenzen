@@ -6,6 +6,9 @@ importers:
   .:
     configDependencies: {}
     packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: 12.3.4
+        version: 12.3.4
       pnpm:
         specifier: 12.3.4
         version: 12.3.4
@@ -56,6 +59,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@pnpm/exe@12.3.4':
+    resolution: {integrity: sha512-Rq7JokWAyYF9IFfn8zofB/q2AgnZlmoMuH5fMHB2+Ta61I9aD7sNm+woZpx6iH+5vb38chdSoYRvOtSqlH72YQ==}
+    engines: {node: '>=18.*'}
+    hasBin: true
+
   pnpm@12.3.4:
     resolution: {integrity: sha512-lhqkH7B32joEpEHZ+OFevAyW2o73ELLrZ7+e58sGEOq9SPH9hfUc/+c4RnhfoPh8VqOocqHYk/hEZ0G1zORUVw==}
     engines: {node: '>=18.*'}
@@ -86,6 +94,17 @@ snapshots:
 
   '@pnpm/exe.win32-x64@12.3.4':
     optional: true
+
+  '@pnpm/exe@12.3.4':
+    optionalDependencies:
+      '@pnpm/exe.darwin-arm64': 12.3.4
+      '@pnpm/exe.darwin-x64': 12.3.4
+      '@pnpm/exe.linux-arm64': 12.3.4
+      '@pnpm/exe.linux-arm64-musl': 12.3.4
+      '@pnpm/exe.linux-x64': 12.3.4
+      '@pnpm/exe.linux-x64-musl': 12.3.4
+      '@pnpm/exe.win32-arm64': 12.3.4
+      '@pnpm/exe.win32-x64': 12.3.4
 
   pnpm@12.3.4:
     optionalDependencies:
@@ -176,10 +195,10 @@ importers:
         version: link:../contract
       '@rackbops/styles':
         specifier: ^0.2.16
-        version: 0.2.22
+        version: 0.2.25
       '@rackbops/ui-react':
         specifier: ^0.2.16
-        version: 0.2.22(react@19.2.8)
+        version: 0.2.25(react@19.2.8)
       react:
         specifier: ^19.2.0
         version: 19.2.8
@@ -533,11 +552,11 @@ packages:
     peerDependencies:
       hono: '>=4.0.0'
 
-  '@rackbops/styles@0.2.22':
-    resolution: {integrity: sha512-ppdr8uul8MwYrff1wvJ/T29AVv8Xw/sQQicfZDH6X7cMbbvFPxtVyvtrS5FT1f6zPD2f7ZM24p8iHFZiPgYIog==}
+  '@rackbops/styles@0.2.25':
+    resolution: {integrity: sha512-h3vgxAuNBvr9JTn+KAnfpP85rU/dSKeBRWXRNJrcMwK+JBWTk7VlUVWJi/bOkZl2rdRiEr1SPC3EC8MMxZ2law==}
 
-  '@rackbops/ui-react@0.2.22':
-    resolution: {integrity: sha512-pHv4QHslKqSQoRTjQ/42BEwD28RSHT9odXWA39gJ3NF9wConcFf5JtW5uKCH5XJGgvvNG+W85zVMgu0miTd+Wg==}
+  '@rackbops/ui-react@0.2.25':
+    resolution: {integrity: sha512-xPQ7xUmHNWXpQf+L0u+n7QGVxly28IxlI0dcxUYbk7Xihfqkk6etpvgnZ641J4iJyHPfcYfqnyd9ruv7pxWfZg==}
     peerDependencies:
       react: '>=18'
 
@@ -1513,9 +1532,9 @@ snapshots:
       hono: 4.13.7
       smol-toml: 1.8.0
 
-  '@rackbops/styles@0.2.22': {}
+  '@rackbops/styles@0.2.25': {}
 
-  '@rackbops/ui-react@0.2.22(react@19.2.8)':
+  '@rackbops/ui-react@0.2.25(react@19.2.8)':
     dependencies:
       react: 19.2.8
 
