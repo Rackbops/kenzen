@@ -127,4 +127,32 @@ describe.each(["koi-banner.png", "koi-banner.webp"])("%s", (file) => {
     expect(fraction).toBeGreaterThan(0.115)
     expect(fraction).toBeLessThan(0.3)
   })
+
+  test("partial-alpha pixels keep real colour, not a dark rim from an unbounded un-matte", async () => {
+    // Round-1 review (correctness/failure-modes) on kenzen#92: every check above (dimensions,
+    // alpha presence, opaque fraction) only ever inspects the ALPHA channel -- none inspect
+    // RGB. derive_banner()'s FG_FLOOR step exists specifically to stop a low-alpha pixel's
+    // un-matted colour from extrapolating towards black (its own doc comment says so), and
+    // that constant had zero test coverage: mutating it to 0.0 (no floor at all) or 1.0
+    // (floor pinned to the observed pixel, effectively disabling un-matting) produced the
+    // EXACT SAME alpha channel, dimensions, and opaque fraction as the correct output --
+    // every check above stayed green. Measured directly: the real committed asset's darkest
+    // partial-alpha pixel averages 128.7/255 across RGB; FG_FLOOR=0.0 (the exact "dark rim"
+    // failure the source comment warns about) drops that to a literal 0/255 pixel. A floor
+    // well above 0 and comfortably below the real minimum catches that regression without
+    // being brittle to the exact real value.
+    const { data, info } = await sharp(path.join(BRAND_DIR, file))
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    let darkestPartialAlphaLightness = 255
+    for (let i = 0; i < data.length; i += info.channels) {
+      const alpha = data[i + 3]
+      if (alpha > 0 && alpha < 255) {
+        const lightness = (data[i] + data[i + 1] + data[i + 2]) / 3
+        darkestPartialAlphaLightness = Math.min(darkestPartialAlphaLightness, lightness)
+      }
+    }
+    expect(darkestPartialAlphaLightness).toBeGreaterThan(60)
+  })
 })
