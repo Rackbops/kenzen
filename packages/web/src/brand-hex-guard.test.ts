@@ -12,7 +12,7 @@ import { expect, test } from "vitest"
  * .ts/.tsx/.css file under src/ directly and greps for a real hex-color token or an rgb(/
  * rgba( call, rather than rendering anything.
  *
- * The two false-positive traps a naive `#[0-9a-f]{3,8}` catches immediately in THIS repo:
+ * The three false-positive traps a naive `#[0-9a-f]{3,8}` catches immediately in THIS repo:
  *   - an issue reference like "kenzen#64" or "Tooling#425" -- "64"/"425" are themselves
  *     valid hex digits, and once an issue number reaches 3+ digits a bare digit-count check
  *     can't tell it apart from a real 3-digit hex color. Excluded by requiring the character
@@ -22,6 +22,10 @@ import { expect, test } from "vitest"
  *     ends in).
  *   - an HTML numeric entity like `&#9670;` (App.tsx's wordmark spark) -- "9670" is valid
  *     hex too. Excluded the same way: `&` is also barred from the lookbehind.
+ *   - a bare URL fragment straight after a path slash, like `https://x/#336699` -- round 1
+ *     review found this one: `/` is exactly as valid a predecessor of a real hex literal as
+ *     whitespace/quote/`:`/`(`/`,`, so it joins the lookbehind's exclusion set too. (A `#`
+ *     preceded by a letter, e.g. `.../palette#336699`, was already excluded by `\w`.)
  * A real hex color is additionally constrained to the lengths CSS actually accepts (3, 4, 6
  * or 8 digits, longest checked first so e.g. a 6-digit run isn't mistaken for two 3-digit
  * ones) with a trailing word boundary, so a longer incidental run of hex-valid characters
@@ -38,10 +42,12 @@ const SRC_DIR = path.dirname(fileURLToPath(import.meta.url))
 const SCAN_EXTENSIONS = new Set([".ts", ".tsx", ".css"])
 const SELF = path.basename(fileURLToPath(import.meta.url))
 
-// A real hex/rgb literal is never immediately preceded by a word character (letter/digit/_)
-// or `&` (an HTML entity marker) -- see the module doc comment above for why both matter here.
-const HEX_COLOR = /(?<![\w&])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})\b/
-const RGB_FUNCTION = /\brgba?\(/
+// A real hex/rgb literal is never immediately preceded by a word character (letter/digit/_),
+// `&` (an HTML entity marker), or `/` (a URL path) -- see the module doc comment above.
+const HEX_COLOR = /(?<![\w&/])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})\b/
+// kenzen#90 round 1 review (MEDIUM): CSS's rgb()/rgba() are case-insensitive, and tools like
+// Figma's inspector emit uppercase `RGB(...)` by default -- the original pattern missed it.
+const RGB_FUNCTION = /\brgba?\(/i
 
 function walk(dir: string): string[] {
   const files: string[] = []
@@ -56,6 +62,22 @@ function walk(dir: string): string[] {
   }
   return files
 }
+
+test("RGB_FUNCTION matches rgb()/rgba() case-insensitively", () => {
+  expect(RGB_FUNCTION.test("background: RGB(51, 102, 153);")).toBe(true)
+  expect(RGB_FUNCTION.test("background: Rgba(0, 0, 0, .5);")).toBe(true)
+  expect(RGB_FUNCTION.test("background: rgb(51, 102, 153);")).toBe(true)
+})
+
+test("HEX_COLOR does not false-positive on a bare URL fragment right after a path slash", () => {
+  // A `#` immediately preceded by a letter (e.g. ".../palette#336699") was already excluded
+  // by the word-char lookbehind -- the real gap is a fragment straight after "/", with
+  // nothing word-like in between (e.g. a bare "https://x/#336699").
+  expect(HEX_COLOR.test('href="https://example.com/#336699"')).toBe(false)
+  expect(HEX_COLOR.test('href="/#abc123"')).toBe(false)
+  // still catches a real literal right next to a legitimate boundary character
+  expect(HEX_COLOR.test("color: #336699;")).toBe(true)
+})
 
 test("no literal hex color or rgb()/rgba() call in packages/web/src -- use --rb-* tokens", () => {
   const offenders: string[] = []

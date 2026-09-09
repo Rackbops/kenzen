@@ -296,6 +296,48 @@ test("a historical-only item's advisories render as links, not just the status w
   )
 })
 
+test("kenzen#90: a major-gap item shows the attention shield before its gap badge", async () => {
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot: SNAPSHOT,
+    items: [item({ key: "maj", name: "major-gap-pkg", gap: "major" })],
+  })
+  render(<Repos />)
+  await waitFor(() => expect(screen.getByText("major-gap-pkg")).toBeInTheDocument())
+  const row = screen.getByText("major-gap-pkg").closest("tr")
+  const shield = row?.querySelector(".kz-status-badge svg g")
+  expect(shield).toHaveAttribute("stroke", "var(--rb-warning)")
+})
+
+test("kenzen#90: a historical-only advisory item shows the healthy shield before its advisory badge", async () => {
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot: SNAPSHOT,
+    items: [
+      item({
+        key: "hist",
+        name: "historical-pkg",
+        advisoryStatus: "historical-only",
+        advisories: [
+          {
+            id: "GHSA-3",
+            summary: "z",
+            severity: "high",
+            url: "https://z",
+            source: "ghsa",
+            affected: false,
+          },
+        ],
+      }),
+    ],
+  })
+  render(<Repos />)
+  await waitFor(() => expect(screen.getByText("historical-pkg")).toBeInTheDocument())
+  const row = screen.getByText("historical-pkg").closest("tr")
+  const shield = row?.querySelector(".kz-status-badge svg g")
+  expect(shield).toHaveAttribute("stroke", "var(--rb-success)")
+})
+
 test("clicking the Gap header sorts by severity, not alphabetically", async () => {
   // K4-8a review round 1, LOW: sortValue used to be the raw gap string, so "none" (no gap)
   // sorted between "minor" and "patch" -- lexicographic, not meaningful.
