@@ -170,7 +170,7 @@ importers:
         version: link:../contract
       '@rackbops/node-app-kit':
         specifier: ^0.1.1
-        version: 0.1.1(hono@4.13.7)
+        version: 0.1.2(hono@4.13.7)
       hono:
         specifier: ^4.0.0
         version: 4.13.7
@@ -714,8 +714,8 @@ packages:
   '@oxc-project/types@0.148.0':
     resolution: {integrity: sha512-Nm4s/jB+4FpFsPhWGEC4h7rzksesmtnMXomo6rCMcg/b8zLQuOziRgkCS1fxDCXOlJB/6Q8oABOZ/OP6RIPj9A==}
 
-  '@rackbops/node-app-kit@0.1.1':
-    resolution: {integrity: sha512-DhBP/g/0nnAhXmhHmhNAw76g2+pNVPdKqt6opKHpBdHUjWoIKFSxQXLNNqVLa8AvEcQD3iIPgshACUM6fodb8Q==}
+  '@rackbops/node-app-kit@0.1.2':
+    resolution: {integrity: sha512-CJllJ312d2CW7r5jvdvQERYuloFfpSOQkzlFqXNG4bWa/kHzEfNPc8qxT6ms/WBAS8EYZKW5qXxvIqVmurFzpw==}
     engines: {node: '>=24'}
     peerDependencies:
       hono: '>=4.0.0'
@@ -1823,7 +1823,7 @@ snapshots:
 
   '@oxc-project/types@0.148.0': {}
 
-  '@rackbops/node-app-kit@0.1.1(hono@4.13.7)':
+  '@rackbops/node-app-kit@0.1.2(hono@4.13.7)':
     dependencies:
       hono: 4.13.7
       smol-toml: 1.8.0
