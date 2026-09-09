@@ -82,10 +82,11 @@ export function App() {
           </span>
           kenzen
           {/* kenzen#96: the kanji wordmark, self-hosted (app.css's @font-face). role="img"
-              makes aria-label authoritative over the text node (a bare span doesn't support
-              aria-label at all -- biome's a11y lint catches that) -- assistive tech announces
-              "kenzen-sei" instead of trying to read the raw kanji; lang="ja" stays for any
-              tooling that inspects the DOM's language tagging directly. */}
+              makes aria-label authoritative over the text node -- a bare span's implicit
+              role (generic) isn't a WAI-ARIA-supported role for aria-label at all, which is
+              exactly what biome's a11y lint flags -- so assistive tech announces "kenzen-sei"
+              instead of trying to read the raw kanji; lang="ja" stays for any tooling that
+              inspects the DOM's language tagging directly. */}
           <span lang="ja" role="img" className="kz-kanji kz-kanji--muted" aria-label="kenzen-sei">
             健全性
           </span>
