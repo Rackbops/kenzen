@@ -12,6 +12,19 @@ afterEach(() => {
   window.localStorage.clear()
 })
 
+test("kenzen#96: the header wordmark carries the kanji, tagged for assistive tech", async () => {
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
+  render(
+    <MemoryRouter initialEntries={["/"]}>
+      <App />
+    </MemoryRouter>,
+  )
+  await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument())
+  const kanji = screen.getByText("健全性")
+  expect(kanji).toHaveAttribute("lang", "ja")
+  expect(kanji).toHaveAttribute("aria-label", "kenzen-sei")
+})
+
 test("renders a tablist with all five view labels", async () => {
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
   render(

@@ -56,6 +56,25 @@ test("shows a positive empty state when nothing currently needs a decision", asy
   await waitFor(() => expect(screen.getByText("Nothing needs a decision.")).toBeInTheDocument())
 })
 
+test("kenzen#96: the positive empty state shows the large kanji heading above its caption", async () => {
+  const snapshot = {
+    snapshotId: 1,
+    generatedAt: "2026-09-08T00:00:00Z",
+    inventoryItems: 1,
+    summary: {},
+  }
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot,
+    items: [item({ key: "sound", gap: "none", advisoryStatus: "none" })],
+  })
+  const { container } = render(<NeedsDecision />)
+  await waitFor(() => expect(screen.getByText("Nothing needs a decision.")).toBeInTheDocument())
+  const heading = container.querySelector(".kz-kanji--heading")
+  expect(heading).not.toBeNull()
+  expect(heading).toHaveTextContent("健全性")
+  expect(heading).toHaveAttribute("lang", "ja")
+})
+
 test("includes an affected item and a gapped item, excludes a sound item and a decided item", async () => {
   const snapshot = {
     snapshotId: 1,

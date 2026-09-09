@@ -172,7 +172,19 @@ function NeedsDecisionTable({ items, snapshotId }: { items: ReportItem[]; snapsh
   )
 
   if (candidates.length === 0) {
-    return <p>Nothing needs a decision.</p>
+    return (
+      <div className="kz-empty-state">
+        {/* kenzen#96: large kanji heading above the caption -- #92 (the koi banner) hasn't
+            landed yet, so per #96's own design decision this is the kanji + caption alone,
+            with no banner image between them. Decorative here (the caption right below
+            already says the same thing in English): aria-hidden rather than a second
+            aria-label repeating the header's "kenzen-sei". */}
+        <span lang="ja" className="kz-kanji kz-kanji--heading" aria-hidden="true">
+          健全性
+        </span>
+        <p>Nothing needs a decision.</p>
+      </div>
+    )
   }
   return (
     <Card>
