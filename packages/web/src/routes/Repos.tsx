@@ -11,6 +11,7 @@ import {
 import {
   advisoryShieldVariant,
   advisoryVariant,
+  advisoryVariantRank,
   gapShieldVariant,
   gapVariant,
 } from "../badgeVariants.js"
@@ -87,7 +88,12 @@ function columns(
       ),
       sortValue: (i) => i.name,
     },
-    { key: "pinned", header: "Pinned → latest", render: pinnedCell },
+    {
+      key: "pinned",
+      header: "Pinned → latest",
+      render: pinnedCell,
+      sortValue: (i) => `${i.name}\^@${i.pinned ?? ""}`,
+    },
     {
       key: "gap",
       header: "Gap",
@@ -127,6 +133,7 @@ function columns(
           </span>
         ) : null
       },
+      sortValue: (i) => advisoryVariantRank(i.advisoryStatus) * 100000 - i.advisories.length,
     },
     {
       key: "source",

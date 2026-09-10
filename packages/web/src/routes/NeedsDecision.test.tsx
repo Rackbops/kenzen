@@ -157,6 +157,89 @@ test("each of major, minor, and patch individually counts as needing a decision"
   expect(screen.getByText("patch-behind-pkg")).toBeInTheDocument()
 })
 
+test("clicking the Pinned header orders rows by name", async () => {
+  // kenzen#113: Pinned -> latest had no sortValue at all -- clicking it did nothing.
+  // Sorting by name (not the pinned version) keeps rows of one dependency together.
+  const snapshot = {
+    snapshotId: 1,
+    generatedAt: "2026-09-08T00:00:00Z",
+    inventoryItems: 3,
+    summary: {},
+  }
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot,
+    items: [
+      item({ key: "z", name: "zeta-pkg", pinned: "1.0.0", gap: "patch" }),
+      item({ key: "a", name: "alpha-pkg", pinned: "2.0.0", gap: "patch" }),
+      item({ key: "m", name: "mid-pkg", pinned: "1.5.0", gap: "patch" }),
+    ],
+  })
+  render(<NeedsDecision />)
+  await waitFor(() => expect(screen.getByText("zeta-pkg")).toBeInTheDocument())
+
+  fireEvent.click(screen.getByRole("button", { name: /Pinned/ }))
+
+  const names = within(screen.getByRole("table"))
+    .getAllByRole("row")
+    .slice(1) // header
+    .map((r) => r.textContent)
+    .filter((t) => t && /-pkg/.test(t))
+  expect(names[0]).toContain("alpha-pkg")
+  expect(names[1]).toContain("mid-pkg")
+  expect(names[2]).toContain("zeta-pkg")
+})
+
+test("clicking the Advisories header puts the row with more advisories first", async () => {
+  // kenzen#113: Advisories had no sortValue at all -- clicking it did nothing. Sorts by
+  // advisoryStatus severity first (affected before a non-affected gap-only row), advisory
+  // count second.
+  const snapshot = {
+    snapshotId: 1,
+    generatedAt: "2026-09-08T00:00:00Z",
+    inventoryItems: 3,
+    summary: {},
+  }
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot,
+    items: [
+      item({ key: "g", name: "gap-only-pkg", advisoryStatus: "none", gap: "patch" }),
+      item({
+        key: "f",
+        name: "few-cves-pkg",
+        advisoryStatus: "affected",
+        gap: "none",
+        advisories: [
+          { id: "CVE-1", summary: "s", severity: "high", url: "u", source: "ghsa", affected: true },
+        ],
+      }),
+      item({
+        key: "n",
+        name: "many-cves-pkg",
+        advisoryStatus: "affected",
+        gap: "none",
+        advisories: [
+          { id: "CVE-2", summary: "s", severity: "high", url: "u", source: "ghsa", affected: true },
+          { id: "CVE-3", summary: "s", severity: "high", url: "u", source: "ghsa", affected: true },
+          { id: "CVE-4", summary: "s", severity: "high", url: "u", source: "ghsa", affected: true },
+        ],
+      }),
+    ],
+  })
+  render(<NeedsDecision />)
+  await waitFor(() => expect(screen.getByText("many-cves-pkg")).toBeInTheDocument())
+
+  fireEvent.click(screen.getByRole("button", { name: /Advisories/ }))
+
+  const names = within(screen.getByRole("table"))
+    .getAllByRole("row")
+    .slice(1) // header
+    .map((r) => r.textContent)
+    .filter((t) => t && /-pkg/.test(t))
+  expect(names[0]).toContain("many-cves-pkg")
+  expect(names[1]).toContain("few-cves-pkg")
+  expect(names[2]).toContain("gap-only-pkg")
+})
+
 test("kenzen#70: the table is wrapped for the shared fixed-column layout, with the extra Repo-column variant", async () => {
   const snapshot = {
     snapshotId: 1,
