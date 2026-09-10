@@ -13,9 +13,9 @@
   padding: var(--rb-space-4);
 }
 
-/* kenzen#109: taller brand block -- roshne on alpha.16: "awfully small". */
+/* kenzen#109/#112: taller brand block -- roshne on alpha.16/alpha.17: "awfully small". */
 .kz-header .rb-wordmark {
-  font-size: 1.5em;
+  font-size: 2.25em;
 }
 .kz-header .kz-koi {
   flex: 0 0 auto;
