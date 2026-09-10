@@ -23,3 +23,13 @@ test("size defaults to 24 when omitted", () => {
   expect(img).toHaveAttribute("width", "24")
   expect(img).toHaveAttribute("height", "24")
 })
+
+test("kenzen#112: carries a srcset up to 512px so a HiDPI display can pick a sharper asset than the 64px fallback", () => {
+  const { container } = render(<KoiMark size={60} />)
+  const img = container.querySelector("img")
+  expect(img).toHaveAttribute(
+    "srcset",
+    "/brand/koi-64.png 64w, /brand/koi-192.png 192w, /brand/koi-512.png 512w",
+  )
+  expect(img).toHaveAttribute("sizes", "60px")
+})
