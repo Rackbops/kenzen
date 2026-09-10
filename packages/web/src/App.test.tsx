@@ -31,7 +31,7 @@ test("kenzen#96: the header wordmark carries the kanji, tagged for assistive tec
   expect(kanji).toHaveAttribute("aria-label", "kenzen-sei")
 })
 
-test("kenzen#112: the header koi mark is 60px", async () => {
+test("kenzen#112: the header koi mark is 120px", async () => {
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue(null)
   const { container } = render(
     <MemoryRouter initialEntries={["/"]}>
@@ -40,8 +40,8 @@ test("kenzen#112: the header koi mark is 60px", async () => {
   )
   await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument())
   const koi = container.querySelector("img.kz-koi")
-  expect(koi).toHaveAttribute("width", "60")
-  expect(koi).toHaveAttribute("height", "60")
+  expect(koi).toHaveAttribute("width", "120")
+  expect(koi).toHaveAttribute("height", "120")
 })
 
 test("renders a tablist with all five view labels", async () => {
