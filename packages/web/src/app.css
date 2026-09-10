@@ -183,7 +183,10 @@
  * 24px) is subtracted from the cell's border-box width -- not the comfortable margin it looked
  * like before accounting for padding. Widened to 26% (taken from Name/Source) for a real ~23px
  * buffer, paired with `.kz-actions`'s own `gap` below (the buttons had none since #64 round 1
- * dropped the unstyled `kz-actions__controls` class). */
+ * dropped the unstyled `kz-actions__controls` class).
+ * kenzen#112: Gap widened 6% -> 10% (roshne, live: the shield + MINOR/PATCH badge clipped at
+ * 1200px) -- taken from Source (15% -> 13%) and Actions (26% -> 24%, still clear of the ~23px
+ * buffer computed above). Sum stays 100%. */
 .kz-items-table th:nth-child(1),
 .kz-items-table td:nth-child(1) {
   width: 8%;
@@ -201,7 +204,7 @@
 
 .kz-items-table th:nth-child(4),
 .kz-items-table td:nth-child(4) {
-  width: 6%;
+  width: 10%;
 }
 
 .kz-items-table th:nth-child(5),
@@ -211,18 +214,20 @@
 
 .kz-items-table th:nth-child(6),
 .kz-items-table td:nth-child(6) {
-  width: 15%;
+  width: 13%;
 }
 
 .kz-items-table th:nth-child(7),
 .kz-items-table td:nth-child(7) {
-  width: 26%;
+  width: 24%;
 }
 
 /* Needs-a-decision (8 cols, extra Repo column first): Repo / Kind / Name / Pinned->latest / Gap /
  * Advisories / Source / Actions -- same specificity as the base block above, so source order
  * (this block comes after) is what makes these win for nth-child(1..7) on the wrapper that
- * carries both classes. Actions widened to 26% for the same reason as the Repos set above. */
+ * carries both classes. Actions widened to 26% for the same reason as the Repos set above.
+ * kenzen#112: Gap widened 5% -> 10% (same live clipping as the Repos set above) -- taken from
+ * Source (12% -> 10%) and Actions (26% -> 23%). Sum stays 100%. */
 .kz-items-table--repo th:nth-child(1),
 .kz-items-table--repo td:nth-child(1) {
   width: 12%;
@@ -245,7 +250,7 @@
 
 .kz-items-table--repo th:nth-child(5),
 .kz-items-table--repo td:nth-child(5) {
-  width: 5%;
+  width: 10%;
 }
 
 .kz-items-table--repo th:nth-child(6),
@@ -255,12 +260,12 @@
 
 .kz-items-table--repo th:nth-child(7),
 .kz-items-table--repo td:nth-child(7) {
-  width: 12%;
+  width: 10%;
 }
 
 .kz-items-table--repo th:nth-child(8),
 .kz-items-table--repo td:nth-child(8) {
-  width: 26%;
+  width: 23%;
 }
 
 /* kenzen#70 round 2, live-reproduced: DecisionActions.tsx's controls span had no gap between
