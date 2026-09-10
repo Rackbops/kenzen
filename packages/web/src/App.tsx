@@ -78,7 +78,7 @@ export function App() {
     <>
       <header className="kz-header">
         <h1 className="rb-wordmark">
-          <KoiMark size={40} />
+          <KoiMark size={60} />
           kenzen
           {/* kenzen#96: the kanji wordmark, self-hosted (app.css's @font-face). role="img"
               makes aria-label authoritative over the text node -- a bare span's implicit
