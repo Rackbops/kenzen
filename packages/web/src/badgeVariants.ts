@@ -32,6 +32,23 @@ export function advisoryVariant(status: string | null): SemanticVariant | undefi
   }
 }
 
+/** kenzen#113: severity rank for the Advisories column's sortValue, ascending -- lower sorts
+ * first, so the most-urgent rows (affected) lead. Mirrors advisoryVariant's own case order
+ * (danger, warning, success, then everything else) rather than re-deriving it from the
+ * SemanticVariant string, since "unknown" and null both fall through the same default there. */
+export function advisoryVariantRank(status: string | null): number {
+  switch (status) {
+    case "affected":
+      return 0
+    case "historical-only":
+      return 1
+    case "none":
+      return 2
+    default:
+      return 3
+  }
+}
+
 /** kenzen#90: which StatusShield glyph (if any) leads the gap Badge. Deliberately narrower
  * than gapVariant's switch -- the issue's design decision names exactly major/minor
  * (attention) and none (healthy); "patch" gets no shield rather than a guessed one. */

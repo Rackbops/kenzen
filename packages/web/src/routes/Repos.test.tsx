@@ -400,6 +400,76 @@ test("clicking the Gap header sorts by severity, not alphabetically", async () =
   expect(names[2]).toContain("sound-pkg")
 })
 
+test("clicking the Pinned header orders rows by name", async () => {
+  // kenzen#113: Pinned -> latest had no sortValue at all -- clicking it did nothing.
+  // Sorting by name (not the pinned version) keeps rows of one dependency together.
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot: SNAPSHOT,
+    items: [
+      item({ key: "z", name: "zeta-pkg", pinned: "1.0.0" }),
+      item({ key: "a", name: "alpha-pkg", pinned: "2.0.0" }),
+      item({ key: "m", name: "mid-pkg", pinned: "1.5.0" }),
+    ],
+  })
+  render(<Repos />)
+  await waitFor(() => expect(screen.getByText("zeta-pkg")).toBeInTheDocument())
+
+  fireEvent.click(screen.getByRole("button", { name: /Pinned/ }))
+
+  const names = within(screen.getByRole("table"))
+    .getAllByRole("row")
+    .slice(1) // header
+    .map((r) => r.textContent)
+    .filter((t) => t && /-pkg/.test(t))
+  expect(names[0]).toContain("alpha-pkg")
+  expect(names[1]).toContain("mid-pkg")
+  expect(names[2]).toContain("zeta-pkg")
+})
+
+test("clicking the Advisories header puts the row with more advisories first", async () => {
+  // kenzen#113: Advisories had no sortValue at all -- clicking it did nothing. Sorts by
+  // advisoryStatus severity first (affected before none), advisory count second.
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot: SNAPSHOT,
+    items: [
+      item({ key: "c", name: "clean-pkg", advisoryStatus: "none", advisories: [] }),
+      item({
+        key: "f",
+        name: "few-cves-pkg",
+        advisoryStatus: "affected",
+        advisories: [
+          { id: "CVE-1", summary: "s", severity: "high", url: "u", source: "ghsa", affected: true },
+        ],
+      }),
+      item({
+        key: "n",
+        name: "many-cves-pkg",
+        advisoryStatus: "affected",
+        advisories: [
+          { id: "CVE-2", summary: "s", severity: "high", url: "u", source: "ghsa", affected: true },
+          { id: "CVE-3", summary: "s", severity: "high", url: "u", source: "ghsa", affected: true },
+          { id: "CVE-4", summary: "s", severity: "high", url: "u", source: "ghsa", affected: true },
+        ],
+      }),
+    ],
+  })
+  render(<Repos />)
+  await waitFor(() => expect(screen.getByText("many-cves-pkg")).toBeInTheDocument())
+
+  fireEvent.click(screen.getByRole("button", { name: /Advisories/ }))
+
+  const names = within(screen.getByRole("table"))
+    .getAllByRole("row")
+    .slice(1) // header
+    .map((r) => r.textContent)
+    .filter((t) => t && /-pkg/.test(t))
+  expect(names[0]).toContain("many-cves-pkg")
+  expect(names[1]).toContain("few-cves-pkg")
+  expect(names[2]).toContain("clean-pkg")
+})
+
 test("a repo with no items still renders its card, with an empty table message", async () => {
   vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({ repo: "Rackbops/no-items" })])
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({ snapshot: SNAPSHOT, items: [] })

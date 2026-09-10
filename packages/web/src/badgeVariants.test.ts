@@ -1,5 +1,5 @@
 import { expect, test } from "vitest"
-import { advisoryShieldVariant, gapShieldVariant } from "./badgeVariants.js"
+import { advisoryShieldVariant, advisoryVariantRank, gapShieldVariant } from "./badgeVariants.js"
 
 /**
  * kenzen#90 round 1 review (HIGH): `gapShieldVariant`/`advisoryShieldVariant` were only ever
@@ -26,4 +26,12 @@ test("advisoryShieldVariant maps every real advisoryStatus value", () => {
   expect(advisoryShieldVariant("none")).toBeUndefined()
   expect(advisoryShieldVariant("unknown")).toBeUndefined()
   expect(advisoryShieldVariant(null)).toBeUndefined()
+})
+
+test("kenzen#113: advisoryVariantRank orders every real advisoryStatus value by severity", () => {
+  expect(advisoryVariantRank("affected")).toBe(0)
+  expect(advisoryVariantRank("historical-only")).toBe(1)
+  expect(advisoryVariantRank("none")).toBe(2)
+  expect(advisoryVariantRank("unknown")).toBe(3)
+  expect(advisoryVariantRank(null)).toBe(3)
 })

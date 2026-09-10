@@ -2,7 +2,12 @@ import { Badge, Card, DataTable, type DataTableColumn } from "@rackbops/ui-react
 import { useMemo, useState } from "react"
 import { AdvisoryList } from "../AdvisoryList.js"
 import { type DecisionPatch, fetchLatestSnapshotItems, type ReportItem } from "../api.js"
-import { advisoryVariant, gapShieldVariant, gapVariant } from "../badgeVariants.js"
+import {
+  advisoryVariant,
+  advisoryVariantRank,
+  gapShieldVariant,
+  gapVariant,
+} from "../badgeVariants.js"
 import { StatusShield } from "../brand/StatusShield.js"
 import { DecisionActions } from "../DecisionActions.js"
 import { applyItemFilters, type ItemFilterState, ItemFilters } from "../ItemFilters.js"
@@ -66,6 +71,7 @@ function columns(
           </span>
         )
       },
+      sortValue: (i) => `${i.name}\^@${i.pinned ?? ""}`,
     },
     {
       key: "gap",
@@ -103,6 +109,7 @@ function columns(
             <AdvisoryList advisories={i.advisories} />
           </span>
         ) : null,
+      sortValue: (i) => advisoryVariantRank(i.advisoryStatus) * 100000 - i.advisories.length,
     },
     {
       key: "source",
