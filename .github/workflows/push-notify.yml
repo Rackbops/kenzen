@@ -33,7 +33,7 @@ on:
 jobs:
   notify:
     if: github.repository == 'Rackbops/kenzen'
-    uses: roshne/addon-ci/.github/workflows/push-notify.yml@main
+    uses: roshne/addon-ci/.github/workflows/push-notify.yml@v1
     with:
       runner: '["self-hosted","disposable"]'
     secrets:
