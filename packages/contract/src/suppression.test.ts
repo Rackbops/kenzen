@@ -229,6 +229,16 @@ describe("effectiveAdvisoryStatus", () => {
     )
   })
 
+  it("range-floor (Tooling#705) passes through unchanged, even with an acknowledgement on record", () => {
+    const rangeFloor = item({
+      advisoryStatus: "range-floor",
+      advisories: [{ id: "GHSA-cccc", affected: true }],
+    })
+    expect(effectiveAdvisoryStatus(rangeFloor, { acknowledgedAdvisories: ["GHSA-cccc"] })).toBe(
+      "range-floor",
+    )
+  })
+
   it("an empty advisories array with no acknowledgement leaves affected untouched", () => {
     // A real snapshot never pairs advisoryStatus="affected" with an empty advisories list (it's
     // derived FROM that list), but the function must not depend on that invariant to answer

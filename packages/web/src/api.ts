@@ -275,7 +275,7 @@ export interface ReportItem {
   latest: string | null
   latestInMajor: string | null
   gap: "none" | "patch" | "minor" | "major" | "unknown" | null
-  advisoryStatus: "affected" | "historical-only" | "none" | "unknown" | null
+  advisoryStatus: "affected" | "historical-only" | "range-floor" | "none" | "unknown" | null
   advisories: Advisory[]
   assumed: string | null
   note: string | null

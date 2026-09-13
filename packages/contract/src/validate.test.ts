@@ -36,6 +36,19 @@ describe("contract ratchet: the real fixtures validate", () => {
     expect(result.errors).toBeNull()
     expect(result.valid).toBe(true)
   })
+
+  it("accepts a report item whose advisoryStatus is range-floor (Tooling#705)", () => {
+    const withRangeFloor = structuredClone(reportFixture) as {
+      items: Array<{ advisoryStatus: string }>
+    }
+    const first = withRangeFloor.items[0]
+    if (!first) throw new Error("fixture has no items")
+    first.advisoryStatus = "range-floor"
+
+    const result = validateReport(withRangeFloor)
+    expect(result.errors).toBeNull()
+    expect(result.valid).toBe(true)
+  })
 })
 
 describe("contract ratchet: a renamed schema field fails the fixture", () => {

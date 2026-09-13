@@ -25,6 +25,8 @@ export function advisoryVariant(status: string | null): SemanticVariant | undefi
       return "danger"
     case "historical-only":
       return "warning"
+    case "range-floor":
+      return "info"
     case "none":
       return "success"
     default:
@@ -34,7 +36,7 @@ export function advisoryVariant(status: string | null): SemanticVariant | undefi
 
 /** kenzen#113: severity rank for the Advisories column's sortValue, ascending -- lower sorts
  * first, so the most-urgent rows (affected) lead. Mirrors advisoryVariant's own case order
- * (danger, warning, success, then everything else) rather than re-deriving it from the
+ * (danger, warning, info, success, then everything else) rather than re-deriving it from the
  * SemanticVariant string, since "unknown" and null both fall through the same default there. */
 export function advisoryVariantRank(status: string | null): number {
   switch (status) {
@@ -42,10 +44,12 @@ export function advisoryVariantRank(status: string | null): number {
       return 0
     case "historical-only":
       return 1
-    case "none":
+    case "range-floor":
       return 2
-    default:
+    case "none":
       return 3
+    default:
+      return 4
   }
 }
 
@@ -67,7 +71,10 @@ export function gapShieldVariant(gap: string | null): StatusShieldVariant | unde
 /** kenzen#90: which StatusShield glyph (if any) leads the advisory Badge. "historical-only"
  * is the real enum value behind the issue's "historical" -- there is no literal "acknowledged"
  * advisoryStatus, so that word is read as describing the same resolved state. "unknown" gets
- * no shield: asserting "healthy" for a status that is, by name, not known would overclaim. */
+ * no shield: asserting "healthy" for a status that is, by name, not known would overclaim.
+ * "range-floor" (Tooling#705) gets none either, for the same reason: it means an advisory's
+ * range contains the unlocked manifest floor, not any version actually installed -- asserting
+ * "healthy" or "vulnerable" for that would overclaim either way. */
 export function advisoryShieldVariant(status: string | null): StatusShieldVariant | undefined {
   switch (status) {
     case "affected":

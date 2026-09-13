@@ -437,6 +437,27 @@ describe("GET /api/snapshots/:id/items", () => {
     expect(body.items[0]?.advisoryStatus).toBe("affected")
   })
 
+  it("status filter accepts range-floor (Tooling#705) -- was a 422 before ADVISORY_STATUSES grew", async () => {
+    const { app, db } = testApp()
+    const snapshotId = ingestSnapshot(db, "2026-01-01T00:00:00Z", [
+      { inv: invItem(), rep: repItem({ advisoryStatus: "range-floor", assumed: "range-floor" }) },
+      {
+        inv: invItem({ source: "package.json:2" }),
+        rep: repItem({
+          key: "o/r|npm-dep|foo|package.json:2",
+          source: "package.json:2",
+          advisoryStatus: "none",
+        }),
+      },
+    ])
+
+    const res = await app.request(`/api/snapshots/${snapshotId}/items?status=range-floor`)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: { advisoryStatus: string }[] }
+    expect(body.items).toHaveLength(1)
+    expect(body.items[0]?.advisoryStatus).toBe("range-floor")
+  })
+
   it("combines repo + kind filters (AND, not OR)", async () => {
     const { app, db } = testApp()
     const snapshotId = ingestSnapshot(db, "2026-01-01T00:00:00Z", [

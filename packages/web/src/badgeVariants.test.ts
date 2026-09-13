@@ -1,5 +1,10 @@
 import { expect, test } from "vitest"
-import { advisoryShieldVariant, advisoryVariantRank, gapShieldVariant } from "./badgeVariants.js"
+import {
+  advisoryShieldVariant,
+  advisoryVariant,
+  advisoryVariantRank,
+  gapShieldVariant,
+} from "./badgeVariants.js"
 
 /**
  * kenzen#90 round 1 review (HIGH): `gapShieldVariant`/`advisoryShieldVariant` were only ever
@@ -23,15 +28,27 @@ test("gapShieldVariant maps every real gap value", () => {
 test("advisoryShieldVariant maps every real advisoryStatus value", () => {
   expect(advisoryShieldVariant("affected")).toBe("vulnerable")
   expect(advisoryShieldVariant("historical-only")).toBe("healthy")
+  // Tooling#705: an unverified range floor must not be badged healthy or vulnerable either.
+  expect(advisoryShieldVariant("range-floor")).toBeUndefined()
   expect(advisoryShieldVariant("none")).toBeUndefined()
   expect(advisoryShieldVariant("unknown")).toBeUndefined()
   expect(advisoryShieldVariant(null)).toBeUndefined()
 })
 
+test("advisoryVariant maps every real advisoryStatus value", () => {
+  expect(advisoryVariant("affected")).toBe("danger")
+  expect(advisoryVariant("historical-only")).toBe("warning")
+  expect(advisoryVariant("range-floor")).toBe("info")
+  expect(advisoryVariant("none")).toBe("success")
+  expect(advisoryVariant("unknown")).toBeUndefined()
+  expect(advisoryVariant(null)).toBeUndefined()
+})
+
 test("kenzen#113: advisoryVariantRank orders every real advisoryStatus value by severity", () => {
   expect(advisoryVariantRank("affected")).toBe(0)
   expect(advisoryVariantRank("historical-only")).toBe(1)
-  expect(advisoryVariantRank("none")).toBe(2)
-  expect(advisoryVariantRank("unknown")).toBe(3)
-  expect(advisoryVariantRank(null)).toBe(3)
+  expect(advisoryVariantRank("range-floor")).toBe(2)
+  expect(advisoryVariantRank("none")).toBe(3)
+  expect(advisoryVariantRank("unknown")).toBe(4)
+  expect(advisoryVariantRank(null)).toBe(4)
 })
