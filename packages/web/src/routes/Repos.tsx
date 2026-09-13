@@ -66,6 +66,10 @@ function pinnedCell(item: ReportItem): ReactNode {
   )
 }
 
+// kenzen#119: widths sum to 100% of a ~1520px table (Repos' Card padding subtracted from the
+// 1600px shell); Actions' 18% is ~274px raw, ~250px once the ~24px cell padding is subtracted --
+// clears the ~236px three-control (Skip / Approve / Acknowledge) case with a real ~14px buffer
+// (kenzen#70/#112's own history, now superseded by this declarative scheme).
 function columns(
   now: string,
   onApply: (key: string, patch: DecisionPatch) => void,
@@ -75,12 +79,14 @@ function columns(
     {
       key: "kind",
       header: "Kind",
+      width: "9%",
       render: (i) => <span className="kz-nowrap">{i.kind}</span>,
       sortValue: (i) => i.kind,
     },
     {
       key: "name",
       header: "Name",
+      width: "24%",
       render: (i) => (
         <span className="kz-nowrap" title={i.name}>
           {i.name}
@@ -91,12 +97,14 @@ function columns(
     {
       key: "pinned",
       header: "Pinned → latest",
+      width: "12%",
       render: pinnedCell,
       sortValue: (i) => `${i.name}\^@${i.pinned ?? ""}`,
     },
     {
       key: "gap",
       header: "Gap",
+      width: "8%",
       render: (i) => {
         const shieldVariant = gapShieldVariant(i.gap)
         return (
@@ -117,6 +125,7 @@ function columns(
     {
       key: "advisories",
       header: "Advisories",
+      width: "10%",
       render: (i) => {
         const shieldVariant = advisoryShieldVariant(i.advisoryStatus)
         return i.advisoryStatus && i.advisoryStatus !== "none" ? (
@@ -138,6 +147,7 @@ function columns(
     {
       key: "source",
       header: "Source",
+      width: "19%",
       render: (i) => {
         const url = i.source ? sourceUrl(i.repo, i.source) : null
         return (
@@ -156,6 +166,7 @@ function columns(
     {
       key: "actions",
       header: "Actions",
+      width: "18%",
       // Unlike NeedsDecision.tsx (which already only ever holds rows that need one), Repos
       // shows every item, decided or not, sound or not (design.md section 6.2). No gate here
       // -- always render DecisionActions and trust its own per-axis logic to return null for a

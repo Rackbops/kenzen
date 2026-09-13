@@ -25,6 +25,11 @@ import { useOptimisticDecisions } from "../useOptimisticDecisions.js"
  * more than K4-8a's original "is there any decision row at all" placeholder gate.
  */
 
+// kenzen#119: widths sum to 100% of a ~1520px table (this table is inside a Card too, same as
+// Repos.tsx -- the 1600px shell minus the Card's own padding, not just .kz-main's); Actions'
+// 18% is ~274px raw, ~250px once the ~24px cell padding is subtracted -- clears the ~236px
+// three-control (Skip / Approve / Acknowledge) case with a real ~14px buffer (kenzen#70/#112's
+// own history, now superseded by this declarative scheme).
 function columns(
   now: string,
   onApply: (key: string, patch: DecisionPatch) => void,
@@ -34,6 +39,7 @@ function columns(
     {
       key: "repo",
       header: "Repo",
+      width: "13%",
       render: (i) => (
         <span className="kz-nowrap" title={i.repo}>
           {i.repo}
@@ -44,12 +50,14 @@ function columns(
     {
       key: "kind",
       header: "Kind",
+      width: "9%",
       render: (i) => <span className="kz-nowrap">{i.kind}</span>,
       sortValue: (i) => i.kind,
     },
     {
       key: "name",
       header: "Name",
+      width: "18%",
       render: (i) => (
         <span className="kz-nowrap" title={i.name}>
           {i.name}
@@ -60,6 +68,7 @@ function columns(
     {
       key: "pinned",
       header: "Pinned → latest",
+      width: "12%",
       render: (i) => {
         // kenzen#64 round 2, live-reproduced: `pinned` isn't always a short version -- one real
         // item carries a 164-char assumption note, which under plain nowrap blew this column to
@@ -76,6 +85,7 @@ function columns(
     {
       key: "gap",
       header: "Gap",
+      width: "8%",
       render: (i) => {
         const shieldVariant = gapShieldVariant(i.gap)
         return (
@@ -94,6 +104,7 @@ function columns(
     {
       key: "advisoryStatus",
       header: "Advisories",
+      width: "10%",
       render: (i) =>
         i.advisoryStatus === "affected" ? (
           <span className="kz-advisories-cell">
@@ -114,6 +125,7 @@ function columns(
     {
       key: "source",
       header: "Source",
+      width: "12%",
       render: (i) => {
         const url = i.source ? sourceUrl(i.repo, i.source) : null
         return (
@@ -132,6 +144,7 @@ function columns(
     {
       key: "actions",
       header: "Actions",
+      width: "18%",
       render: (i) => (
         <DecisionActions
           item={i}
@@ -203,7 +216,7 @@ function NeedsDecisionTable({ items, snapshotId }: { items: ReportItem[]; snapsh
         onChange={setFilters}
         dimensions={["repo", "kind", "role", "status"]}
       />
-      <div className="kz-items-table kz-items-table--repo">
+      <div className="kz-items-table">
         <DataTable
           columns={tableColumns}
           rows={filtered}

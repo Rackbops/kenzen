@@ -59,7 +59,7 @@ test("renders a card per repo with its real soundness line, then its item table"
   expect(screen.getByText("requests")).toBeInTheDocument()
 })
 
-test("kenzen#70: each repo's table is wrapped for the shared fixed-column layout, no Repo-column variant", async () => {
+test("kenzen#119: each repo's table declares its 7 column widths via colgroup; kenzen#70's three-control Actions grouping still holds", async () => {
   vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
   vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
     snapshot: SNAPSHOT,
@@ -84,9 +84,20 @@ test("kenzen#70: each repo's table is wrapped for the shared fixed-column layout
   })
   const { container } = render(<Repos />)
   await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument())
-  const wrapper = container.querySelector(".kz-items-table")
-  expect(wrapper).not.toBeNull()
-  expect(wrapper).not.toHaveClass("kz-items-table--repo")
+  // kenzen#119: DataTableColumn.width renders a <colgroup> ahead of <thead> and puts the table
+  // in table-layout: fixed itself.
+  const table = screen.getByRole("table")
+  expect(table).toHaveStyle({ tableLayout: "fixed" })
+  const cols = container.querySelectorAll("colgroup > col")
+  expect(Array.from(cols).map((c) => (c as HTMLElement).style.width)).toEqual([
+    "9%",
+    "24%",
+    "12%",
+    "8%",
+    "10%",
+    "19%",
+    "18%",
+  ])
   // kenzen#70 round 2, review round 1: the earlier version of this assertion used a gap-only
   // item (the two-control case), which never exercises the three-control (gap AND advisory)
   // combination that actually wrapped -- an item with all three controls moved outside
@@ -102,6 +113,33 @@ test("kenzen#70: each repo's table is wrapped for the shared fixed-column layout
       )
     : []
   expect(controlTexts).toEqual(["Skip ▾", "Approve", "Acknowledge"])
+})
+
+test("kenzen#119: two repos' tables carry identical column widths (the #70 symptom this issue fixes)", async () => {
+  // kenzen#70's original symptom: each repo's table auto-sized from its own content, so column
+  // x-positions drifted 1118-1414px across repos at the same card width. A colgroup's widths
+  // come from the shared `columns()` definition, not row content, so they can't drift -- this
+  // is that acceptance claim as a unit test, independent of any real page's content.
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([
+    repoSummary({ repo: "Owner/repo-one" }),
+    repoSummary({ repo: "Owner/repo-two" }),
+  ])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot: SNAPSHOT,
+    items: [
+      item({ key: "a", repo: "Owner/repo-one", name: "short" }),
+      item({ key: "b", repo: "Owner/repo-two", name: "a-much-longer-package-name-than-short" }),
+    ],
+  })
+  const { container } = render(<Repos />)
+  await waitFor(() => expect(screen.getAllByRole("table")).toHaveLength(2))
+
+  const widthLists = Array.from(container.querySelectorAll("table")).map((table) =>
+    Array.from(table.querySelectorAll("colgroup > col")).map((c) => (c as HTMLElement).style.width),
+  )
+  expect(widthLists).toHaveLength(2)
+  expect(widthLists[0]).toEqual(["9%", "24%", "12%", "8%", "10%", "19%", "18%"])
+  expect(widthLists[0]).toEqual(widthLists[1])
 })
 
 // --- kenzen#109: the koi hero renders above the repo list, in every state -------------

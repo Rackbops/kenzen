@@ -240,7 +240,7 @@ test("clicking the Advisories header puts the row with more advisories first", a
   expect(names[2]).toContain("gap-only-pkg")
 })
 
-test("kenzen#70: the table is wrapped for the shared fixed-column layout, with the extra Repo-column variant", async () => {
+test("kenzen#119: the table declares its 8 column widths via colgroup; kenzen#70's three-control Actions grouping still holds", async () => {
   const snapshot = {
     snapshotId: 1,
     generatedAt: "2026-09-08T00:00:00Z",
@@ -270,9 +270,22 @@ test("kenzen#70: the table is wrapped for the shared fixed-column layout, with t
   })
   const { container } = render(<NeedsDecision />)
   await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument())
-  const wrapper = container.querySelector(".kz-items-table")
-  expect(wrapper).not.toBeNull()
-  expect(wrapper).toHaveClass("kz-items-table--repo")
+  // kenzen#119: DataTableColumn.width renders a <colgroup> ahead of <thead> and puts the table
+  // in table-layout: fixed itself -- this is the acceptance's "equal across renders" claim
+  // expressed as a unit test, since a colgroup's widths never depend on row content.
+  const table = screen.getByRole("table")
+  expect(table).toHaveStyle({ tableLayout: "fixed" })
+  const cols = container.querySelectorAll("colgroup > col")
+  expect(Array.from(cols).map((c) => (c as HTMLElement).style.width)).toEqual([
+    "13%",
+    "9%",
+    "18%",
+    "12%",
+    "8%",
+    "10%",
+    "12%",
+    "18%",
+  ])
   // kenzen#70 round 2, review round 1: the earlier version of this assertion used a gap-only
   // item (the two-control case), which never exercises the three-control (gap AND advisory)
   // combination that actually wrapped -- an item with all three controls moved outside
