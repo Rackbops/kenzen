@@ -53,7 +53,9 @@
         "latestInMajor": { "type": ["string", "null"] },
         "changeUrl": { "type": ["string", "null"] },
         "gap": { "enum": ["none", "patch", "minor", "major", "unknown"] },
-        "advisoryStatus": { "enum": ["affected", "historical-only", "none", "unknown"] },
+        "advisoryStatus": {
+          "enum": ["affected", "historical-only", "range-floor", "none", "unknown"]
+        },
         "advisories": { "type": "array", "items": { "$ref": "#/definitions/advisory" } },
         "assumed": { "type": ["string", "null"] },
         "note": { "type": "string" }

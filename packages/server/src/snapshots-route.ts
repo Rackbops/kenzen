@@ -23,7 +23,7 @@ const KINDS = new Set([
   "runtime-pin",
 ])
 const ROLES = new Set(["runtime", "test", "build", "ci", "infra"])
-const ADVISORY_STATUSES = new Set(["affected", "historical-only", "none", "unknown"])
+const ADVISORY_STATUSES = new Set(["affected", "historical-only", "range-floor", "none", "unknown"])
 
 function errorBody(error: string, path?: string): Record<string, unknown> {
   return path === undefined
