@@ -71,15 +71,14 @@ function pinnedCell(item: ReportItem): ReactNode {
 // 1600px shell); Actions' 18% is ~274px raw, ~250px once the ~24px cell padding is subtracted --
 // clears the ~236px three-control (Skip / Approve / Acknowledge) case with a real ~14px buffer
 // (kenzen#70/#112's own history, now superseded by this declarative scheme).
-// kenzen#124: Advisories widened 10 -> 12 (taken 1 from Name, 1 from Source) for the wider
-// pill badge -- this is the one column that genuinely has to fit "range floor"/"historical"
-// text (11ch) at the new ~15px badge font plus the 20px shield. Estimated need ~160px; 12% of
-// this table is ~182px, ~158px after the ~24px cell padding -- MARGINALLY UNDER the estimate,
-// not comfortably over it; the exact fit depends on the real monospace font's per-character
-// width, which this comment's arithmetic can't pin down precisely. Widen further (from Source
-// or Name) if the live render (issue's own Acceptance bullet 3) still clips. Gap stays 8%
-// (~122px, ~98px after padding): the plan's own math put the 20px-shield + "MAJOR" content
-// need at ~93px.
+// kenzen#124 round 2 (orchestrator, live review): Advisories widened 12 -> 13 (round 1 had
+// already taken it from 10; this round takes the last point from Name) -- this is the one
+// column that genuinely has to fit "range floor"/"historical" text (11ch) at the new ~15px
+// badge font plus the 20px shield. Estimated need ~157-160px; 13% of this table is ~198px,
+// ~174px after the ~24px cell padding -- a real ~13-17px spare, not the razor's-edge ~158px
+// the original 12% gave. Name drops 23 -> 22 (~334px, far above any real package/image name)
+// to make room. Gap stays 8% (~122px, ~98px after padding): the plan's own math put the
+// 20px-shield + "MAJOR" content need at ~93px.
 function columns(
   now: string,
   onApply: (key: string, patch: DecisionPatch) => void,
@@ -96,7 +95,7 @@ function columns(
     {
       key: "name",
       header: "Name",
-      width: "23%",
+      width: "22%",
       render: (i) => (
         <span className="kz-nowrap" title={i.name}>
           {i.name}
@@ -135,7 +134,7 @@ function columns(
     {
       key: "advisories",
       header: "Advisories",
-      width: "12%",
+      width: "13%",
       render: (i) => {
         const shieldVariant = advisoryShieldVariant(i.advisoryStatus)
         return i.advisoryStatus && i.advisoryStatus !== "none" ? (

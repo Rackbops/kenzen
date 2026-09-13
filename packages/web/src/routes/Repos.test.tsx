@@ -91,10 +91,10 @@ test("kenzen#119: each repo's table declares its 7 column widths via colgroup; k
   const cols = container.querySelectorAll("colgroup > col")
   expect(Array.from(cols).map((c) => (c as HTMLElement).style.width)).toEqual([
     "9%",
-    "23%",
+    "22%",
     "12%",
     "8%",
-    "12%",
+    "13%",
     "18%",
     "18%",
   ])
@@ -138,7 +138,7 @@ test("kenzen#119: two repos' tables carry identical column widths (the #70 sympt
     Array.from(table.querySelectorAll("colgroup > col")).map((c) => (c as HTMLElement).style.width),
   )
   expect(widthLists).toHaveLength(2)
-  expect(widthLists[0]).toEqual(["9%", "23%", "12%", "8%", "12%", "18%", "18%"])
+  expect(widthLists[0]).toEqual(["9%", "22%", "12%", "8%", "13%", "18%", "18%"])
   expect(widthLists[0]).toEqual(widthLists[1])
 })
 
