@@ -66,30 +66,3 @@ for (const { detailsClass, childClass } of DETAILS_CHILD_PAIRS) {
     expect(guarded.some((r) => /display\s*:/.test(r.body))).toBe(true)
   })
 }
-
-/**
- * kenzen#126: jsdom can't compute `color-mix()`, so this is a source-reading guard, in the same
- * style as the pairs above -- for each semantic variant, `.kz-items-table .rb-badge--<v>` must
- * exist with `color: var(--rb-bg)` (the page itself as ink) and a `color-mix(in srgb,
- * var(--rb-<v>) 40%, var(--rb-text))` fill (the semantic colour mixed toward the theme's own
- * text colour -- pastel on a dark theme, deep on a light one). Contrast of the accent colour AS
- * TEXT on the library's own 16% tint measured as low as 1.3:1 (cyberhealth success); this
- * formula measures >= 5.4:1 on every bundled theme (rackbops-ui-ux-std-lib#207's own table).
- */
-const BADGE_VARIANTS = ["info", "success", "warning", "danger"] as const
-
-for (const variant of BADGE_VARIANTS) {
-  test(`.kz-items-table .rb-badge--${variant} inverts its fill against the theme (kenzen#126)`, () => {
-    const selectorToken = new RegExp(
-      `(?<![\\w-])\\.kz-items-table \\.rb-badge--${variant}(?![\\w-])`,
-    )
-    const matching = parseRules().filter((r) => selectorToken.test(r.selector))
-    expect(matching.length).toBeGreaterThan(0)
-
-    const mixToken = new RegExp(
-      `color-mix\\(in srgb,\\s*var\\(--rb-${variant}\\)\\s*40%,\\s*var\\(--rb-text\\)\\)`,
-    )
-    expect(matching.some((r) => /color\s*:\s*var\(--rb-bg\)/.test(r.body))).toBe(true)
-    expect(matching.some((r) => mixToken.test(r.body))).toBe(true)
-  })
-}

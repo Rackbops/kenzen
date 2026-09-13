@@ -225,37 +225,6 @@
   padding: var(--rb-space-1) var(--rb-space-3);
 }
 
-/* kenzen#126: the library paints a semantic badge as the accent colour as TEXT on a 16% tint of
- * itself -- 2.9:1 for kenzen-midnight's danger, 1.3:1 for cyberhealth's success (AA is 4.5).
- * Invert against the theme with one formula: the fill is the semantic colour mixed toward
- * --rb-text (pastel on a dark theme, deep on a light one) and the ink is the page itself.
- * >= 5.4:1 on every bundled theme (rackbops-ui-ux-std-lib#207 has the table and is the real
- * fix -- delete this block when its --rb-badge-* tokens ship). border-color transparent so the
- * outline-style themes don't draw a mismatched accent ring around the new fill. */
-.kz-items-table .rb-badge--info {
-  background: color-mix(in srgb, var(--rb-info) 40%, var(--rb-text));
-  color: var(--rb-bg);
-  border-color: transparent;
-}
-
-.kz-items-table .rb-badge--success {
-  background: color-mix(in srgb, var(--rb-success) 40%, var(--rb-text));
-  color: var(--rb-bg);
-  border-color: transparent;
-}
-
-.kz-items-table .rb-badge--warning {
-  background: color-mix(in srgb, var(--rb-warning) 40%, var(--rb-text));
-  color: var(--rb-bg);
-  border-color: transparent;
-}
-
-.kz-items-table .rb-badge--danger {
-  background: color-mix(in srgb, var(--rb-danger) 40%, var(--rb-text));
-  color: var(--rb-bg);
-  border-color: transparent;
-}
-
 /* kenzen#96: self-hosted subset (packages/web/public/fonts/, see its README for provenance
  * and the exact pyftsubset command) -- unicode-range is exactly the three code points the
  * wordmark and empty-state heading use (U+5065 健, U+5168 全, U+6027 性), matching the subset
