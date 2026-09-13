@@ -2,7 +2,8 @@
  * has an opinion on (STANDARD.md section 12), so it lives here rather than in a theme's own
  * package CSS. `kz-*` classes only, `--rb-*` tokens only (STANDARD.md section 15: "overrides by
  * adding, not editing; uses tokens, not literals") -- the one exception is `.kz-main`'s
- * max-width, a Kenzen-specific reading-width decision with no token to express it. */
+ * max-width, a Kenzen-specific reading-width decision with no token to express it (widened for
+ * the 8-column tables, kenzen#119 -- see that block's own comment). */
 
 .kz-header {
   display: flex;
@@ -33,8 +34,14 @@
   gap: var(--rb-space-3);
 }
 
+/* kenzen#60's 1200px reading width superseded by roshne 2026-09-13 (kenzen#119): the
+ * Needs-a-decision and Repos tables' 7-8 columns read as "atrocious" at 1200px -- Kind/Repo/
+ * Name too narrow to hold their real content without truncating. Widened to 1600px and the
+ * columns re-cut with content-sized budgets (NeedsDecision.tsx / Repos.tsx `columns()`). If a
+ * fluid shell (`max-width: none` + side padding) is ever needed instead, that is a new issue,
+ * not a silent follow-up here. */
 .kz-main {
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
   padding: var(--rb-space-4);
 }
@@ -145,16 +152,12 @@
   white-space: nowrap;
 }
 
-/* kenzen#70: `DataTable` exposes no per-column width, so this is app-local -- each usage wraps
- * its `DataTable` in one of these classes and the columns get fixed, shared widths here instead
- * of each table auto-sizing from its own content (which is what let widths and x-positions float
- * per repo, and both `kz-nowrap` and `kz-ellipsis` push/overflow the table instead of clipping
- * under `table-layout: auto`). `td`/`th` widths use `nth-child` since `DataTable` renders no
- * `<colgroup>`; a later `width` prop on `DataTableColumn` (tracked as a design-system give-back)
- * would make this declarative instead. Give the `.kz-items-table--repo` block AFTER the base
- * block so its own values win on `NeedsDecision.tsx`'s wrapper, which carries both classes. */
+/* kenzen#119: column widths are declared per-column on each `DataTableColumn.width`
+ * (NeedsDecision.tsx / Repos.tsx `columns()`) -- the component renders a `<colgroup>` and sets
+ * `table-layout: fixed` itself once any width is declared, so this only needs to keep the table
+ * filling its container (kenzen#70's old per-column selector scheme, which faked widths with no
+ * `<colgroup>` to target, is gone). */
 .kz-items-table .rb-table {
-  table-layout: fixed;
   width: 100%;
 }
 
@@ -173,99 +176,6 @@
  * no long text needing ellipsis, so it's the one cell exempted. */
 .kz-items-table td:last-child {
   overflow: visible;
-}
-
-/* Repos (7 cols): Kind / Name / Pinned->latest / Gap / Advisories / Source / Actions.
- * Round 2, live-reproduced: at the original 20%, the three-control Actions case (Skip ▾ /
- * Approve / Acknowledge, kenzen#64) wrapped to two lines -- the buttons need ~236px combined and
- * the column was only ~224px at a 1120px table. Review round 1, MEDIUM: a first pass at 24% only
- * cleared the deficit by ~0.8px once `.rb-table td`'s own horizontal padding (2x `--rb-space-3`,
- * 24px) is subtracted from the cell's border-box width -- not the comfortable margin it looked
- * like before accounting for padding. Widened to 26% (taken from Name/Source) for a real ~23px
- * buffer, paired with `.kz-actions`'s own `gap` below (the buttons had none since #64 round 1
- * dropped the unstyled `kz-actions__controls` class).
- * kenzen#112: Gap widened 6% -> 10% (roshne, live: the shield + MINOR/PATCH badge clipped at
- * 1200px) -- taken from Source (15% -> 13%) and Actions (26% -> 24%, still clear of the ~23px
- * buffer computed above). Sum stays 100%. */
-.kz-items-table th:nth-child(1),
-.kz-items-table td:nth-child(1) {
-  width: 8%;
-}
-
-.kz-items-table th:nth-child(2),
-.kz-items-table td:nth-child(2) {
-  width: 17%;
-}
-
-.kz-items-table th:nth-child(3),
-.kz-items-table td:nth-child(3) {
-  width: 17%;
-}
-
-.kz-items-table th:nth-child(4),
-.kz-items-table td:nth-child(4) {
-  width: 10%;
-}
-
-.kz-items-table th:nth-child(5),
-.kz-items-table td:nth-child(5) {
-  width: 11%;
-}
-
-.kz-items-table th:nth-child(6),
-.kz-items-table td:nth-child(6) {
-  width: 13%;
-}
-
-.kz-items-table th:nth-child(7),
-.kz-items-table td:nth-child(7) {
-  width: 24%;
-}
-
-/* Needs-a-decision (8 cols, extra Repo column first): Repo / Kind / Name / Pinned->latest / Gap /
- * Advisories / Source / Actions -- same specificity as the base block above, so source order
- * (this block comes after) is what makes these win for nth-child(1..7) on the wrapper that
- * carries both classes. Actions widened to 26% for the same reason as the Repos set above.
- * kenzen#112: Gap widened 5% -> 10% (same live clipping as the Repos set above) -- taken from
- * Source (12% -> 10%) and Actions (26% -> 23%). Sum stays 100%. */
-.kz-items-table--repo th:nth-child(1),
-.kz-items-table--repo td:nth-child(1) {
-  width: 12%;
-}
-
-.kz-items-table--repo th:nth-child(2),
-.kz-items-table--repo td:nth-child(2) {
-  width: 7%;
-}
-
-.kz-items-table--repo th:nth-child(3),
-.kz-items-table--repo td:nth-child(3) {
-  width: 14%;
-}
-
-.kz-items-table--repo th:nth-child(4),
-.kz-items-table--repo td:nth-child(4) {
-  width: 14%;
-}
-
-.kz-items-table--repo th:nth-child(5),
-.kz-items-table--repo td:nth-child(5) {
-  width: 10%;
-}
-
-.kz-items-table--repo th:nth-child(6),
-.kz-items-table--repo td:nth-child(6) {
-  width: 10%;
-}
-
-.kz-items-table--repo th:nth-child(7),
-.kz-items-table--repo td:nth-child(7) {
-  width: 10%;
-}
-
-.kz-items-table--repo th:nth-child(8),
-.kz-items-table--repo td:nth-child(8) {
-  width: 23%;
 }
 
 /* kenzen#70 round 2, live-reproduced: DecisionActions.tsx's controls span had no gap between
