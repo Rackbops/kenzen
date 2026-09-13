@@ -3,6 +3,7 @@ import { useMemo, useState } from "react"
 import { AdvisoryList } from "../AdvisoryList.js"
 import { type DecisionPatch, fetchLatestSnapshotItems, type ReportItem } from "../api.js"
 import {
+  advisoryLabel,
   advisoryVariant,
   advisoryVariantRank,
   gapShieldVariant,
@@ -30,6 +31,13 @@ import { useOptimisticDecisions } from "../useOptimisticDecisions.js"
 // 18% is ~274px raw, ~250px once the ~24px cell padding is subtracted -- clears the ~236px
 // three-control (Skip / Approve / Acknowledge) case with a real ~14px buffer (kenzen#70/#112's
 // own history, now superseded by this declarative scheme).
+// kenzen#124: Advisories widened 10 -> 12 (taken 1 from Name, 1 from Source), matched to
+// Repos.tsx's own Advisories budget rather than independently derived -- unlike Repos.tsx,
+// this column's render only ever fires when advisoryStatus === "affected" (see below), so it
+// never has to fit "historical"/"range floor" text; it only needs room for the now-bigger
+// (~15% larger font, 20px vs 14px shield) "N affected" pill, which the old 10% already fit.
+// Gap stays 8% (~122px, ~98px after padding): the plan's own math put the 20px-shield +
+// "MAJOR" content need at ~93px.
 function columns(
   now: string,
   onApply: (key: string, patch: DecisionPatch) => void,
@@ -57,7 +65,7 @@ function columns(
     {
       key: "name",
       header: "Name",
-      width: "18%",
+      width: "17%",
       render: (i) => (
         <span className="kz-nowrap" title={i.name}>
           {i.name}
@@ -104,7 +112,7 @@ function columns(
     {
       key: "advisoryStatus",
       header: "Advisories",
-      width: "10%",
+      width: "12%",
       render: (i) =>
         i.advisoryStatus === "affected" ? (
           <span className="kz-advisories-cell">
@@ -114,7 +122,7 @@ function columns(
                   which also shows historical-only/unknown rows this one never reaches. */}
               <StatusShield variant="vulnerable" />
               <Badge variant={advisoryVariant(i.advisoryStatus)}>
-                {i.advisories.length} affected
+                {advisoryLabel(i.advisoryStatus, i.advisories.length)}
               </Badge>
             </span>{" "}
             <AdvisoryList advisories={i.advisories} />
@@ -125,7 +133,7 @@ function columns(
     {
       key: "source",
       header: "Source",
-      width: "12%",
+      width: "11%",
       render: (i) => {
         const url = i.source ? sourceUrl(i.repo, i.source) : null
         return (

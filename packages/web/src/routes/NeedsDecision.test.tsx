@@ -279,11 +279,11 @@ test("kenzen#119: the table declares its 8 column widths via colgroup; kenzen#70
   expect(Array.from(cols).map((c) => (c as HTMLElement).style.width)).toEqual([
     "13%",
     "9%",
-    "18%",
+    "17%",
     "12%",
     "8%",
-    "10%",
     "12%",
+    "11%",
     "18%",
   ])
   // kenzen#70 round 2, review round 1: the earlier version of this assertion used a gap-only

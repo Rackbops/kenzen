@@ -53,6 +53,29 @@ export function advisoryVariantRank(status: string | null): number {
   }
 }
 
+/** kenzen#124: the badge text for an item's advisoryStatus, shorter than the raw enum value so
+ * a wider (illegible-at-11px-fixed, kenzen#124) badge still fits its column. `"affected"` keeps
+ * its count (`"N affected"`, unchanged from before this issue); `"historical-only"` shortens to
+ * `"historical"`; `"range-floor"` (Tooling#705) becomes `"range floor"` (a hyphen reads oddly as
+ * prose inside a pill); anything else (`"none"`, `"unknown"`, a future value) renders verbatim
+ * rather than guessing a shorter form for a case this function doesn't know about; `null` is
+ * `""`, matching every other renderer here treating no status as nothing to show.
+ *
+ * Display only -- `ItemFilters`'s `?status=` filter and the API keep the raw enum value; this
+ * never changes what a status IS, only how it reads in a table cell. */
+export function advisoryLabel(status: string | null, affectedCount: number): string {
+  switch (status) {
+    case "affected":
+      return `${affectedCount} affected`
+    case "historical-only":
+      return "historical"
+    case "range-floor":
+      return "range floor"
+    default:
+      return status ?? ""
+  }
+}
+
 /** kenzen#90: which StatusShield glyph (if any) leads the gap Badge. Deliberately narrower
  * than gapVariant's switch -- the issue's design decision names exactly major/minor
  * (attention) and none (healthy); "patch" gets no shield rather than a guessed one. */

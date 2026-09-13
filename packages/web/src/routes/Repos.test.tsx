@@ -91,11 +91,11 @@ test("kenzen#119: each repo's table declares its 7 column widths via colgroup; k
   const cols = container.querySelectorAll("colgroup > col")
   expect(Array.from(cols).map((c) => (c as HTMLElement).style.width)).toEqual([
     "9%",
-    "24%",
+    "23%",
     "12%",
     "8%",
-    "10%",
-    "19%",
+    "12%",
+    "18%",
     "18%",
   ])
   // kenzen#70 round 2, review round 1: the earlier version of this assertion used a gap-only
@@ -138,7 +138,7 @@ test("kenzen#119: two repos' tables carry identical column widths (the #70 sympt
     Array.from(table.querySelectorAll("colgroup > col")).map((c) => (c as HTMLElement).style.width),
   )
   expect(widthLists).toHaveLength(2)
-  expect(widthLists[0]).toEqual(["9%", "24%", "12%", "8%", "10%", "19%", "18%"])
+  expect(widthLists[0]).toEqual(["9%", "23%", "12%", "8%", "12%", "18%", "18%"])
   expect(widthLists[0]).toEqual(widthLists[1])
 })
 
@@ -359,7 +359,8 @@ test("a historical-only item's advisories render as links, not just the status w
   render(<Repos />)
   await waitFor(() => expect(screen.getByText("cloudflare/cloudflared")).toBeInTheDocument())
   const table = screen.getByRole("table")
-  expect(within(table).getByText("historical-only")).toBeInTheDocument()
+  // kenzen#124: the badge text is the shorter advisoryLabel() form, not the raw enum value.
+  expect(within(table).getByText("historical")).toBeInTheDocument()
   // kenzen#63: the id list is collapsed behind a disclosure by default -- open it before
   // asserting on the link.
   fireEvent.click(within(table).getByText("show ids"))
