@@ -212,6 +212,19 @@
   gap: var(--rb-space-1);
 }
 
+/* kenzen#124: the library's `.rb-badge` is a font-size literal in every theme (11px in 8 of
+ * the 14 bundled themes, 11.5-12px in the rest -- no `size` prop to ask for bigger instead,
+ * Rackbops/rackbops-ui-ux-std-lib#206 is the give-back), while the table's own row text is
+ * `--rb-text-sm` (13px) -- a badge read smaller than the row it sits in on every theme,
+ * invisible as a pill at 100% zoom. One notch above the row text, real pill padding, applied
+ * unconditionally regardless of each theme's own base size. Delete this rule once
+ * rackbops-ui-ux-std-lib#206 ships a `size` prop and the two callers pass `size="md"` instead. */
+.kz-items-table .rb-badge {
+  font-size: calc(var(--rb-text-sm) * 1.15);
+  line-height: 1.25;
+  padding: var(--rb-space-1) var(--rb-space-3);
+}
+
 /* kenzen#96: self-hosted subset (packages/web/public/fonts/, see its README for provenance
  * and the exact pyftsubset command) -- unicode-range is exactly the three code points the
  * wordmark and empty-state heading use (U+5065 健, U+5168 全, U+6027 性), matching the subset

@@ -30,7 +30,7 @@ const SHIELD_SRC: Record<StatusShieldVariant, string> = {
 
 export function StatusShield({
   variant,
-  size = 14,
+  size = 20,
   title,
 }: {
   variant: StatusShieldVariant

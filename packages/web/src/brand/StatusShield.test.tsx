@@ -28,17 +28,21 @@ test("attention renders the real-artwork cutout for that variant", () => {
 })
 
 test("size sets both the width and height attributes", () => {
-  const { container } = render(<StatusShield variant="healthy" size={20} />)
+  // kenzen#124 review: this must use a value OTHER than the default (20) -- otherwise a
+  // component that ignored the `size` prop entirely and hardcoded 20 would pass both this
+  // test and "defaults to 20 when omitted" identically, so neither could tell "prop respected"
+  // apart from "prop ignored".
+  const { container } = render(<StatusShield variant="healthy" size={32} />)
+  const img = container.querySelector("img")
+  expect(img).toHaveAttribute("width", "32")
+  expect(img).toHaveAttribute("height", "32")
+})
+
+test("size defaults to 20 when omitted", () => {
+  const { container } = render(<StatusShield variant="healthy" />)
   const img = container.querySelector("img")
   expect(img).toHaveAttribute("width", "20")
   expect(img).toHaveAttribute("height", "20")
-})
-
-test("size defaults to 14 when omitted", () => {
-  const { container } = render(<StatusShield variant="healthy" />)
-  const img = container.querySelector("img")
-  expect(img).toHaveAttribute("width", "14")
-  expect(img).toHaveAttribute("height", "14")
 })
 
 test("a title becomes the accessible name (alt) and a hover tooltip (title)", () => {

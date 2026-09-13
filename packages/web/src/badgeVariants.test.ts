@@ -1,5 +1,6 @@
 import { expect, test } from "vitest"
 import {
+  advisoryLabel,
   advisoryShieldVariant,
   advisoryVariant,
   advisoryVariantRank,
@@ -51,4 +52,14 @@ test("kenzen#113: advisoryVariantRank orders every real advisoryStatus value by 
   expect(advisoryVariantRank("none")).toBe(3)
   expect(advisoryVariantRank("unknown")).toBe(4)
   expect(advisoryVariantRank(null)).toBe(4)
+})
+
+test("kenzen#124: advisoryLabel shortens every real advisoryStatus value for the wider badge", () => {
+  expect(advisoryLabel("affected", 3)).toBe("3 affected")
+  expect(advisoryLabel("affected", 0)).toBe("0 affected")
+  expect(advisoryLabel("historical-only", 5)).toBe("historical")
+  expect(advisoryLabel("range-floor", 2)).toBe("range floor")
+  expect(advisoryLabel("none", 0)).toBe("none")
+  expect(advisoryLabel("unknown", 0)).toBe("unknown")
+  expect(advisoryLabel(null, 0)).toBe("")
 })
