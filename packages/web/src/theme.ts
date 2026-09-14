@@ -24,6 +24,8 @@
  * backed out of.
  */
 
+import stylesManifest from "@rackbops/styles/manifest"
+
 // One lazy CSS-module loader per theme this package ships, keyed by theme name (e.g.
 // "arcane-obsidian" -> loader for ".../styles/arcane-obsidian/index.css"). The glob
 // pattern is relative to THIS file, resolving through packages/web's own node_modules
@@ -137,8 +139,25 @@ export async function loadTheme(theme: string): Promise<void> {
   await loader()
 }
 
+export type Scheme = "dark" | "light"
+
+/** kenzen#128: `theme`'s manifest-declared scheme, or `"light"` for an unbundled/unknown name
+ * -- safe because the shield's original (navy) artwork already reads correctly on a light
+ * page; "light" is the one wrong guess that never makes a real theme's shield vanish. Backed
+ * by `@rackbops/styles`' own manifest (the same source `BUNDLED_THEMES`/`resolveTheme` already
+ * trust), not a second hand-maintained dark/light list that could drift from it. */
+export function schemeOf(theme: string): Scheme {
+  // `resolveJsonModule` widens every JSON string field to `string`, not a literal union, so
+  // this narrows explicitly rather than casting -- anything other than exactly "dark" (an
+  // unbundled name, or a hypothetical future manifest value this type doesn't know about yet)
+  // falls to the same safe "light" default as an unbundled theme.
+  const scheme = stylesManifest.themes[theme as keyof typeof stylesManifest.themes]?.scheme
+  return scheme === "dark" ? "dark" : "light"
+}
+
 export function applyTheme(theme: string, root: HTMLElement): void {
   root.dataset.rbStyle = theme
+  root.dataset.rbScheme = schemeOf(theme)
 }
 
 /** Live theme switch (kenzen#82), driven by the header picker: load the next theme's

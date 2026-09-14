@@ -8,6 +8,7 @@ import {
   loadTheme,
   orderedForPicker,
   resolveTheme,
+  schemeOf,
   setTheme,
   THEME_LOADERS,
   THEME_STORAGE_KEY,
@@ -188,6 +189,28 @@ test("applyTheme sets data-rb-style on the given root to the resolved theme", ()
   // attribute always reflects a theme whose CSS is genuinely present.
   applyTheme(resolveTheme({ VITE_KENZEN_THEME: "some-future-theme" }), root)
   expect(root.dataset.rbStyle).toBe(DEFAULT_THEME)
+})
+
+// --- kenzen#128: scheme (dark/light), backing the dark-scheme StatusShield asset --------
+
+test("schemeOf reads the real @rackbops/styles manifest, not a second hand-maintained list", () => {
+  expect(schemeOf("kenzen-midnight")).toBe("dark")
+  expect(schemeOf("kenzen-cyberhealth")).toBe("light")
+})
+
+test("schemeOf falls back to light for an unbundled/unknown theme name", () => {
+  // The safe direction: the shield's original navy artwork already reads correctly on a
+  // light page, so guessing "light" for a name the manifest doesn't recognize never makes a
+  // real theme's shield vanish the way guessing "dark" could.
+  expect(schemeOf("not-a-real-rackbops-theme")).toBe("light")
+})
+
+test("applyTheme sets data-rb-scheme alongside data-rb-style, matching the theme's real scheme", () => {
+  const root = document.createElement("html")
+  applyTheme("kenzen-midnight", root)
+  expect(root.dataset.rbScheme).toBe("dark")
+  applyTheme("kenzen-cyberhealth", root)
+  expect(root.dataset.rbScheme).toBe("light")
 })
 
 test("bootTheme resolves, loads, then applies -- in that order -- and returns the resolved name", async () => {

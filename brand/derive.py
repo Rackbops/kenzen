@@ -50,20 +50,21 @@ own background signature; the exact technique depends on what that background ac
   created straight from a numpy array (Pillow 12.2) -- `_flood_from_border()`'s `.copy()` is
   load-bearing, not incidental; do not remove it as dead code.
 - kenzen#128: `derive_shield_light_variants()` -- a light-bodied variant of each shield for
-  dark themes (kenzen-midnight's own navy page swallows the shield's deep-navy body, leaving
-  only a thin outline sliver and the glyph visible). Starts from the SAME cutout
-  `derive_shields()` produces (no redraw, no new source pixels): the body -- blue-dominant,
-  luminance below `BODY_LUM_MAX` (measured against the real source; its own lighter outline
-  shares the hue but sits above that threshold, and no glyph colour is ever blue-dominant at
-  all) -- is re-toned to the brand's light silver, feathered `BODY_FEATHER_PX` at the boundary
-  so the retone doesn't leave a hard seam against the anti-aliased edge. PREVIEW ONLY as of
-  this commit -- `packages/web/src` doesn't load `-ondark` yet; see the function's own
-  docstring.
+  dark-scheme themes (kenzen-midnight's own navy page swallowed the shield's deep-navy body,
+  leaving only a thin outline sliver and the glyph visible -- roshne's screenshot). Starts
+  from the SAME cutout `derive_shields()` produces (no redraw, no new source pixels): the body
+  -- blue-dominant, luminance below `BODY_LUM_MAX` (measured against the real source; its own
+  lighter outline shares the hue but sits above that threshold, and no glyph colour is ever
+  blue-dominant at all) -- is re-toned to the brand's light silver, feathered
+  `BODY_FEATHER_PX` at the boundary so the retone doesn't leave a hard seam against the
+  anti-aliased edge. roshne's pick from the review sheet (2026-09-13): silver body, glyph
+  colours kept, 24px -- `StatusShield.tsx` (`useScheme()`) renders this asset on a
+  dark-scheme theme; a light-scheme theme keeps the original navy shield.
 
-Run with (this machine's actual Python -- see the repo CLAUDE.md on Python invocation; the
-line below matches what brand/README.md has historically said, but this machine runs 3.14
-only as of 2026-09-11, so `py -3` is what actually resolves here):
-    py -3.12 brand/derive.py
+Run with (this machine's actual Python -- see the repo CLAUDE.md on Python invocation;
+brand/README.md historically said `py -3.12`, but this machine runs 3.14 only as of
+2026-09-11, so `py -3` is what actually resolves here):
+    py -3 brand/derive.py
 
 Requires Pillow and numpy (not repo dependencies -- a one-off asset-derivation script, run
 by hand when the source art changes, not part of any build).
@@ -74,8 +75,8 @@ a solid navy background -- iOS doesn't compositing-blend a transparent touch ico
 render the empty area black instead, per Apple's own HIG),
 shield-{healthy,vulnerable,attention}-{64,32}.png (each transparent, the source's own aspect
 ratio centered in the square canvas), shield-{healthy,vulnerable,attention}-ondark-{64,32}.png
-(same, light-bodied, kenzen#128, preview only), and koi-banner.png / koi-banner.webp (1024x395,
-transparent, cropped to content plus margin).
+(same, light-bodied, kenzen#128 -- the dark-scheme StatusShield asset), and koi-banner.png /
+koi-banner.webp (1024x395, transparent, cropped to content plus margin).
 """
 
 from pathlib import Path
@@ -210,11 +211,10 @@ def derive_shields() -> None:
 
 
 # kenzen#128: `derive_shield_light_variants()`'s retone constants, tuned against the real
-# source (measured pixel ranges are in each constant's own comment below). PREVIEW ONLY as of
-# this commit: written so `brand/review/shield-ondark-preview.png` can composite real derived
-# assets rather than guesses, but nothing in `packages/web/src` loads `-ondark` yet -- that's
-# kenzen#128 PR 2, gated on roshne's pick from the review sheet; `brand/README.md` gets its own
-# section documenting the chosen variant once that pick is made, not before.
+# source (measured pixel ranges are in each constant's own comment below). roshne's pick from
+# the review sheet (2026-09-13): silver body, glyph colours kept, 24px -- `StatusShield.tsx`
+# loads this asset on a dark-scheme theme; see `brand/README.md`'s own section for the full
+# derivation writeup.
 LIGHT_SILVER = (0xE8, 0xE8, 0xE8)  # brand/README.md's measured light-silver palette entry
 BODY_RETONE_NAVY = (0x0A, 0x20, 0x38)  # brand/README.md's measured deep-navy palette entry
 BODY_BLUE_MARGIN = 5.0  # blue channel must lead red/green by at least this to read as the
