@@ -1,6 +1,6 @@
 {
   "name": "@kenzen/server",
-  "version": "0.1.0-alpha.24",
+  "version": "0.1.0-alpha.25",
   "private": true,
   "type": "module",
   "description": "The Kenzen server: Hono serving /healthz and the SPA, config resolution, logging (K4-2). SQLite migrations, ingest and decisions land in K4-3/K4-4.",

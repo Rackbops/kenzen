@@ -93,9 +93,9 @@ test("kenzen#119: each repo's table declares its 7 column widths via colgroup; k
     "9%",
     "22%",
     "12%",
-    "8%",
+    "10%",
     "13%",
-    "18%",
+    "16%",
     "18%",
   ])
   // kenzen#70 round 2, review round 1: the earlier version of this assertion used a gap-only
@@ -138,7 +138,7 @@ test("kenzen#119: two repos' tables carry identical column widths (the #70 sympt
     Array.from(table.querySelectorAll("colgroup > col")).map((c) => (c as HTMLElement).style.width),
   )
   expect(widthLists).toHaveLength(2)
-  expect(widthLists[0]).toEqual(["9%", "22%", "12%", "8%", "13%", "18%", "18%"])
+  expect(widthLists[0]).toEqual(["9%", "22%", "12%", "10%", "13%", "16%", "18%"])
   expect(widthLists[0]).toEqual(widthLists[1])
 })
 
