@@ -281,9 +281,9 @@ test("kenzen#119: the table declares its 8 column widths via colgroup; kenzen#70
     "9%",
     "17%",
     "12%",
-    "8%",
-    "13%",
     "10%",
+    "13%",
+    "8%",
     "18%",
   ])
   // kenzen#70 round 2, review round 1: the earlier version of this assertion used a gap-only

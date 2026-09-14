@@ -37,9 +37,14 @@ import { useOptimisticDecisions } from "../useOptimisticDecisions.js"
 // ~225px and 16% would cut it). This column's render only ever fires when advisoryStatus ===
 // "affected" (see below), so it never has to fit "historical"/"range floor" text today -- but
 // "12 affected" is the same 11 characters with a shield as those labels, so the identical
-// margin concern applies the day a genuinely double-digit affected count renders here. Gap
-// stays 8% (~122px, ~98px after padding): the plan's own math put the 20px-shield + "MAJOR"
-// content need at ~93px.
+// margin concern applies the day a genuinely double-digit affected count renders here.
+// kenzen#131 (roshne, live): Gap widened 8 -> 10 (taken from Source, 10 -> 8 -- again the
+// designed-ellipsis column with a `title` tooltip), because kenzen#124's own Gap math assumed a
+// 20px shield with ~0px margin -- kenzen#128 raised the shield to 24px, so the real content need
+// (24px shield + gap + a ~15px-font "MAJOR" pill, ~69px, + 24px cell padding) is ~124px
+// against the old 8%'s ~122px, which is what actually ellipsized. 10% of this table is
+// ~152px for that same ~124px of content -- a real ~28px spare, not the ~2px the old budget
+// left. Re-check this arithmetic if the shield size ever changes again.
 function columns(
   now: string,
   onApply: (key: string, patch: DecisionPatch) => void,
@@ -95,7 +100,7 @@ function columns(
     {
       key: "gap",
       header: "Gap",
-      width: "8%",
+      width: "10%",
       render: (i) => {
         const shieldVariant = gapShieldVariant(i.gap)
         return (
@@ -135,7 +140,7 @@ function columns(
     {
       key: "source",
       header: "Source",
-      width: "10%",
+      width: "8%",
       render: (i) => {
         const url = i.source ? sourceUrl(i.repo, i.source) : null
         return (

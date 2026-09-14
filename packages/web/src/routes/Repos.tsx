@@ -77,8 +77,14 @@ function pinnedCell(item: ReportItem): ReactNode {
 // badge font plus the 20px shield. Estimated need ~157-160px; 13% of this table is ~198px,
 // ~174px after the ~24px cell padding -- a real ~13-17px spare, not the razor's-edge ~158px
 // the original 12% gave. Name drops 23 -> 22 (~334px, far above any real package/image name)
-// to make room. Gap stays 8% (~122px, ~98px after padding): the plan's own math put the
-// 20px-shield + "MAJOR" content need at ~93px.
+// to make room.
+// kenzen#131 (roshne, live): Gap widened 8 -> 10 (taken from Source, 18 -> 16), because
+// kenzen#124's own Gap math assumed a 20px shield with ~0px margin -- kenzen#128 raised the shield to
+// 24px, so the real content need (24px shield + gap + a ~15px-font "MAJOR" pill, ~69px, +
+// 24px cell padding) is ~124px against the old 8%'s ~122px, which is what actually
+// ellipsized. 10% of this table is ~152px for that same ~124px of content -- a real ~28px
+// spare, not the ~2px the old budget left. Re-check this arithmetic if the shield size ever
+// changes again.
 function columns(
   now: string,
   onApply: (key: string, patch: DecisionPatch) => void,
@@ -113,7 +119,7 @@ function columns(
     {
       key: "gap",
       header: "Gap",
-      width: "8%",
+      width: "10%",
       render: (i) => {
         const shieldVariant = gapShieldVariant(i.gap)
         return (
@@ -154,7 +160,7 @@ function columns(
     {
       key: "source",
       header: "Source",
-      width: "18%",
+      width: "16%",
       render: (i) => {
         const url = i.source ? sourceUrl(i.repo, i.source) : null
         return (
