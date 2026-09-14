@@ -36,6 +36,15 @@ const ASSETS = [
   { file: "koi-64.png", size: 64 },
   { file: "koi-32.png", size: 32 },
   { file: "apple-touch-icon.png", size: 180 },
+  // kenzen#128: the light-bodied variant for dark-scheme themes -- roshne's pick (b), silver
+  // body with the glyph colours kept. Same source cutout as the (untested, pre-existing --
+  // not part of this issue) shield-<variant>-{64,32}.png assets, just re-toned.
+  { file: "shield-healthy-ondark-64.png", size: 64 },
+  { file: "shield-healthy-ondark-32.png", size: 32 },
+  { file: "shield-vulnerable-ondark-64.png", size: 64 },
+  { file: "shield-vulnerable-ondark-32.png", size: 32 },
+  { file: "shield-attention-ondark-64.png", size: 64 },
+  { file: "shield-attention-ondark-32.png", size: 32 },
 ]
 
 const TRANSPARENT_ASSETS = ASSETS.filter((a) => a.file !== "apple-touch-icon.png")

@@ -169,6 +169,61 @@ test("choosing a theme sets data-rb-style on the root and persists it to localSt
   expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe(nonDefault)
 })
 
+test("kenzen#128: choosing a dark-scheme theme switches a rendered StatusShield to its -ondark asset", async () => {
+  // A gap of "major" is enough to render a real StatusShield in the default (needs-a-decision)
+  // route -- see NeedsDecision.tsx's own gap-cell render -- without needing a real advisory.
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot: {
+      snapshotId: 1,
+      generatedAt: "2026-09-08T00:00:00Z",
+      inventoryItems: 1,
+      summary: {},
+    },
+    items: [
+      {
+        key: "a",
+        repo: "Owner/repo",
+        kind: "pip-dep",
+        name: "requests",
+        pinned: "2.31.0",
+        pinStyle: "exact",
+        role: "runtime",
+        source: "requirements.txt:1",
+        latest: "3.0.0",
+        latestInMajor: "2.32.0",
+        gap: "major",
+        advisoryStatus: "none",
+        advisories: [],
+        assumed: null,
+        note: null,
+        decision: null,
+      },
+    ],
+  })
+  render(
+    <MemoryRouter initialEntries={["/"]}>
+      <App />
+    </MemoryRouter>,
+  )
+  const select = await screen.findByLabelText("Theme")
+  await waitFor(() =>
+    expect(document.querySelector(".kz-status-badge img")).toHaveAttribute(
+      "src",
+      "/brand/shield-attention-32.png",
+    ),
+  )
+
+  fireEvent.change(select, { target: { value: "kenzen-midnight" } })
+
+  await waitFor(() => expect(document.documentElement.dataset.rbStyle).toBe("kenzen-midnight"))
+  await waitFor(() =>
+    expect(document.querySelector(".kz-status-badge img")).toHaveAttribute(
+      "src",
+      "/brand/shield-attention-ondark-32.png",
+    ),
+  )
+})
+
 test("a failed switch is logged, not thrown, and leaves the previous theme in place", async () => {
   // Round-1 review gate finding on kenzen#82: a rejected loadTheme (a real network/chunk-load
   // failure) used to become a silent unhandled promise rejection in the browser.

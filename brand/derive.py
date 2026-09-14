@@ -49,9 +49,22 @@ own background signature; the exact technique depends on what that background ac
   Gotcha ported along with the code: `ImageDraw.floodfill` silently no-ops on a `PIL.Image`
   created straight from a numpy array (Pillow 12.2) -- `_flood_from_border()`'s `.copy()` is
   load-bearing, not incidental; do not remove it as dead code.
+- kenzen#128: `derive_shield_light_variants()` -- a light-bodied variant of each shield for
+  dark-scheme themes (kenzen-midnight's own navy page swallowed the shield's deep-navy body,
+  leaving only a thin outline sliver and the glyph visible -- roshne's screenshot). Starts
+  from the SAME cutout `derive_shields()` produces (no redraw, no new source pixels): the body
+  -- blue-dominant, luminance below `BODY_LUM_MAX` (measured against the real source; its own
+  lighter outline shares the hue but sits above that threshold, and no glyph colour is ever
+  blue-dominant at all) -- is re-toned to the brand's light silver, feathered
+  `BODY_FEATHER_PX` at the boundary so the retone doesn't leave a hard seam against the
+  anti-aliased edge. roshne's pick from the review sheet (2026-09-13): silver body, glyph
+  colours kept, 24px -- `StatusShield.tsx` (`useScheme()`) renders this asset on a
+  dark-scheme theme; a light-scheme theme keeps the original navy shield.
 
-Run with (Windows, this machine -- see the repo CLAUDE.md on Python invocation):
-    py -3.12 brand/derive.py
+Run with (this machine's actual Python -- see the repo CLAUDE.md on Python invocation;
+brand/README.md historically said `py -3.12`, but this machine runs 3.14 only as of
+2026-09-11, so `py -3` is what actually resolves here):
+    py -3 brand/derive.py
 
 Requires Pillow and numpy (not repo dependencies -- a one-off asset-derivation script, run
 by hand when the source art changes, not part of any build).
@@ -61,8 +74,9 @@ ratio centered in the square canvas), apple-touch-icon.png (180, same crop, but 
 a solid navy background -- iOS doesn't compositing-blend a transparent touch icon, it can
 render the empty area black instead, per Apple's own HIG),
 shield-{healthy,vulnerable,attention}-{64,32}.png (each transparent, the source's own aspect
-ratio centered in the square canvas), and koi-banner.png / koi-banner.webp (1024x395,
-transparent, cropped to content plus margin).
+ratio centered in the square canvas), shield-{healthy,vulnerable,attention}-ondark-{64,32}.png
+(same, light-bodied, kenzen#128 -- the dark-scheme StatusShield asset), and koi-banner.png /
+koi-banner.webp (1024x395, transparent, cropped to content plus margin).
 """
 
 from pathlib import Path
@@ -169,19 +183,93 @@ def derive_koi() -> None:
         print(f"wrote {OUT_DIR / filename} ({size}x{size})")
 
 
+def _shield_cutouts() -> list[tuple[str, Image.Image]]:
+    """`[(variant, cutout), ...]` -- `status-shields.jpg` sliced into three equal-width thirds,
+    left to right, each run through the same checkerboard removal and bounding-box crop
+    `derive_koi()` uses, so one shield's crop can never pick up a sliver of its neighbour.
+    Shared by `derive_shields()` and `derive_shield_light_variants()` so both start from the
+    identical cutout rather than re-deriving it."""
+    source = Image.open(SOURCE_SHIELDS).convert("RGB")
+    width, _height = source.size
+    edges = [round(i * width / len(SHIELD_VARIANTS)) for i in range(len(SHIELD_VARIANTS) + 1)]
+    out = []
+    for variant, left, right in zip(SHIELD_VARIANTS, edges, edges[1:]):
+        third = source.crop((left, 0, right, source.height))
+        out.append((variant, crop_to_content(remove_checkerboard(third), CROP_PADDING_FRAC)))
+    return out
+
+
 def derive_shields() -> None:
     """Slices `status-shields.jpg` into three equal-width thirds -- one per variant, left to
     right -- before running each through the same checkerboard removal and bounding-box crop
     `derive_koi()` uses, so one shield's crop can never pick up a sliver of its neighbour."""
-    source = Image.open(SOURCE_SHIELDS).convert("RGB")
-    width, _height = source.size
-    edges = [round(i * width / len(SHIELD_VARIANTS)) for i in range(len(SHIELD_VARIANTS) + 1)]
-    for variant, left, right in zip(SHIELD_VARIANTS, edges, edges[1:]):
-        third = source.crop((left, 0, right, source.height))
-        cutout = crop_to_content(remove_checkerboard(third), CROP_PADDING_FRAC)
+    for variant, cutout in _shield_cutouts():
         for size in SHIELD_SIZES:
             filename = f"shield-{variant}-{size}.png"
             fit_into_square(cutout, size).save(OUT_DIR / filename)
+            print(f"wrote {OUT_DIR / filename} ({size}x{size})")
+
+
+# kenzen#128: `derive_shield_light_variants()`'s retone constants, tuned against the real
+# source (measured pixel ranges are in each constant's own comment below). roshne's pick from
+# the review sheet (2026-09-13): silver body, glyph colours kept, 24px -- `StatusShield.tsx`
+# loads this asset on a dark-scheme theme; see `brand/README.md`'s own section for the full
+# derivation writeup.
+LIGHT_SILVER = (0xE8, 0xE8, 0xE8)  # brand/README.md's measured light-silver palette entry
+BODY_RETONE_NAVY = (0x0A, 0x20, 0x38)  # brand/README.md's measured deep-navy palette entry
+BODY_BLUE_MARGIN = 5.0  # blue channel must lead red/green by at least this to read as the
+# shield's own navy hue family (shared by the body AND its lighter outline -- same hue, cut
+# from the same source pixels, just different luminance)
+BODY_LUM_MAX = 100.0  # measured against the real source: the navy body sits at luminance
+# 4-100, its own outline (same hue, same blue-dominance) picks up at ~100 and reaches ~240;
+# every glyph colour (mint/crimson/amber) is not blue-dominant at all, at any luminance
+BODY_FEATHER_PX = 2  # softens the retone mask at the body/outline and body/glyph boundary, the
+# same idea as FEATHER_PX on the cutout's own transparency edge -- without it the anti-aliased
+# pixels between the body and its neighbours would retone as a hard, visible seam
+
+
+def _body_mask(rgb: np.ndarray) -> np.ndarray:
+    """Continuous `[0, 1]` "is this pixel the shield's navy body" mask for `rgb` (float,
+    H x W x 3) -- 1 over the body, 0 over the outline/glyph/background, feathered by
+    `BODY_FEATHER_PX` at the boundary so `_retone_body()` below doesn't leave a hard seam."""
+    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    lum = (r + g + b) / 3
+    blue_dominant = (b > r + BODY_BLUE_MARGIN) & (b > g + BODY_BLUE_MARGIN)
+    hard_mask = (blue_dominant & (lum < BODY_LUM_MAX)).astype(np.float32) * 255
+    feathered = Image.fromarray(hard_mask.astype(np.uint8), mode="L").filter(
+        ImageFilter.GaussianBlur(BODY_FEATHER_PX)
+    )
+    return np.asarray(feathered, dtype=np.float32) / 255
+
+
+def _retone_body(cutout: Image.Image, *, recolor_rest: tuple[int, int, int] | None = None) -> Image.Image:
+    """`cutout` (RGBA) with its navy body pixels re-toned to `LIGHT_SILVER`; alpha untouched.
+    No redraw -- only the body's RGB changes, from the SAME source pixels `derive_shields()`
+    already cut. `recolor_rest`, when given, additionally recolors everything the body mask
+    does NOT cover (the outline and the glyph) to that flat colour -- used only to render the
+    review sheet's second candidate (glyph re-toned navy); never passed when writing a shipped
+    `-ondark` asset, which always keeps the glyph's real colour."""
+    arr = np.asarray(cutout).astype(np.float32)
+    rgb, alpha = arr[..., :3], arr[..., 3]
+    mask = _body_mask(rgb)[..., None]
+    retoned = rgb * (1 - mask) + np.array(LIGHT_SILVER, dtype=np.float32) * mask
+    if recolor_rest is not None:
+        retoned = retoned * mask + np.array(recolor_rest, dtype=np.float32) * (1 - mask)
+    out = np.dstack([np.clip(retoned, 0, 255), alpha]).astype(np.uint8)
+    return Image.fromarray(out, mode="RGBA")
+
+
+def derive_shield_light_variants() -> None:
+    """kenzen#128: `shield-<variant>-ondark-{64,32}.png` -- the same cutout `derive_shields()`
+    produces, with its navy body re-toned to the brand's light silver so the shield doesn't
+    vanish on a page that IS that navy (kenzen-midnight). Glyph colours are kept as-is; see
+    `_retone_body()`'s own docstring for the one exception (review-sheet only, not this
+    function)."""
+    for variant, cutout in _shield_cutouts():
+        retoned = _retone_body(cutout)
+        for size in SHIELD_SIZES:
+            filename = f"shield-{variant}-ondark-{size}.png"
+            fit_into_square(retoned, size).save(OUT_DIR / filename)
             print(f"wrote {OUT_DIR / filename} ({size}x{size})")
 
 
@@ -269,6 +357,7 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     derive_koi()
     derive_shields()
+    derive_shield_light_variants()
     derive_banner()
 
 

@@ -29,8 +29,12 @@ and light, which the fish's navy/teal/mint palette never is; feathers the cut ed
 to the fish's own bounding box, and exports every icon size Kenzen ships:
 
 ```
-py -3.12 brand/derive.py
+py -3 brand/derive.py
 ```
+
+(Was `py -3.12` -- this machine moved to Python 3.14-only on 2026-09-11, and `py -3.12` no
+longer resolves there; `py -3` is what actually runs. Adjust for whatever Python this machine
+has when you read this.)
 
 Requires Pillow and numpy (not repo dependencies -- run by hand when the source art changes,
 not part of any build). Writes `packages/web/public/brand/koi-{512,192,64,32}.png` and
@@ -81,9 +85,35 @@ derive one from. Writes `koi-banner.png` and `koi-banner.webp` (lossless), both 
 both committed and both smoke-tested alongside the mark's own assets in `koi-assets.test.ts`.
 
 **The banner is the one brand asset that does not recolour with the theme** -- a fixed-colour
-photographic/illustrated composition, not a `--rb-*`-tokenised graphic like the mark or the
-shields. That's an accepted, deliberate exception (same call already made on the shields,
-kenzen#90), not an oversight.
+photographic/illustrated composition, not a `--rb-*`-tokenised graphic like the mark. The
+shields are close but not quite the same story any more: kenzen#90's call ("use the real
+artwork as-is, no per-theme recolour") still holds for the mark and the banner, but kenzen#128
+carved out the ONE sanctioned exception -- see the next section.
+
+## Deriving the dark-scheme shield
+
+kenzen#128, roshne: "we might need to use light badges on dark themes" -- `status-shields.jpg`'s
+shields are cut with a deep-navy body (kenzen#90, above), which vanishes into kenzen-midnight's
+own navy page, leaving only a thin outline sliver and the glyph visible (screenshotted at
+100% zoom). `derive_shield_light_variants()` re-tones the SAME cutout `derive_shields()`
+already produces -- no redraw, no new source pixels -- by identifying the body (blue-dominant,
+below a measured luminance ceiling; its own lighter outline shares the hue but sits above that
+ceiling, and no glyph colour -- mint/crimson/amber -- is ever blue-dominant at all) and mixing
+those pixels toward this palette's light silver `#E8E8E8`, feathered at the boundary so the
+retone doesn't leave a hard seam against the source's anti-aliased edges. Writes
+`shield-{healthy,vulnerable,attention}-ondark-{64,32}.png`.
+
+Before any wiring, a review sheet (`brand/review/shield-ondark-preview.png`) composited three
+real candidates -- today's shield, silver body with the glyph colours kept, and silver body
+with the glyph re-toned navy too -- on both a kenzen-midnight and a kenzen-cyberhealth
+background, at 20/24/28px (brand rule: a cut-out is signed off on dark AND light before it
+ships, same discipline as kenzen#88's brand epic elsewhere). **roshne's pick (2026-09-13):
+silver body, glyph colours kept, at 24px.** `StatusShield.tsx` reads the active theme's scheme
+(`theme.ts`'s `schemeOf`, via `useScheme()`) and renders the `-ondark` asset only on a
+dark-scheme theme; a light-scheme theme keeps the original navy shield unchanged. This is the
+one place a Kenzen brand asset has a genuine two-state variant instead of a single fixed
+cutout -- not a live per-theme recolour (STANDARD.md section 15's token system), a scheme
+switch roshne asked for explicitly.
 
 ## Palette (measured from these files)
 
