@@ -142,6 +142,38 @@ test("kenzen#119: two repos' tables carry identical column widths (the #70 sympt
   expect(widthLists[0]).toEqual(widthLists[1])
 })
 
+test("kenzen#133: the gap and advisory chips render at the md (row-text) size", async () => {
+  // Upstream rackbops-ui-ux-std-lib#206/#208 (@rackbops/ui-react 0.2.39) added Badge size="md" -> .rb-badge--md, a
+  // row-text-sized pill; this app adopts it for its items-table status chips (the original
+  // illegibility complaint). This item carries BOTH a gap and an advisory, so both chips render
+  // -- dropping size="md" from either Badge site drops this count below 2.
+  vi.spyOn(api, "fetchRepos").mockResolvedValue([repoSummary({})])
+  vi.spyOn(api, "fetchLatestSnapshotItems").mockResolvedValue({
+    snapshot: SNAPSHOT,
+    items: [
+      item({
+        key: "a",
+        name: "behind-and-vuln-pkg",
+        gap: "minor",
+        advisoryStatus: "affected",
+        advisories: [
+          {
+            id: "GHSA-1",
+            summary: "x",
+            severity: "high",
+            url: "https://x",
+            source: "ghsa",
+            affected: true,
+          },
+        ],
+      }),
+    ],
+  })
+  const { container } = render(<Repos />)
+  await waitFor(() => expect(screen.getByText("behind-and-vuln-pkg")).toBeInTheDocument())
+  expect(container.querySelectorAll(".rb-badge--md")).toHaveLength(2)
+})
+
 // --- kenzen#109: the koi hero renders above the repo list, in every state -------------
 
 test("kenzen#109: the koi hero renders above the repo list", async () => {

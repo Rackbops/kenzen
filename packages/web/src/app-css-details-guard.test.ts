@@ -66,3 +66,23 @@ for (const { detailsClass, childClass } of DETAILS_CHILD_PAIRS) {
     expect(guarded.some((r) => /display\s*:/.test(r.body))).toBe(true)
   })
 }
+
+/**
+ * kenzen#133: the items-table status badges are now sized entirely by the design system -- the
+ * four call sites pass `size="md"` (Repos.tsx / NeedsDecision.tsx), which @rackbops/ui-react
+ * 0.2.39 maps to `.rb-badge--md` (rackbops-ui-ux-std-lib#206/#208, the give-back that retired
+ * this app's interim hack). kenzen#124's local override -- `.kz-items-table .rb-badge { font-size:
+ * ... }` -- is exactly what that give-back retired, and its (0,2,0) specificity would silently
+ * shadow the library's `:where(...).rb-badge--md` (0,1,0) if it came back, turning the four
+ * `size="md"` props into a no-op. jsdom applies no real CSS cascade, so a render test cannot
+ * catch that; only a static read of app.css can. Mutation: re-add any `.kz-items-table
+ * .rb-badge` rule -> this fails.
+ */
+test('no local ".kz-items-table .rb-badge" size override survives (kenzen#133: badges use the library size="md")', () => {
+  const itemsTableToken = /(?<![\w-])\.kz-items-table(?![\w-])/
+  const bareBadgeToken = /(?<![\w-])\.rb-badge(?![\w-])/
+  const offenders = parseRules().filter(
+    (r) => itemsTableToken.test(r.selector) && bareBadgeToken.test(r.selector),
+  )
+  expect(offenders.map((r) => r.selector.trim())).toEqual([])
+})
