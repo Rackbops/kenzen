@@ -67,6 +67,11 @@ function pinnedCell(item: ReportItem): ReactNode {
   )
 }
 
+// kenzen#133: the status badges now render at 13px (--rb-text-sm, via the library's
+// `.rb-badge--md`) instead of kenzen#124's interim ~15px override -- so the "~15px badge font" /
+// "~15px-font pill" figures in the kenzen#124 / kenzen#131 arithmetic below are the OLD, larger
+// basis: a 13px pill is narrower, so every column's real spare is >= what's computed here (safe
+// direction, no re-cut needed). Redo these to 13px if the arithmetic is ever revisited.
 // kenzen#119: widths sum to 100% of a ~1520px table (Repos' Card padding subtracted from the
 // 1600px shell); Actions' 18% is ~274px raw, ~250px once the ~24px cell padding is subtracted --
 // clears the ~236px three-control (Skip / Approve / Acknowledge) case with a real ~14px buffer
@@ -127,7 +132,9 @@ function columns(
             {i.gap && i.gap !== "none" ? (
               <span className="kz-status-badge">
                 {shieldVariant ? <StatusShield variant={shieldVariant} /> : null}
-                <Badge variant={gapVariant(i.gap)}>{i.gap}</Badge>
+                <Badge variant={gapVariant(i.gap)} size="md">
+                  {i.gap}
+                </Badge>
               </span>
             ) : (
               i.gap
@@ -147,7 +154,7 @@ function columns(
           <span className="kz-advisories-cell">
             <span className="kz-status-badge">
               {shieldVariant ? <StatusShield variant={shieldVariant} /> : null}
-              <Badge variant={advisoryVariant(i.advisoryStatus)}>
+              <Badge variant={advisoryVariant(i.advisoryStatus)} size="md">
                 {advisoryLabel(i.advisoryStatus, i.advisories.length)}
               </Badge>
             </span>{" "}

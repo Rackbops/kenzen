@@ -26,6 +26,11 @@ import { useOptimisticDecisions } from "../useOptimisticDecisions.js"
  * more than K4-8a's original "is there any decision row at all" placeholder gate.
  */
 
+// kenzen#133: the status badges now render at 13px (--rb-text-sm, via the library's
+// `.rb-badge--md`) instead of kenzen#124's interim ~15px override -- so the "~15px badge font" /
+// "~15px-font pill" figures in the kenzen#124 / kenzen#131 arithmetic below are the OLD, larger
+// basis: a 13px pill is narrower, so every column's real spare is >= what's computed here (safe
+// direction, no re-cut needed). Redo these to 13px if the arithmetic is ever revisited.
 // kenzen#119: widths sum to 100% of a ~1520px table (this table is inside a Card too, same as
 // Repos.tsx -- the 1600px shell minus the Card's own padding, not just .kz-main's); Actions'
 // 18% is ~274px raw, ~250px once the ~24px cell padding is subtracted -- clears the ~236px
@@ -108,7 +113,9 @@ function columns(
             {i.gap ? (
               <span className="kz-status-badge">
                 {shieldVariant ? <StatusShield variant={shieldVariant} /> : null}
-                <Badge variant={gapVariant(i.gap)}>{i.gap}</Badge>
+                <Badge variant={gapVariant(i.gap)} size="md">
+                  {i.gap}
+                </Badge>
               </span>
             ) : null}
           </span>
@@ -128,7 +135,7 @@ function columns(
                   condition above) -- advisoryShieldVariant is for Repos.tsx's wider column,
                   which also shows historical-only/unknown rows this one never reaches. */}
               <StatusShield variant="vulnerable" />
-              <Badge variant={advisoryVariant(i.advisoryStatus)}>
+              <Badge variant={advisoryVariant(i.advisoryStatus)} size="md">
                 {advisoryLabel(i.advisoryStatus, i.advisories.length)}
               </Badge>
             </span>{" "}
