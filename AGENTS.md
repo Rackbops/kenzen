@@ -1,0 +1,81 @@
+# kenzen -- Codex Instructions
+
+Kenzen-sei (Kenzen) is the software-soundness dashboard for every repo roshne owns, as its own
+app: it shows what software each repo uses by role, its pinned vs. latest version, and any
+advisory against it, and it's where a human records the decision (skip / remind / approve)
+that the daily digest then honours. It replaces the interim Markdown page from
+[`Rackbops/Tooling#427`](https://github.com/Rackbops/Tooling/issues/427). See
+[`docs/PURPOSE.md`](docs/PURPOSE.md) for the problem and non-goals, and
+[`docs/plans/v1/design.md`](docs/plans/v1/design.md) + [`plan.md`](docs/plans/v1/plan.md) for
+the stack, data contract, and build order -- tracked under
+[`Rackbops/Tooling` epic #473](https://github.com/Rackbops/Tooling/issues/473).
+
+My personal `~/.codex/AGENTS.md` governs *how I work* -- the review gate, escalation, git &
+shipping, commit mechanics, search-tool routing, shell choice, and the **Code style** baseline.
+It is **not restated here**; this file covers only what is specific to this repo.
+
+**Commit convention:** Conventional Commits (`feat`, `fix`, `docs`, `chore`, `ci`, `test`).
+Scope names the package or area touched (`server`, `web`, `contract`, `ci`, `plans`).
+
+## Layout
+
+A pnpm workspace, Node 24, TypeScript end to end -- the same stack choices as
+`Rackbops/artifact-console` 2.0 (design.md section 3), so a later port to an artifact-console
+plugin (Tooling#482) would be re-hosting rather than rewriting. All three packages are
+scaffolded now (Tooling#478 K4-1) and filled in their own child issue:
+
+| Path | Package | What | Lands in |
+|---|---|---|---|
+| `packages/server` | `@kenzen/server` | Hono server, SQLite migrations, ingest, decisions API | K4-2 through K4-5 |
+| `packages/web` | `@kenzen/web` | React 19 + react-router SPA, built by Vite into the server's `public/` | K4-7, K4-8 |
+| `packages/contract` | `@kenzen/contract` | JSON Schemas + shared TS types for the inventory/report/decision model, vendored byte-identically from `Rackbops/Tooling` | K4-4 |
+
+## Toolchain
+
+- `just check` (or `pnpm run check`) = Biome, then `pnpm -r typecheck`, then `pnpm -r test` --
+  the same gate CI runs.
+- Each package's `tsconfig.json` extends the root `tsconfig.base.json` (strict, `nodenext`).
+  A relative import needs its `.js` extension (nodenext resolution), even though the source
+  file is `.ts`.
+- Shared dev-dependency versions (`typescript`, `vitest`, `@types/node`) are pinned once in
+  `pnpm-workspace.yaml`'s `catalog:` and referenced as `catalog:` per package.
+- The `pull_request` lanes (`test.yml`, `image-ratchet.yml`) run on GitHub-hosted
+  `ubuntu-latest`. They ran on the org disposable self-hosted pool while the repo was private
+  (Tooling#437), but a self-hosted runner must **never** be attached to a fork-triggerable
+  event once the repo is public -- a fork PR would run its own code (image-ratchet even
+  `docker build`s its own tree) on your infra. `push-notify.yml` triggers on `push: main`
+  (maintainer-only, fork-guarded), so it stays on the self-hosted pool. `push-notify.yml`
+  also carries the fork guard (`if: github.repository == 'Rackbops/kenzen'`) and passes
+  `DISCORD_PUSH_WEBHOOK` explicitly, never via `secrets: inherit` (Tooling#310). The runner
+  posture of both `pull_request` lanes, and push-notify's guards, are asserted by
+  `packages/server/src/ci-hygiene.test.ts`.
+
+## Key gotchas
+
+- **A local `node dist/main.js` run with no env vars set shares `<drive>:\state\` across
+  every worktree and every boot on Windows** ([#72](https://github.com/Rackbops/kenzen/issues/72)).
+  `@rackbops/node-app-kit`'s `resolveConfig` defaults `stateDir` to `/state`
+  (`dist/config.js:3`, `DEFAULT_STATE_DIR`), which is a container-correct absolute path but
+  resolves on Windows to the *current drive's root* -- `R:\state\kenzen.db` -- not a path
+  scoped to the checkout. Every worktree on the same drive, and every separate local run,
+  reads and writes that one file. A live-probe measured stale synthetic advisory data left
+  by an earlier run before this was noticed. **Always pass `KENZEN_STATE_DIR` (and
+  `KENZEN_CONFIG_DIR`)** to an explicit, fresh directory for any local smoke test or probe
+  -- both names come straight from the `prefix` kenzen passes node-app-kit
+  (`packages/server/src/config.ts:35`, `resolveBaseConfig(env, { ...options, prefix:
+  "KENZEN" })`) through node-app-kit's own `${p}_STATE_DIR`/`${p}_CONFIG_DIR` env lookups
+  (`dist/config.js:44`/`:15`). Never treat a local `kenzen.db`'s contents as fresh unless
+  you set `KENZEN_STATE_DIR` yourself for that run. `R:\state\kenzen.db` on Melody is left
+  in place -- it's roshne's to delete, nothing here depends on it.
+
+- **`Rackbops` is a FREE org: a private repo cannot read an org-level secret via
+  `secrets: inherit`** -- it resolves the name but passes an empty string, silently shadowing a
+  working repo-level secret. Always pass secrets explicitly to a reusable workflow here.
+- **`dist/` is generated and gitignored; `pnpm-lock.yaml` is generated and committed** (CI
+  installs `--frozen-lockfile`).
+- **`git push --force-with-lease` is pre-authorised on your own `claude/*` branch after a
+  rebase onto `origin/main`** -- the carve-out personal's **Escalation** requires a repo file
+  to state. Why here: Renovate lands dependency PRs in bursts (8 merged on 2026-09-08, 9 on
+  2026-09-09), so a feature branch routinely has to rebase to absorb one before its CI goes
+  green, and those branches are single-author and squash-merged, so rewriting them destroys
+  nothing. It never covers bare `--force`, a branch that isn't yours, or `main`.
