@@ -39,10 +39,15 @@ scaffolded now (Tooling#478 K4-1) and filled in their own child issue:
   file is `.ts`.
 - Shared dev-dependency versions (`typescript`, `vitest`, `@types/node`) are pinned once in
   `pnpm-workspace.yaml`'s `catalog:` and referenced as `catalog:` per package.
-- CI (`test.yml`) runs on the org's disposable self-hosted pool -- this repo is private, so
-  that's permitted (Tooling#437). `push-notify.yml` carries an explicit fork guard
-  (`if: github.repository == 'Rackbops/kenzen'`) and passes `DISCORD_PUSH_WEBHOOK` explicitly,
-  never via `secrets: inherit` (Tooling#310) -- both guarded by
+- The `pull_request` lanes (`test.yml`, `image-ratchet.yml`) run on GitHub-hosted
+  `ubuntu-latest`. They ran on the org disposable self-hosted pool while the repo was private
+  (Tooling#437), but a self-hosted runner must **never** be attached to a fork-triggerable
+  event once the repo is public -- a fork PR would run its own code (image-ratchet even
+  `docker build`s its own tree) on your infra. `push-notify.yml` triggers on `push: main`
+  (maintainer-only, fork-guarded), so it stays on the self-hosted pool. `push-notify.yml`
+  also carries the fork guard (`if: github.repository == 'Rackbops/kenzen'`) and passes
+  `DISCORD_PUSH_WEBHOOK` explicitly, never via `secrets: inherit` (Tooling#310). The runner
+  posture of both `pull_request` lanes, and push-notify's guards, are asserted by
   `packages/server/src/ci-hygiene.test.ts`.
 
 ## Key gotchas

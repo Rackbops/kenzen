@@ -1,9 +1,12 @@
 name: tests
 
-# Kenzen CI (Tooling#478 K4-1), on the org disposable self-hosted pool -- private repo,
-# so this is permitted (Tooling#437's rule; a public repo must never attach a
-# self-hosted runner). `pnpm run check` is the same gate as `just check` locally: Biome,
-# then `-r typecheck`, then `-r test`.
+# Kenzen CI (Tooling#478 K4-1), on GitHub-hosted `ubuntu-latest`. This is a
+# `pull_request` workflow, so once the repo is public a fork PR runs arbitrary code in
+# this job -- a self-hosted runner must never be attached under that trigger (the rule
+# this workflow's own header used to cite in reverse, Tooling#437, only permitted
+# self-hosted while the repo was private). GitHub-hosted runners are free for public
+# repos and are the safe home for fork-triggered jobs. `pnpm run check` is the same gate
+# as `just check` locally: Biome, then `-r typecheck`, then `-r test`.
 on:
   pull_request:
 
@@ -15,7 +18,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: [self-hosted, disposable]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 

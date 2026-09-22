@@ -8,7 +8,7 @@ Status: **audited 2026-09-08** (see `design.md`'s status line; the two plan find
 - **Ratchet early.** The image ratchet (K4-6) and the contract ratchet (K4-4) land before the first UI feature.
 - **Reuse first, give back.** Every child names what it consumes from `design.md` §8; anything generic it builds is filed for its shared home per §9 before the epic closes.
 - **Sizes** use the org `effort` ladder (XS hours, S a day, M 2-3 days, L a week -- split). Nothing here is L.
-- **CI on the disposable pool from the first workflow** (private repo). Never `ubuntu-latest` for a job that runs on every PR.
+- **CI on the disposable pool from the first workflow** (private repo). Never `ubuntu-latest` for a job that runs on every PR. *(Superseded 2026-09-21: the repo went public, so both `pull_request` lanes (`test.yml`, `image-ratchet.yml`) moved to `ubuntu-latest` -- a self-hosted runner must never be attached to a fork-triggerable event on a public repo. push-notify stays self-hosted: push-to-`main`, maintainer-only.)*
 - **No silent upgrades.** Kenzen records decisions; it never opens, approves or merges anything.
 
 ## Milestones
