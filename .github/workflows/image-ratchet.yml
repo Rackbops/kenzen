@@ -3,9 +3,11 @@ name: image-ratchet
 # K4-6 (Tooling#478): build the REAL image, boot it with an empty config, and assert it serves
 # /healthz and the SPA. The Kenzen heir of artifact-console 2.0's own image-ratchet.yml (design.md
 # section 3) -- simplified since Kenzen has no plugin host yet, so there is no import-map ABI to
-# pin. Runs on the self-hosted `docker` DinD pool (Rackbops/Tooling#393; private repo, so
-# permitted per Tooling#437) -- the plain `disposable` lint pool can't build images. The
-# assertion logic itself is unit-tested against fixture servers on the test lane
+# pin. Runs on GitHub-hosted `ubuntu-latest`, which ships Docker preinstalled and can build/run
+# images directly. This is a `pull_request` workflow that `docker build`s an arbitrary tree, so a
+# self-hosted runner must never be attached to it on a public repo (a fork PR would build and boot
+# its own Dockerfile on your infra); Tooling#437 only permitted self-hosted while the repo was
+# private. The assertion logic itself is unit-tested against fixture servers on the test lane
 # (packages/server/src/image-assert.test.ts); this workflow is the real-image half. Blocks merge
 # from here on.
 on:
@@ -17,7 +19,7 @@ concurrency:
 
 jobs:
   ratchet:
-    runs-on: [self-hosted, docker]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 

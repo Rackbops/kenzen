@@ -45,14 +45,24 @@ describe("push-notify.yml hygiene", () => {
 })
 
 describe("test.yml hygiene", () => {
-  it("runs on the org disposable pool, never GitHub-hosted minutes", () => {
-    expect(testWorkflow).toMatch(/runs-on:\s*\[self-hosted,\s*disposable\]/)
+  it("runs on GitHub-hosted ubuntu-latest, never a self-hosted runner", () => {
+    // Inverted from the private-repo era (was `[self-hosted, disposable]` per Tooling#437):
+    // this is a `pull_request` workflow, so once the repo is public a fork PR runs arbitrary
+    // code in this job. A self-hosted runner under that trigger hands your infra to any
+    // stranger who opens a PR -- GitHub-hosted is the only safe home. Guards against a revert
+    // to the self-hosted pool.
+    expect(testWorkflow).toMatch(/runs-on:\s*ubuntu-latest/)
+    expect(testWorkflow).not.toMatch(/self-hosted/)
   })
 })
 
 describe("image-ratchet.yml hygiene", () => {
-  it("runs on the docker DinD slot, not the plain disposable lint pool", () => {
-    expect(imageRatchet).toMatch(/runs-on:\s*\[self-hosted,\s*docker\]/)
+  it("runs on GitHub-hosted ubuntu-latest, never a self-hosted runner", () => {
+    // Same inversion as test.yml, and sharper here: this `pull_request` job `docker build`s an
+    // arbitrary tree, so a self-hosted runner would build and boot a fork's own Dockerfile on
+    // your infra. ubuntu-latest ships Docker, so the build/run steps are unchanged.
+    expect(imageRatchet).toMatch(/runs-on:\s*ubuntu-latest/)
+    expect(imageRatchet).not.toMatch(/self-hosted/)
   })
 
   it("tears down the ratchet container even when a step fails", () => {
