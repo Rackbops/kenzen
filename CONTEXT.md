@@ -46,15 +46,19 @@ matters.
 
 ## CI lanes **[code]**
 
-The PR **`tests`** lane (`test.yml`) runs on the org **`disposable`** self-hosted pool --
-permitted since this repo is private (Tooling#437's rule; a public repo must never attach a
-self-hosted runner). `push-notify.yml` delegates to `roshne/addon-ci`, carries an explicit
+The PR **`tests`** lane (`test.yml`) runs on GitHub-hosted **`ubuntu-latest`**. It ran on the
+org **`disposable`** self-hosted pool while the repo was private (Tooling#437), but a public
+repo must never attach a self-hosted runner to a fork-triggerable event -- a fork PR would run
+its own code on your infra -- so this lane and `image-ratchet.yml` both moved to hosted runners.
+`push-notify.yml` delegates to `roshne/addon-ci`, carries an explicit
 fork guard, and passes `DISCORD_PUSH_WEBHOOK` explicitly rather than via `secrets: inherit`.
-Both properties -- plus the disposable-pool runner input -- are guarded by
+Both properties -- plus push-notify's own `disposable`-pool runner input (unchanged: it is
+push-to-`main`, maintainer-only, so it stays self-hosted) -- are guarded by
 `packages/server/src/ci-hygiene.test.ts`, which reads the workflow files as text rather than
 taking on a YAML-parser dependency for a handful of regex checks.
 
-**`image-ratchet.yml`** (K4-6, Tooling#478) builds the real image on the **`docker`** DinD slot
+**`image-ratchet.yml`** (K4-6, Tooling#478) builds the real image on GitHub-hosted
+**`ubuntu-latest`** (which ships Docker preinstalled)
 (a pull-request check, blocks merge), boots it with no volumes or config.toml (a throwaway
 `KENZEN_INGEST_TOKEN` is the one env var it does set -- K4-4 made that a required boot-time
 secret with no config.toml fallback, so "empty config" no longer means literally zero env vars),
@@ -68,9 +72,10 @@ Docker. **`release.yml`** publishes multi-arch (amd64/arm64) to `ghcr.io/rackbop
 Docker), version-pinned to `packages/server/package.json` by `scripts/version-tag.mjs`
 (`packages/server/src/version-tag.test.ts` unit-tests the pin). `ci-hygiene.test.ts` guards
 each workflow's own applicable properties, not a uniform set across all four: `image-ratchet.yml`
-has no secrets and no fork-guard to check (self-hosted with no fork-guard is this repo's existing
-`test.yml` convention already), so only its DinD runner label is asserted; `release.yml` runs on
-`ubuntu-latest`, not the DinD label, so only its fork-guard, GITHUB_TOKEN-not-a-PAT,
+has no secrets and no fork-guard to check, so its assertion is that it runs on `ubuntu-latest`
+and attaches no self-hosted runner -- the same fork-safety property as `test.yml`, and the
+reason both lanes moved off the pool when the repo went public; `release.yml` also runs on
+`ubuntu-latest`, so only its fork-guard, GITHUB_TOKEN-not-a-PAT,
 no-`secrets: inherit`, and (kenzen#8 review round 2) that its release-tag value flows through an
 `env:` binding rather than being spliced directly into `run:` script text -- a script-injection
 surface found and fixed in round 1, verified live, and separately guarded here against
