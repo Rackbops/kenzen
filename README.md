@@ -14,6 +14,13 @@ to it. See [`Rackbops/Tooling#479`](https://github.com/Rackbops/Tooling/issues/4
 deploy runbook and [`Rackbops/Tooling` epic #473](https://github.com/Rackbops/Tooling/issues/473)
 (closed) for how it got built.
 
+**Who can deploy.** This image auto-deploys: nucbox's `kenzen-deploy.timer` recreates the running
+container within five minutes of `ghcr.io/rackbops/kenzen:latest` moving. `latest` moves on a `v*`
+tag (the `release` workflow), so anyone with write access to this repository can put code on the
+box. That is the accepted trust boundary
+([Rackbops/Tooling#765](https://github.com/Rackbops/Tooling/issues/765), 2026-09-27): keep
+collaborators to the minimum and review write access before adding one.
+
 ## Layout
 
 A pnpm workspace (`packages/*`), Node 24, TypeScript end to end:
