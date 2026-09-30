@@ -26,8 +26,8 @@ task and Discord digest); Kenzen is the product surface on top of that data.
 - **Not the collection engine.** Scanning repos, resolving latest versions, and querying
   advisory feeds stays in `Tooling` (`software_inventory.py`/`software_report.py`); Kenzen
   consumes that output, it does not duplicate the scan.
-- **Not public.** Private repo; the app sits behind Cloudflare Access, same as roshne's other
-  personal tools.
+- **Not a public service.** The repo is public, but the app sits behind Cloudflare Access,
+  same as roshne's other personal tools.
 
 ## Intended audience
 
@@ -36,16 +36,15 @@ contributor to adopt.
 
 ## Roadmap
 
-This repo is provisioned ahead of any app code
-([`Rackbops/Tooling#475`](https://github.com/Rackbops/Tooling/issues/475)). What comes next, in
-order, all tracked under
-[`Rackbops/Tooling` epic #473](https://github.com/Rackbops/Tooling/issues/473):
+Epic [`Rackbops/Tooling#473`](https://github.com/Rackbops/Tooling/issues/473) is closed: the
+design doc (#476), the v1 build (#478), the deploy behind Cloudflare Access (#479) and closing
+the loop with epic #430 (#480) all landed on 2026-09-08.
 
-1. **#476** -- design doc: stack decision, data model, API shape, Reuse table.
-2. **#478** -- the build, split into child issues here once #476 lands.
-3. **#479** -- Kenzen live, added to `watched-apps.json`.
-4. **#480** -- close the loop: `Tooling#427`'s interim Markdown page retired or demoted to a
-   fallback, epic #430 closed.
-
-The epic is the source of truth for the plan; this file tracks only the one-paragraph summary
-and non-goals, not the roadmap's detail.
+**Standalone, not an artifact-console plugin** (decided 2026-09-30,
+[`Rackbops/Tooling#482`](https://github.com/Rackbops/Tooling/issues/482)). Once artifact-console
+2.0's shell landed, #482 re-asked whether Kenzen should become one of its plugins. Verdict: stay
+standalone. An in-process artifact-console 2.0 plugin gets only a JSON key/value store (no SQL,
+no migrations), so Kenzen's relational decision store would have to be rewritten.
+artifact-console also passes no caller identity to plugin routes or actions, so Kenzen would
+keep its own Access verification anyway. Revisit if artifact-console 2.0 adds per-plugin
+relational storage with migrations and passes caller identity to plugins.

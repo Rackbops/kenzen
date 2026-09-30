@@ -86,4 +86,4 @@ snapshot to `POST /api/ingest`; `software_digest.py` reads recorded decisions ba
 [`Rackbops/Tooling`'s `docs/kenzen-pipeline.md`](https://github.com/Rackbops/Tooling/blob/main/docs/kenzen-pipeline.md)
 for the full pipeline, secrets, and troubleshooting.
 
-Private repo; not for outside use.
+Public repo, but not for outside use: the app is personal and sits behind Cloudflare Access.

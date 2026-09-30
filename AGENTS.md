@@ -20,8 +20,9 @@ Scope names the package or area touched (`server`, `web`, `contract`, `ci`, `pla
 ## Layout
 
 A pnpm workspace, Node 24, TypeScript end to end -- the same stack choices as
-`Rackbops/artifact-console` 2.0 (design.md section 3), so a later port to an artifact-console
-plugin (Tooling#482) would be re-hosting rather than rewriting. All three packages are
+`Rackbops/artifact-console` 2.0 (design.md section 3). Tooling#482 (2026-09-30) decided Kenzen
+stays standalone: a port to an artifact-console 2.0 plugin would be a rewrite, since in-process
+plugins get no relational storage and no caller identity. All three packages are
 scaffolded now (Tooling#478 K4-1) and filled in their own child issue:
 
 | Path | Package | What | Lands in |
