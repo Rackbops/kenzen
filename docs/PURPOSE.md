@@ -26,8 +26,8 @@ task and Discord digest); Kenzen is the product surface on top of that data.
 - **Not the collection engine.** Scanning repos, resolving latest versions, and querying
   advisory feeds stays in `Tooling` (`software_inventory.py`/`software_report.py`); Kenzen
   consumes that output, it does not duplicate the scan.
-- **Not a public service.** The repo is public (since 2026-09-21), but the app sits behind
-  Cloudflare Access, same as roshne's other personal tools.
+- **Not a public service.** The repo is public, but the app sits behind Cloudflare Access,
+  same as roshne's other personal tools.
 
 ## Intended audience
 
