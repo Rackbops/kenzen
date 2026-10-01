@@ -12,7 +12,7 @@ allowBuilds:
 # Matches Rackbops/artifact-console's own pins (Tooling#473 design.md section 3).
 catalog:
   typescript: ^7.0.0
-  vitest: ^5.0.3
+  vitest: ^5.0.2
   "@types/node": ^26.6.3
 
 minimumReleaseAgeExclude:
@@ -21,7 +21,3 @@ minimumReleaseAgeExclude:
   # so the release-age gate (meant to catch a hijacked third-party publish) adds nothing --
   # exempt the whole scope rather than re-listing each new version by hand.
   - '@rackbops/*'
-  - '@vitest/mocker@5.0.3'
-  - '@vitest/spy@5.0.3'
-  - hono@4.13.12
-  - vitest@5.0.3
