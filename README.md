@@ -75,7 +75,7 @@ PR.)
 ## Release
 
 Bump `packages/server/package.json`'s version via PR, tag `vX.Y.Z-alpha.N` on the merge commit
-(roshne pushes tags), and `release.yml` builds and publishes the multi-arch image to
+(roshne pushes tags), and `release.yml` builds and publishes the `linux/amd64` image to
 `ghcr.io/rackbops/kenzen:<version>` and `:latest`.
 
 ## Data in

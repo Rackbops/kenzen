@@ -67,15 +67,16 @@ simplified from
 `Rackbops/artifact-console`'s own copy -- no import-map/plugin ABI to pin here yet). The
 assertion logic is separately unit-tested against fixture servers in
 `packages/server/src/image-assert.test.ts`, so it also runs on the plain test lane with no
-Docker. **`release.yml`** publishes multi-arch (amd64/arm64) to `ghcr.io/rackbops/kenzen` on a
-`v*` tag, on `ubuntu-latest` (not the disposable pool -- buildx/QEMU needs GitHub-hosted
-Docker), version-pinned to `packages/server/package.json` by `scripts/version-tag.mjs`
+Docker. **`release.yml`** publishes `linux/amd64` only (no QEMU; Rackbops/Tooling#1163) to
+`ghcr.io/rackbops/kenzen` on a `v*` tag, on `ubuntu-latest` (never a self-hosted pool -- the repo
+is public), version-pinned to `packages/server/package.json` by `scripts/version-tag.mjs`
 (`packages/server/src/version-tag.test.ts` unit-tests the pin). `ci-hygiene.test.ts` guards
 each workflow's own applicable properties, not a uniform set across all four: `image-ratchet.yml`
 has no secrets and no fork-guard to check, so its assertion is that it runs on `ubuntu-latest`
 and attaches no self-hosted runner -- the same fork-safety property as `test.yml`, and the
 reason both lanes moved off the pool when the repo went public; `release.yml` also runs on
-`ubuntu-latest`, so only its fork-guard, GITHUB_TOKEN-not-a-PAT,
+`ubuntu-latest` (asserted, with no self-hosted runner, an amd64-only build and no QEMU step), and
+beyond that only its fork-guard, GITHUB_TOKEN-not-a-PAT,
 no-`secrets: inherit`, and (kenzen#8 review round 2) that its release-tag value flows through an
 `env:` binding rather than being spliced directly into `run:` script text -- a script-injection
 surface found and fixed in round 1, verified live, and separately guarded here against

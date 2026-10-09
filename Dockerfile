@@ -3,11 +3,12 @@
 # --- build: install the workspace, build server + web, bundle a production deploy dir ---
 # --platform=$BUILDPLATFORM (kenzen#28, K4-6b): the deploy bundle is pure JS (hono,
 # @hono/node-server, jose, smol-toml, node:sqlite -- no native modules), so it is
-# architecture-independent and only needs building once. Without this pin, buildx's
-# linux/arm64 pass runs esbuild/Vite (the K4-7 web build) under QEMU emulation, which took
-# release.yml's v0.1.0-alpha.2 run from 4 minutes to over 45. Pinning the build stage to the
-# builder's own (native) platform keeps `pnpm -r build` off QEMU entirely; only the runtime
-# stage (a plain COPY + adduser, no compilation) still runs per target.
+# architecture-independent and only needs building once. When release.yml still built
+# linux/arm64, that pass ran esbuild/Vite (the K4-7 web build) under QEMU emulation without this
+# pin, which took the v0.1.0-alpha.2 run from 4 minutes to over 45. release.yml is amd64-only now
+# (Rackbops/Tooling#1163), so the pin is a no-op there; it stays so any cross-platform build keeps
+# `pnpm -r build` on the builder's native platform. Only the runtime stage (a plain COPY +
+# adduser, no compilation) runs per target.
 FROM --platform=$BUILDPLATFORM node:26-alpine AS build
 WORKDIR /repo
 # Corepack was removed from Node core as of Node 25 -- there is no `corepack` binary to
