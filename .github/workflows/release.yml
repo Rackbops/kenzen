@@ -1,14 +1,15 @@
 name: release
 
-# Build and publish the multi-arch container image on a version tag (K4-6, Tooling#478).
+# Build and publish the amd64 container image on a version tag (K4-6, Tooling#478).
 #
-# ghcr.io/rackbops/kenzen, multi-arch (amd64 + arm64), authenticated with the built-in
+# ghcr.io/rackbops/kenzen, linux/amd64 only (Rackbops/Tooling#1163 -- the fleet is x86_64 and
+# nothing pulls an arm64 image; the arm64 leg only ran under QEMU), authenticated with the built-in
 # GITHUB_TOKEN (packages: write) -- NO PAT. The package's org visibility is a one-time setting
 # applied AFTER the first publish (it cannot be set before the package exists).
 #
-# Runner: ubuntu-latest, not the disposable pool -- multi-arch buildx needs QEMU emulation and
-# reliable Docker-in-Docker, which GitHub-hosted runners provide out of the box (same reasoning
-# as Rackbops/artifact-console's release.yml, design.md section 3).
+# Runner: GitHub-hosted ubuntu-latest, never a self-hosted pool -- this repo is PUBLIC. The org's
+# runner group refuses public repos, and a self-hosted runner reachable from a public repo is an
+# arbitrary-code-execution surface on the box. ci-hygiene.test.ts pins the runner and the platform.
 on:
   push:
     tags: ["v*"]
@@ -37,7 +38,6 @@ jobs:
         with:
           node-version: "24"
 
-      - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
@@ -72,7 +72,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: |
             ghcr.io/rackbops/kenzen:${{ steps.meta.outputs.version }}

@@ -80,13 +80,14 @@ describe("image-ratchet.yml hygiene", () => {
 })
 
 describe("Dockerfile hygiene", () => {
-  it("pins the build stage to $BUILDPLATFORM so the multi-arch release doesn't run the web build under QEMU", () => {
+  it("pins the build stage to $BUILDPLATFORM so a cross-platform build never runs the web build under QEMU", () => {
     // kenzen#28 (K4-6b): the deploy bundle is pure JS -- no native modules -- so the build
     // stage (pnpm -r build, esbuild/Vite for the K4-7 web build) only needs to run once, on
-    // the builder's own platform. Without this pin, buildx's linux/arm64 pass runs the whole
-    // build stage under QEMU emulation, which took release.yml's v0.1.0-alpha.2 run from 4
-    // minutes to over 45. Only the `build` stage is pinned -- `runtime` stays per-target since
-    // it's just COPY + adduser, no compilation.
+    // the builder's own platform. When release.yml still built linux/arm64, that pass ran the
+    // whole build stage under QEMU emulation without this pin, which took the v0.1.0-alpha.2
+    // run from 4 minutes to over 45. The release is amd64-only now (Rackbops/Tooling#1163), so
+    // the pin is a no-op there; it is kept for any cross-platform build. Only the `build` stage
+    // is pinned -- `runtime` stays per-target since it's just COPY + adduser, no compilation.
     expect(dockerfile).toMatch(/^FROM --platform=\$BUILDPLATFORM node:26-alpine AS build$/m)
   })
 
@@ -110,6 +111,22 @@ describe("release.yml hygiene", () => {
 
   it("never uses secrets: inherit", () => {
     expect(release).not.toMatch(/secrets:\s*inherit/)
+  })
+
+  it("runs on GitHub-hosted ubuntu-latest, never a self-hosted runner", () => {
+    // Public repo: the org runner group refuses it, and a self-hosted runner a public repo can
+    // reach is an arbitrary-code-execution surface on the box (Rackbops/Tooling#1163).
+    expect(release).toMatch(/runs-on:\s*ubuntu-latest/)
+    expect(release).not.toMatch(/self-hosted/)
+  })
+
+  it("builds linux/amd64 only, with no QEMU step", () => {
+    // Rackbops/Tooling#1163: the fleet is x86_64 and nothing pulls an arm64 image; the arm64
+    // leg only ran under QEMU. release.yml only runs on a tag or a dispatch, so a revert to a
+    // multi-arch build would otherwise stay green.
+    expect([...release.matchAll(/platforms:\s*(\S+)/g)].map((m) => m[1])).toEqual(["linux/amd64"])
+    expect(release).not.toMatch(/setup-qemu-action/)
+    expect(release).not.toMatch(/arm64/)
   })
 
   it("verifies the tag against packages/server/package.json before publishing", () => {
