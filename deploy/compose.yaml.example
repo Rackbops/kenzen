@@ -11,6 +11,9 @@
 
 services:
   kenzen:
+    # `latest` on purpose (Rackbops/Tooling#902): a `v*` tag's release pushes `:<version>` and
+    # `:latest`, and the box's kenzen-deploy.timer swaps the container within five minutes -- the
+    # README's "Who can deploy". Pinning IMAGE_TAG would turn every release into a hand edit.
     image: ${IMAGE}:${IMAGE_TAG:-latest}
     container_name: kenzen
     restart: unless-stopped
@@ -47,7 +50,16 @@ services:
     # joining the box's shared host tunnel. Ingress + Access are configured Cloudflare-side (the
     # gate runbook, Tooling docs/per-app-cloudflare-access-tunnel.md); this sidecar just runs
     # the tunnel with the token.
-    image: cloudflare/cloudflared:latest
+    # Pinned to a cloudflared release, never :latest (Rackbops/Tooling#902). The deploy-pull
+    # timer only pulls the kenzen image, and `:latest` is one tag shared by every stack on the
+    # box: once another stack pulls a newer one, this sidecar keeps running the old image under a
+    # tag that now names the new one, so `docker ps` shows it only as a bare image ID. Renovate's
+    # docker-compose manager raises the bump PR for this line once it is approved on the repo's
+    # Dependency Dashboard; copy the new line into the box's compose.yaml and recreate the
+    # sidecar (`docker compose --profile tunnel pull cloudflared` then
+    # `docker compose --profile tunnel up -d cloudflared`).
+    # packages/server/src/ci-hygiene.test.ts fails on a :latest or untagged image here.
+    image: cloudflare/cloudflared:2026.9.3
     command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
