@@ -26,6 +26,21 @@ const testWorkflow = code(readFileSync(`${repoRoot}.github/workflows/test.yml`, 
 const imageRatchet = code(readFileSync(`${repoRoot}.github/workflows/image-ratchet.yml`, "utf-8"))
 const release = code(readFileSync(`${repoRoot}.github/workflows/release.yml`, "utf-8"))
 const dockerfile = code(readFileSync(`${repoRoot}Dockerfile`, "utf-8"))
+const compose = code(readFileSync(`${repoRoot}deploy/compose.yaml.example`, "utf-8"))
+
+/** Every `image:` value in a compose text, in file order. */
+function images(yaml: string): string[] {
+  return [...yaml.matchAll(/^\s*image:\s*["']?([^"'\s]+)/gm)].map((m) => m[1] ?? "")
+}
+
+/** Why an image reference breaks the pin rule (Rackbops/Tooling#902), or null when it is pinned. */
+function pinProblem(ref: string): string | null {
+  const name = ref.split("@")[0] ?? ""
+  const colon = name.indexOf(":", name.lastIndexOf("/") + 1) // a host:port/ registry is not a tag
+  if (colon === -1) return "untagged"
+  if (name.slice(colon + 1) === "latest") return "floats on :latest"
+  return null
+}
 
 describe("push-notify.yml hygiene", () => {
   it("guards against running on a fork", () => {
@@ -96,6 +111,42 @@ describe("Dockerfile hygiene", () => {
       /npm install -g pnpm@.*require\('\.\/package\.json'\)\.packageManager/,
     )
     expect(dockerfile).not.toMatch(/corepack enable/)
+  })
+})
+
+describe("deploy/compose.yaml.example hygiene", () => {
+  it("pinProblem rejects :latest and untagged references, accepts tags and tag+digest", () => {
+    const digest = `sha256:${"0".repeat(64)}`
+    expect(pinProblem("cloudflare/cloudflared:latest")).toBe("floats on :latest")
+    expect(pinProblem("cloudflare/cloudflared")).toBe("untagged")
+    expect(pinProblem("localhost:5000/cloudflared")).toBe("untagged")
+    expect(pinProblem(`cloudflare/cloudflared@${digest}`)).toBe("untagged")
+    expect(pinProblem("cloudflare/cloudflared:2026.9.3")).toBeNull()
+    expect(pinProblem(`cloudflare/cloudflared:2026.9.3@${digest}`)).toBeNull()
+  })
+
+  it("pins every image: no :latest, no untagged image (Rackbops/Tooling#902)", () => {
+    // `:latest` is one tag shared by every stack on the box: once another stack pulls a newer
+    // one, this stack's container runs an image its recorded tag no longer names, and Renovate
+    // has no version to bump. On 2026-10-08 kenzen's sidecar showed in `docker ps` only as a bare
+    // image ID (cloudflared 2026.9.3, under a `latest` that had moved to 2026.10.0). A variable
+    // reference reads here as its literal text; the test below pins which ones may exist.
+    const all = images(compose)
+    expect(
+      all.some((ref) => ref.startsWith("cloudflare/cloudflared")),
+      `no cloudflare/cloudflared image line found in ${JSON.stringify(all)}`,
+    ).toBe(true)
+    for (const ref of all) expect([ref, pinProblem(ref)]).toEqual([ref, null])
+  })
+
+  it("allows exactly one variable image: the app's documented `latest` track", () => {
+    // The app's own `${IMAGE_TAG:-latest}` is a decision, not drift (Rackbops/Tooling#902,
+    // README "Who can deploy"): the release workflow is the deploy. Any OTHER variable image
+    // could hide a `:-latest` default, so it fails here instead of passing the literal check.
+    expect(images(compose).filter((ref) => ref.includes("${"))).toEqual([
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: a compose variable reference, compared as literal text.
+      "${IMAGE}:${IMAGE_TAG:-latest}",
+    ])
   })
 })
 

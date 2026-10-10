@@ -19,7 +19,10 @@ container within five minutes of `ghcr.io/rackbops/kenzen:latest` moving. `lates
 tag (the `release` workflow), so anyone with write access to this repository can put code on the
 box. That is the accepted trust boundary
 ([Rackbops/Tooling#765](https://github.com/Rackbops/Tooling/issues/765), 2026-09-27): keep
-collaborators to the minimum and review write access before adding one.
+collaborators to the minimum and review write access before adding one. Running `:latest` is
+deliberate, not drift ([Rackbops/Tooling#902](https://github.com/Rackbops/Tooling/issues/902),
+2026-10-09): the release workflow is the deploy, and the timer is what ships it. The tunnel
+sidecar is the opposite, pinned to a cloudflared version in `deploy/compose.yaml.example`.
 
 ## Layout
 
