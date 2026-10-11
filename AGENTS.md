@@ -50,7 +50,7 @@ scaffolded now (Tooling#478 K4-1) and filled in their own child issue:
   running it after 2026-09-22 (kenzen#142). `push-notify.yml`
   also carries the fork guard (`if: github.repository == 'Rackbops/kenzen'`) and passes
   `DISCORD_PUSH_WEBHOOK` explicitly, never via `secrets: inherit` (Tooling#310). The runner
-  posture of all three workflows, and push-notify's other guards, are asserted by
+  posture of every workflow, and push-notify's other guards, are asserted by
   `packages/server/src/ci-hygiene.test.ts`.
 
 ## Key gotchas

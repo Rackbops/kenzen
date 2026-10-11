@@ -128,7 +128,7 @@ Components: `Card`, `Button`, `NavLink` from `@rackbops/ui-react` as they exist 
 | Monitoring | Uptime Kuma (nitro, MCP), `watched-apps.json`, Beszel/Loki on the host | monitor + entry |
 | Dependency hygiene | `Rackbops/renovate-config` (Interactive, approval-gated), org dependency-graph configuration 273079, Dependabot alerts | already on the repo (Tooling#475) |
 | Labels, permission rules | `labels.json`/`sync_labels.py`, `docs/permission-rules-standard.md` | applied (#475) / to apply |
-| Push notifications | `addon-ci` `push-notify.yml` with the runner input, `DISCORD_PUSH_WEBHOOK` | wired (#475) |
+| Push notifications | `addon-ci` `push-notify.yml` on its default hosted runner (kenzen#142), `DISCORD_PUSH_WEBHOOK` | wired (#475) |
 
 Rows marked *build* in the plan: the data table + tab strip components (nothing in the design system yet), the ingest/decisions API (Kenzen-specific), the snapshot/history model (Kenzen-specific).
 

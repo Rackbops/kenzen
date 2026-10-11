@@ -55,8 +55,8 @@ fork guard, and passes `DISCORD_PUSH_WEBHOOK` explicitly rather than via `secret
 It runs on GitHub-hosted runners through addon-ci's default (it passes no `runner:` input). An
 earlier call kept it on the `disposable` pool, since its trigger is push-to-`main` and
 maintainer-only, but the org runner group refuses public repos: the pool last ran it on
-2026-09-22, and its runs sat queued or were cancelled from 2026-09-30 until kenzen#142 moved it. The fork guard, the
-explicit secret and the no-self-hosted runner are all guarded by
+2026-09-22, and every run from 2026-09-30 sat queued until cancelled, so kenzen#142 moved it.
+The fork guard, the explicit secret and the hosted runner (no `self-hosted`) are all guarded by
 `packages/server/src/ci-hygiene.test.ts`, which reads the workflow files as text rather than
 taking on a YAML-parser dependency for a handful of regex checks.
 

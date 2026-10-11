@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest"
 // Repo-wide CI/infra hygiene (Tooling#478 K4-1), homed here since none of the three
 // packages own it more specifically than another. Reads the real workflow file as text
 // rather than taking on a YAML-parser dependency for one check -- a lightweight guard
-// against a regressed fork guard, a `secrets: inherit` reintroduction, or a workflow put
-// back on a self-hosted runner, all of which have real incidents behind them (Tooling#310,
-// kenzen#142).
+// against a regressed fork guard, a `secrets: inherit` reintroduction, or a workflow left on
+// a self-hosted runner after the repo went public, all of which have real incidents behind them
+// (Tooling#310, kenzen#142).
 // Strips `#`-comments before matching -- both workflow files document, in prose, exactly
 // the mistakes these checks guard against (e.g. "never via `secrets: inherit`"), so
 // matching the raw text would false-positive on the comment explaining why NOT to do the
@@ -44,8 +44,8 @@ function pinProblem(ref: string): string | null {
 
 // push-notify's runner is inverted from the private-repo era too (it was pinned to the
 // `[self-hosted, disposable]` pool). Its trigger is push-to-main, so no fork code reaches it,
-// but the repo is public and the org runner group now refuses public repos: the pool last ran it
-// on 2026-09-22, every run from 2026-09-30 sat queued until cancelled, and no merge posted to
+// but the repo is public and the org runner group refuses public repos: the pool last ran it on
+// 2026-09-22, every run from 2026-09-30 sat queued until cancelled, and no merge posted to
 // Discord (kenzen#142). It runs on addon-ci's default hosted runner now. Guards against a revert
 // to any self-hosted pool.
 describe("push-notify.yml hygiene", () => {
