@@ -41,7 +41,7 @@ TypeScript end to end, the artifact-console 2.0 choices so a later plugin port i
 | State | SQLite via `node:sqlite`, numbered `NNNN_name.sql` migrations tracked by `PRAGMA user_version`, append-only and immutable once shipped | artifact-console `packages/host/migrations/README.md` (copied verbatim as Kenzen's contract) |
 | UI | React 19 + react-router SPA built by Vite into the server's `public/`; `@rackbops/styles` theme imported once at the root; components from `@rackbops/ui-react` | artifact-console `packages/ui-shell`; `rackbops-ui-ux-std-lib` README "React components" (`Button`, `Card`, `NavLink`; components carry fixed `rb-*` classes and the theme is selected by the `data-rb-style` attribute, so themes stay swappable) |
 | Tests / lint | Vitest, Biome, TypeScript strict | artifact-console `biome.json`, `tsconfig.base.json` |
-| CI | the `pull_request` lanes run on GitHub-hosted `ubuntu-latest` (were `[self-hosted, disposable]` / `docker` DinD while the repo was private; moved 2026-09-21 when it went public, since a self-hosted runner must never be fork-triggerable); push-notify stays self-hosted (push-to-`main` only) | artifact-console `.github/workflows/test.yml`, `image-ratchet.yml` |
+| CI | the `pull_request` lanes run on GitHub-hosted `ubuntu-latest` (were `[self-hosted, disposable]` / `docker` DinD while the repo was private; moved 2026-09-21 when it went public, since a self-hosted runner must never be fork-triggerable); push-notify moved to addon-ci's hosted default too, because the org runner group refuses public repos (kenzen#142) | artifact-console `.github/workflows/test.yml`, `image-ratchet.yml` |
 | Image | `ghcr.io/rackbops/kenzen`, multi-arch on `v*` tags, version sourced from `package.json` with a tag-pin test | artifact-console `release.yml` |
 
 Why not Python: the UI and deploy conventions of roshne's apps are TypeScript, and the design system is React. Why not a plugin now: section 1.
@@ -121,7 +121,7 @@ Components: `Card`, `Button`, `NavLink` from `@rackbops/ui-react` as they exist 
 | Image publish, image ratchet, migrations contract, `/healthz` shape | artifact-console 2.0 `release.yml`, `image-ratchet.yml`, `scripts/assert-image.mjs`, `packages/host/migrations/README.md` | copied, cited |
 | UI theme + components | `@rackbops/styles`, `@rackbops/ui-react` (`Button`, `Card`, `NavLink`) | imported |
 | Repo scaffold, TS baseline, frontend test config, export gotchas | Tooling `docs/non-addon-repo-scaffold.md` §1-3, 5-7, 11-12 | followed |
-| CI runners | GitHub-hosted `ubuntu-latest` for the `pull_request` lanes (was the org disposable pool + `docker` DinD slot while private -- see the CI row above); push-notify on the disposable pool; `Wait-PRChecks.ps1` | `runs-on` labels; `/pr` flow |
+| CI runners | GitHub-hosted `ubuntu-latest` for the `pull_request` lanes (was the org disposable pool + `docker` DinD slot while private -- see the CI row above); push-notify on addon-ci's hosted default (kenzen#142); `Wait-PRChecks.ps1` | `runs-on` labels; `/pr` flow |
 | Data in | Tooling `software_inventory.py` + `software_report.py` outputs | ingested; schemas vendored byte-identically |
 | Decision semantics | discord-bot `src/plugins/updates.ts` | copied, cited (section 5) |
 | Notifications | Tooling `notify.py` + `software_digest.py` | Kenzen has no Discord path in 1.0 |

@@ -33,8 +33,7 @@ on:
 jobs:
   notify:
     if: github.repository == 'Rackbops/kenzen'
+    # No runner input, so addon-ci's hosted default: the org runner group refuses public repos (kenzen#142).
     uses: roshne/addon-ci/.github/workflows/push-notify.yml@v1
-    with:
-      runner: '["self-hosted","disposable"]'
     secrets:
       DISCORD_PUSH_WEBHOOK: ${{ secrets.DISCORD_PUSH_WEBHOOK }}
