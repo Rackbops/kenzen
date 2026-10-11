@@ -44,11 +44,13 @@ scaffolded now (Tooling#478 K4-1) and filled in their own child issue:
   `ubuntu-latest`. They ran on the org disposable self-hosted pool while the repo was private
   (Tooling#437), but a self-hosted runner must **never** be attached to a fork-triggerable
   event once the repo is public -- a fork PR would run its own code (image-ratchet even
-  `docker build`s its own tree) on your infra. `push-notify.yml` triggers on `push: main`
-  (maintainer-only, fork-guarded), so it stays on the self-hosted pool. `push-notify.yml`
+  `docker build`s its own tree) on your infra. `push-notify.yml` runs on GitHub-hosted
+  runners too, through addon-ci's default (it passes no `runner:` input): its `push: main`
+  trigger is maintainer-only, but the org runner group refuses public repos, so the pool stopped
+  running it after 2026-09-22 (kenzen#142). `push-notify.yml`
   also carries the fork guard (`if: github.repository == 'Rackbops/kenzen'`) and passes
   `DISCORD_PUSH_WEBHOOK` explicitly, never via `secrets: inherit` (Tooling#310). The runner
-  posture of both `pull_request` lanes, and push-notify's guards, are asserted by
+  posture of every workflow, and push-notify's other guards, are asserted by
   `packages/server/src/ci-hygiene.test.ts`.
 
 ## Key gotchas
