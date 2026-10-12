@@ -13,12 +13,17 @@ code that uses them and are traced/produced from these.
 | `status-shields.jpg` | Three shields: mint check (healthy), crimson bug (vulnerability), amber exclamation (attention) | Reference for the badge glyphs; defines the warning colour |
 | `koi-banner-silver.jpg` | Wide (1024x377) banner, white/silver koi swimming through binary streams, dark checkerboard | Superseded for the empty-state banner (kenzen#92) -- kept for history, no longer derived from |
 | `koi-banner-light.jpg` | Same composition, 1024x1024, koi + streams on a LIGHT checkerboard with a real dark outline around the koi | Empty-state illustration (kenzen#92); derived automatically -- see below |
+| `koi-banner-navy.jpg` | Same composition, 1024x377, on a flat deep-navy background (no checkerboard); a 4:2:0 chroma-subsampled JPEG | kenzen#92's second attempt, unrecoverable at the edges (see below) -- kept for history, never derived from |
 | `mascot-concept-sheet.jpg` | The four-mascot concept sheet (Komainu guardian, Tech-botanist, Code Stream Koi, Code medic bot), watermarked | Palette and character reference |
 
-Every file here is a JPEG with a checkerboard baked in place of transparency -- there is no
-alpha channel. Do not place any of these on a page directly. (A flat-navy re-export of the
-banner briefly stood in for `koi-banner-light.jpg` here -- see "Deriving the empty-state
-banner" below for why it didn't work out; it was never committed.)
+Every file here is a JPEG with no alpha channel. The four cut-out sources (`koi-teal.jpg`,
+`status-shields.jpg`, `koi-banner-silver.jpg`, `koi-banner-light.jpg`) have a checkerboard
+baked in place of transparency; the two reference sheets (`koi-mark-glyphs.jpg`,
+`mascot-concept-sheet.jpg`) sit on plain light grey; `koi-banner-navy.jpg` is on flat navy. Do
+not place any of these on a page directly. (`koi-banner-navy.jpg`, the flat-navy re-export,
+was briefly the banner source between `koi-banner-silver.jpg` and `koi-banner-light.jpg` --
+see "Deriving the empty-state banner" below for why it didn't work out. It was committed later,
+on 2026-10-11, for history only.)
 
 ## Deriving the shipped mark
 
@@ -58,7 +63,8 @@ a rewrite each time, not an iteration:
    doesn't key out with it). This turned out **unrecoverable at the edges**: the export was a
    4:2:0 chroma-subsampled JPEG, which blurs colour (not luminance) across each 2x2 block, and
    at the koi's actual edges that put the outline at the same colour as the flat background --
-   nothing-per-pixel to key against. Never committed to `brand/source/`.
+   nothing-per-pixel to key against. Not committed at the time; it is in `brand/source/` now as
+   `koi-banner-navy.jpg` (added 2026-10-11, for history), and `derive.py` never reads it.
 3. roshne produced "banner 5", `koi-banner-light.jpg`: the same composition, 1024x1024, back
    on a checkerboard -- but a **light** one this time, and critically with a **real dark
    outline** around the koi, so the outline itself survives compression untouched. Approved
@@ -83,6 +89,11 @@ a rewrite each time, not an iteration:
 No 2x -- the source is 1024px wide either way, so there's no higher-resolution original to
 derive one from. Writes `koi-banner.png` and `koi-banner.webp` (lossless), both 1024x395,
 both committed and both smoke-tested alongside the mark's own assets in `koi-assets.test.ts`.
+
+Two review sheets show that committed `koi-banner.png` on both kinds of background:
+`brand/review/koi-banner-ondark-preview.png` (composited on deep navy `#0A2038`) and
+`brand/review/koi-banner-onlight-preview.png` (on white), both 1024x395. Like the other files
+in `brand/review/`, nothing in the app loads them.
 
 **The banner is the one brand asset that does not recolour with the theme** -- a fixed-colour
 photographic/illustrated composition, not a `--rb-*`-tokenised graphic like the mark. The
