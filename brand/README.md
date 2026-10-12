@@ -16,11 +16,14 @@ code that uses them and are traced/produced from these.
 | `koi-banner-navy.jpg` | Same composition, 1024x377, on a flat deep-navy background (no checkerboard); a 4:2:0 chroma-subsampled JPEG | kenzen#92's second attempt, unrecoverable at the edges (see below) -- kept for history, never derived from |
 | `mascot-concept-sheet.jpg` | The four-mascot concept sheet (Komainu guardian, Tech-botanist, Code Stream Koi, Code medic bot), watermarked | Palette and character reference |
 
-Every file here is a JPEG with no alpha channel: a checkerboard is baked in place of
-transparency, except in `koi-banner-navy.jpg`, whose background is flat navy instead. Do not
-place any of these on a page directly. (`koi-banner-navy.jpg`, the flat-navy re-export,
-briefly stood in for `koi-banner-light.jpg` -- see "Deriving the empty-state banner" below for
-why it didn't work out. It was committed later, on 2026-10-11, for history only.)
+Every file here is a JPEG with no alpha channel. The four cut-out sources (`koi-teal.jpg`,
+`status-shields.jpg`, `koi-banner-silver.jpg`, `koi-banner-light.jpg`) have a checkerboard
+baked in place of transparency; the two reference sheets (`koi-mark-glyphs.jpg`,
+`mascot-concept-sheet.jpg`) sit on plain light grey; `koi-banner-navy.jpg` is on flat navy. Do
+not place any of these on a page directly. (`koi-banner-navy.jpg`, the flat-navy re-export,
+was briefly the banner source between `koi-banner-silver.jpg` and `koi-banner-light.jpg` --
+see "Deriving the empty-state banner" below for why it didn't work out. It was committed later,
+on 2026-10-11, for history only.)
 
 ## Deriving the shipped mark
 
