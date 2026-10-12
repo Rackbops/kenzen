@@ -24,9 +24,9 @@ own background signature; the exact technique depends on what that background ac
   the koi and binary streams on a baked LIGHT checkerboard (~25px cells, tones ~237/~254),
   with a real dark outline around the koi this time (two earlier sources: `koi-banner-
   silver.jpg`'s dark checkerboard, kept in `brand/source/` for history but no longer derived
-  from; and a flat-navy re-export, never committed at all -- it turned out unrecoverable at
-  the edges, 4:2:0 JPEG chroma subsampling put the outline at the same colour as the
-  background).
+  from; and a flat-navy re-export, committed later as `koi-banner-navy.jpg` for history but
+  never read here -- it turned out unrecoverable at the edges, 4:2:0 JPEG chroma subsampling
+  put the outline at the same colour as the background).
   `derive_banner()` is ported verbatim (numbers and all -- tuned by eye against this exact
   source, do not "improve" them without re-checking with roshne). No checker-grid model: the
   checker isn't a strict parity grid (a tile seam puts two light cells side by side, which
