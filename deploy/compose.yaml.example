@@ -59,7 +59,7 @@ services:
     # sidecar (`docker compose --profile tunnel pull cloudflared` then
     # `docker compose --profile tunnel up -d cloudflared`).
     # packages/server/src/ci-hygiene.test.ts fails on a :latest or untagged image here.
-    image: cloudflare/cloudflared:2026.9.3
+    image: cloudflare/cloudflared:2026.10.1
     command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
