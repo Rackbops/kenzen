@@ -38,7 +38,10 @@ test("main.tsx does not mount the app until bootTheme's promise resolves", async
   // `bootTheme(...)`, without letting bootTheme's own promise resolve yet. If main.tsx
   // mounted the tree BEFORE awaiting bootTheme (the order flip this test guards against),
   // #root would already be populated by the time bootTheme has been called.
-  await vi.waitFor(() => expect(bootTheme).toHaveBeenCalledTimes(1))
+  // 10 s, not the 1 s default: under the parallel `pnpm -r test` the dynamic import competes with
+  // the other packages' suites and can take longer than 1 s (kenzen#140). Still bounded, so a
+  // main.tsx that never calls bootTheme fails.
+  await vi.waitFor(() => expect(bootTheme).toHaveBeenCalledTimes(1), { timeout: 10_000 })
   expect(document.getElementById("root")?.childElementCount).toBe(0)
 
   resolveBoot("arcane-obsidian")
@@ -47,7 +50,10 @@ test("main.tsx does not mount the app until bootTheme's promise resolves", async
   // React 19's createRoot().render() commits asynchronously (scheduler-driven), so the DOM
   // update lands a tick or two after the module's own await resolves -- wait for it rather
   // than asserting on the same microtask.
-  await vi.waitFor(() => {
-    expect(document.getElementById("root")?.childElementCount).toBeGreaterThan(0)
-  })
-})
+  await vi.waitFor(
+    () => {
+      expect(document.getElementById("root")?.childElementCount).toBeGreaterThan(0)
+    },
+    { timeout: 10_000 },
+  )
+}, 30_000)

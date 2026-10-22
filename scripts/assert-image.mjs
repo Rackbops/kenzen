@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url"
 // containing a recognizable marker. Simplified from Rackbops/artifact-console's
 // scripts/assert-image.mjs (design.md section 3) -- Kenzen has no plugin host, so there is no
 // import map or vendor-specifier ABI to pin here; that check is AC-specific. Driven by
-// .github/workflows/image-ratchet.yml against a real container on the `docker` pool; unit-tested
-// against fixture servers in packages/server/src/image-assert.test.ts. Uses only global fetch,
+// .github/workflows/image-ratchet.yml against a real container on GitHub-hosted `ubuntu-latest`;
+// unit-tested against fixture servers in packages/server/src/image-assert.test.ts. Uses only global fetch,
 // so it runs with plain `node`.
 
 /**
