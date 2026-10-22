@@ -3,16 +3,18 @@ import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 
 // Repo-wide CI/infra hygiene (Tooling#478 K4-1), homed here since none of the three
-// packages own it more specifically than another. Reads the real workflow file as text
-// rather than taking on a YAML-parser dependency for one check -- a lightweight guard
-// against a regressed fork guard, a `secrets: inherit` reintroduction, or a workflow left on
-// a self-hosted runner after the repo went public, all of which have real incidents behind them
-// (Tooling#310, kenzen#142).
-// Strips `#`-comments before matching -- both workflow files document, in prose, exactly
-// the mistakes these checks guard against (e.g. "never via `secrets: inherit`"), so
-// matching the raw text would false-positive on the comment explaining why NOT to do the
-// thing. Neither file uses a literal `#` inside a quoted value, so a per-line strip is
-// safe here without a real YAML parser.
+// packages own it more specifically than another. Reads the real workflow files
+// (push-notify.yml, test.yml, image-ratchet.yml, release.yml), the Dockerfile and
+// deploy/compose.yaml.example as text rather than taking on a YAML-parser dependency -- a
+// lightweight guard against a regressed fork guard, a `secrets: inherit` reintroduction, or a
+// workflow left on a self-hosted runner after the repo went public, all of which have real
+// incidents behind them (Tooling#310, kenzen#142).
+// Strips `#`-comments before matching -- these files document, in prose, exactly the mistakes
+// the checks guard against (e.g. "never via `secrets: inherit`"), so matching the raw text
+// would false-positive on the comment explaining why NOT to do the thing. None of the six
+// files has a literal `#` inside a quoted value or a non-comment `#` (checked 2026-10-22: every
+// `#` that follows a non-space character sits inside a comment), so a per-line strip is safe
+// here without a real YAML parser.
 function code(yaml: string): string {
   return yaml
     .split("\n")
