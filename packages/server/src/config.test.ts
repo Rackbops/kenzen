@@ -7,9 +7,13 @@ import { resolveConfig } from "./config.js"
 // regression tests, proven byte-identical for prefix "KENZEN". This file covers only what's
 // genuinely Kenzen's own: the Access-identity fields this wrapper adds.
 
+// `platform: "linux"` pins the container-default case these tests assume (`/state`, `/config`):
+// node-app-kit 0.1.4+ refuses those defaults when the host reports win32, so without it this
+// file fails on a Windows dev machine (CI is ubuntu) -- the guard itself is node-app-kit's to test.
 const opts = (readFile: (path: string) => string | null) => ({
   readFile,
   defaultStaticDir: "/app/public",
+  platform: "linux",
 })
 
 describe("resolveConfig", () => {

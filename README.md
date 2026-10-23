@@ -49,9 +49,11 @@ KENZEN_STATE_DIR=<fresh dir> KENZEN_CONFIG_DIR=<fresh dir> KENZEN_INGEST_TOKEN=<
 ```
 
 **Always set `KENZEN_STATE_DIR`/`KENZEN_CONFIG_DIR` to a fresh, explicit directory for any local
-run.** With neither set, `@rackbops/node-app-kit` defaults `stateDir` to `/state`, which resolves
-on Windows to the *current drive's root* -- shared across every worktree and every boot. See
-[`CLAUDE.md`'s Key gotchas](CLAUDE.md#key-gotchas) (kenzen#72) for the full mechanism.
+run.** With neither set, `@rackbops/node-app-kit` defaults `stateDir` to `/state` and `configDir`
+to `/config`, which resolve on Windows to the *current drive's root* -- shared across every
+worktree and every boot. Before node-app-kit 0.1.4 it took that default silently; 0.1.4 refuses
+to start instead. See [`CLAUDE.md`'s Key gotchas](CLAUDE.md#key-gotchas) (kenzen#72) for the full
+mechanism.
 
 ## Theme
 
