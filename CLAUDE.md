@@ -63,8 +63,9 @@ scaffolded now (Tooling#478 K4-1) and filled in their own child issue:
   Before node-app-kit 0.1.4 that default was taken silently: every worktree on the same drive,
   and every separate local run, read and wrote that one file, and a live-probe measured stale
   synthetic advisory data left by an earlier run before this was noticed. 0.1.4 throws instead
-  (`refuseRootDefault`, `dist/config.js:76-80`, called at `:21` and `:54`). **Always pass
-  `KENZEN_STATE_DIR` (and `KENZEN_CONFIG_DIR`)** to an explicit, fresh directory for any local
+  (`refuseRootDefault`, `dist/config.js:76-80`, called at `:21` and `:54`), and it does so for an
+  unset `KENZEN_CONFIG_DIR` even when `KENZEN_STATE_DIR` is set. **Always pass both
+  `KENZEN_STATE_DIR` and `KENZEN_CONFIG_DIR`** to an explicit, fresh directory for any local
   smoke test or probe -- both names come straight from the `prefix` kenzen passes node-app-kit
   (`packages/server/src/config.ts:35`, `resolveBaseConfig(env, { ...options, prefix:
   "KENZEN" })`) through node-app-kit's own `${p}_STATE_DIR`/`${p}_CONFIG_DIR` env lookups
