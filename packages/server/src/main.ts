@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { createLogger } from "@rackbops/node-app-kit/log"
@@ -9,6 +8,7 @@ import type { VerifyAccessJwt } from "./access-identity.js"
 import { createAccessJwtVerifier, normalizeTeamDomain } from "./access-identity.js"
 import { createApp } from "./app.js"
 import { resolveConfig } from "./config.js"
+import { readFileOrNull } from "./read-file.js"
 import { startServer } from "./server.js"
 
 /**
@@ -21,14 +21,6 @@ import { startServer } from "./server.js"
  * a second boot applying zero migrations; K4-4's: ingesting the real Tooling files and a
  * missing KENZEN_INGEST_TOKEN refusing to start).
  */
-
-function readFileOrNull(path: string): string | null {
-  try {
-    return readFileSync(path, "utf8")
-  } catch {
-    return null
-  }
-}
 
 /**
  * KENZEN_INGEST_TOKEN is a secret (design.md section 4.2: "generated once... never in either

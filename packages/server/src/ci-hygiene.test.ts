@@ -191,6 +191,22 @@ describe("release.yml hygiene", () => {
     expect(release).not.toMatch(/arm64/)
   })
 
+  it("pushes :latest only when the built tag is the newest stable tag", () => {
+    // Rebuilding an older tag (workflow_dispatch) or a hotfix on an older line must not move
+    // :latest back; the deploy timer would roll production back (rackbops-web-deploy-template#122).
+    // fetch-depth 0 is load-bearing: a tag checkout is shallow, so without it the newest tag is
+    // always the one being built and the guard silently passes.
+    expect(release).toMatch(/fetch-depth:\s*0/)
+    expect(release).toMatch(/steps\.meta\.outputs\.latest\s*==\s*'true'/)
+    expect(release).not.toMatch(/^\s*ghcr\.io\/rackbops\/kenzen:latest\s*$/m)
+  })
+
+  it("serialises releases so an older build cannot finish after a newer one", () => {
+    expect(release).toMatch(
+      /concurrency:\s*\n\s*group:\s*release\s*\n\s*cancel-in-progress:\s*false/,
+    )
+  })
+
   it("verifies the tag against packages/server/package.json before publishing", () => {
     expect(release).toMatch(/version-tag\.mjs/)
   })
