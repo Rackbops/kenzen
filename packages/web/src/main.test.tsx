@@ -8,6 +8,10 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest"
 // (a router/fetch-heavy tree unrelated to what this file tests) so the only thing under
 // test is main.tsx's own ordering.
 
+// Module-level stand-in for ./App.js (biome noComponentHookFactories: a component must not be
+// defined inside the doMock factory function).
+const MockApp = () => <div data-testid="app-marker">app</div>
+
 beforeEach(() => {
   document.body.innerHTML = '<div id="root"></div>'
 })
@@ -29,7 +33,7 @@ test("main.tsx does not mount the app until bootTheme's promise resolves", async
       }),
   )
   vi.doMock("./theme.js", () => ({ bootTheme }))
-  vi.doMock("./App.js", () => ({ App: () => <div data-testid="app-marker">app</div> }))
+  vi.doMock("./App.js", () => ({ App: MockApp }))
 
   const importPromise = import("./main.js")
 
